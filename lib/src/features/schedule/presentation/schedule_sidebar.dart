@@ -1,12 +1,17 @@
-import '../../sync/account_recovery_feedback.dart';
+import '../../../l10n/nextcloud_collection_error_description.dart';
+import '../../../schedule/schedule_task_list_actions.dart';
+import '../../../schedule/schedule_provider_links.dart';
+export '../../../schedule/schedule_provider_links.dart';
+import '../../sync/sync_request.dart';
+import '../../sync/sync_activity_icon.dart';
+import '../../sync/linux_sync_feedback.dart';
+import '../../../platform/gtk_animation_settings_service.dart';
 import '../../../l10n/oauth_error_description.dart';
-import '../../../core/http/request_dispatch_exception.dart';
 
 import 'dart:async';
 import 'dart:math' as math;
 
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
-import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +27,7 @@ import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/sync_outcome_description.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_sidebar_order.dart';
@@ -34,7 +40,6 @@ import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
-import '../../tasks/domain/task_capabilities.dart';
 
 import 'package:busymax/src/providers/busy_provider.dart';
 
@@ -168,6 +173,7 @@ class _SourceRow extends ConsumerWidget {
       leading: _SourceIcon(
         icon: YaruIcons.calendar,
         seed: source.id,
+        scope: calendarSyncScope(source.accountId, source.id),
         colorHex: calendarSourceBackgroundColorHex(
           provider: source.provider,
           backgroundColor: source.backgroundColor,
@@ -200,7 +206,13 @@ class _SourceRow extends ConsumerWidget {
                   accountId: account.id,
                 );
               case 'refresh':
-                unawaited(_refreshCalendarSource(context, ref, source));
+                unawaited(
+                  refreshFromLinux(
+                    context,
+                    ref,
+                    calendarSyncScope(source.accountId, source.id),
+                  ),
+                );
               case 'open':
                 if (providerWebUri != null) {
                   unawaited(_openProviderWeb(providerWebUri));
@@ -236,7 +248,11 @@ class _SourceRow extends ConsumerWidget {
               value: 'refresh',
               label: context.l10n.refreshCalendar,
               icon: YaruIcons.refresh,
-              enabled: account.isSyncEligible,
+              enabled:
+                  account.isSyncEligible &&
+                  !ref
+                      .watch(accountSyncActivityProvider)
+                      .busy(calendarSyncScope(source.accountId, source.id)),
               tooltip: account.needsReconnect
                   ? accountReconnectRequiredSyncMessage
                   : null,
@@ -462,6 +478,13 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
       taskListCreationRunning: _creatingTaskList,
     );
     final headerActions = <_AccountHeaderCollectionAction>[
+      _AccountHeaderCollectionAction(
+        action: AccountHeaderCollectionAction.refresh,
+        enabled:
+            account.hasConnectionIssue ||
+            account.isSyncEligible &&
+                networkAvailability != NetworkAvailability.offline,
+      ),
       if (account.provider == BusyProvider.nextcloud)
         _AccountHeaderCollectionAction(
           action: AccountHeaderCollectionAction.trash,
@@ -580,6 +603,12 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
     AccountHeaderCollectionAction action,
   ) async {
     switch (action) {
+      case AccountHeaderCollectionAction.refresh:
+        await refreshFromLinux(
+          context,
+          ref,
+          accountSyncScope(widget.account.id),
+        );
       case AccountHeaderCollectionAction.trash:
         await showLinuxNextcloudTrashDialog(
           context,
@@ -679,6 +708,7 @@ class _SubscriptionSourceRow extends ConsumerWidget {
       leading: _SourceIcon(
         icon: YaruIcons.calendar,
         seed: source.id,
+        scope: calendarSyncScope(source.accountId, source.id),
         colorHex: source.backgroundColor,
       ),
       trailing: _SourceRowActions(
@@ -704,7 +734,13 @@ class _SubscriptionSourceRow extends ConsumerWidget {
                   siblingIds,
                 );
               case 'refresh':
-                unawaited(_refreshSubscriptionSource(context, ref, source));
+                unawaited(
+                  refreshFromLinux(
+                    context,
+                    ref,
+                    calendarSyncScope(source.accountId, source.id),
+                  ),
+                );
               case 'rename':
                 unawaited(_renameSubscriptionSource(context, ref, source));
               case 'color':
@@ -717,7 +753,7 @@ class _SubscriptionSourceRow extends ConsumerWidget {
             ..._movementEntries(context, source.id, siblingIds),
             BusyMaxMenuEntry(
               value: 'refresh',
-              label: context.l10n.refreshNow,
+              label: context.l10n.refreshCalendar,
               icon: YaruIcons.refresh,
             ),
             BusyMaxMenuEntry(
@@ -769,12 +805,18 @@ class _AccountHeaderRow extends ConsumerWidget {
               0
         : 0;
     final colorScheme = Theme.of(context).colorScheme;
-    final secondaryLabel = _accountHeaderSecondaryLabel(account);
+    final secondaryLabel = scheduleAccountSecondaryLabel(account);
     final hasSecondaryLabel =
         secondaryLabel != null && secondaryLabel.isNotEmpty;
     final providerName = _accountProviderName(context, account.provider);
+    final activity = ref.watch(accountSyncActivityProvider);
+    final outcome = activity.outcome(accountSyncScope(account.id));
     final accountSemanticsLabel = [
       providerName,
+      if (activity.accountRunning(account.id))
+        context.l10n.traySyncing
+      else if (outcome != null || activity.accountHasFailure(account.id))
+        syncOutcomeDescription(context.l10n, outcome?.disposition),
       account.displayLabel,
       if (hasSecondaryLabel) secondaryLabel,
       if (pending > 0)
@@ -831,13 +873,23 @@ class _AccountHeaderRow extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: BusyMaxSpacing.xs),
-                        _AccountProviderIndicator(
-                          key: ValueKey((
-                            'account-provider-indicator',
-                            account.id,
-                          )),
-                          provider: account.provider,
-                          providerName: providerName,
+                        SyncActivityIcon(
+                          scope: accountSyncScope(account.id),
+                          animate:
+                              ref
+                                  .watch(gtkAnimationsEnabledProvider)
+                                  .valueOrNull !=
+                              false,
+                          refresh: const Icon(YaruIcons.refresh, size: 16),
+                          warning: const Icon(YaruIcons.warning, size: 16),
+                          child: _AccountProviderIndicator(
+                            key: ValueKey((
+                              'account-provider-indicator',
+                              account.id,
+                            )),
+                            provider: account.provider,
+                            providerName: providerName,
+                          ),
                         ),
                       ],
                     ),
@@ -876,6 +928,8 @@ class _AccountHeaderRow extends ConsumerWidget {
                   BusyMaxMenuEntry(
                     value: item.action,
                     label: switch (item.action) {
+                      AccountHeaderCollectionAction.refresh =>
+                        context.l10n.refreshAccount,
                       AccountHeaderCollectionAction.trash =>
                         context.l10n.nextcloudTrash,
                       AccountHeaderCollectionAction.newCalendar =>
@@ -888,6 +942,8 @@ class _AccountHeaderRow extends ConsumerWidget {
                         context.l10n.moveDown,
                     },
                     icon: switch (item.action) {
+                      AccountHeaderCollectionAction.refresh =>
+                        YaruIcons.refresh,
                       AccountHeaderCollectionAction.trash => YaruIcons.trash,
                       AccountHeaderCollectionAction.moveUp =>
                         Icons.arrow_upward,
@@ -923,28 +979,6 @@ class _AccountHeaderRow extends ConsumerWidget {
       ),
     );
   }
-}
-
-String? _accountHeaderSecondaryLabel(AccountEntity account) {
-  final secondaryLabel = account.secondaryLabel;
-  if (secondaryLabel != null && secondaryLabel.isNotEmpty) {
-    return secondaryLabel;
-  }
-  if (account.provider != BusyProvider.nextcloud) return null;
-
-  final authority = Uri.tryParse(account.authority);
-  if (authority == null || authority.host.isEmpty) return null;
-
-  final scheme = authority.scheme.toLowerCase();
-  final hasDefaultPort =
-      (scheme == 'https' && authority.port == 443) ||
-      (scheme == 'http' && authority.port == 80);
-  if (!authority.hasPort || hasDefaultPort) return authority.host;
-
-  final host = authority.host.contains(':')
-      ? '[${authority.host}]'
-      : authority.host;
-  return '$host:${authority.port}';
 }
 
 class _AccountProviderIndicator extends StatelessWidget {
@@ -1053,16 +1087,23 @@ class _AccountCalendarSources extends ConsumerWidget {
   }
 }
 
-class _SourceIcon extends StatelessWidget {
-  const _SourceIcon({required this.icon, this.seed, this.colorHex, this.color});
+class _SourceIcon extends ConsumerWidget {
+  const _SourceIcon({
+    required this.icon,
+    required this.scope,
+    this.seed,
+    this.colorHex,
+    this.color,
+  });
 
   final IconData icon;
+  final SyncScope scope;
   final String? seed;
   final String? colorHex;
   final Color? color;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final resolvedColor =
         color ??
         _colorFromHex(colorHex) ??
@@ -1070,7 +1111,13 @@ class _SourceIcon extends StatelessWidget {
           seed ?? '',
           Theme.of(context).colorScheme.brightness,
         );
-    return Icon(icon, size: 16, color: resolvedColor);
+    return SyncActivityIcon(
+      scope: scope,
+      animate: ref.watch(gtkAnimationsEnabledProvider).valueOrNull != false,
+      refresh: Icon(YaruIcons.refresh, size: 16, color: resolvedColor),
+      warning: Icon(YaruIcons.warning, size: 16, color: resolvedColor),
+      child: Icon(icon, size: 16, color: resolvedColor),
+    );
   }
 }
 
@@ -1108,8 +1155,16 @@ class _TaskListScheduleRow extends ConsumerWidget {
                 )),
               )
               .valueOrNull;
-    final canRename = _canRenameTaskList(account, list, davCapabilities);
-    final canDelete = _canDeleteTaskList(account, list, davCapabilities);
+    final canRename = canRenameScheduleTaskList(
+      account.provider,
+      list,
+      davCapabilities,
+    );
+    final canDelete = canDeleteScheduleTaskList(
+      account.provider,
+      list,
+      davCapabilities,
+    );
     final renameRestriction = _taskListRenameRestriction(
       context,
       account,
@@ -1126,6 +1181,7 @@ class _TaskListScheduleRow extends ConsumerWidget {
       title: title,
       leading: _SourceIcon(
         icon: YaruIcons.task_list,
+        scope: taskListSyncScope(list.accountId, list.id),
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       trailing: _SourceRowActions(
@@ -1158,7 +1214,13 @@ class _TaskListScheduleRow extends ConsumerWidget {
                   accountId: account.id,
                 );
               case 'refresh':
-                unawaited(_refreshTaskListAccount(context, ref, account.id));
+                unawaited(
+                  refreshFromLinux(
+                    context,
+                    ref,
+                    taskListSyncScope(list.accountId, list.id),
+                  ),
+                );
               case 'open':
                 if (providerWebUri != null) {
                   unawaited(_openProviderWeb(providerWebUri));
@@ -1192,7 +1254,11 @@ class _TaskListScheduleRow extends ConsumerWidget {
               value: 'refresh',
               label: context.l10n.refreshList,
               icon: YaruIcons.refresh,
-              enabled: account.isSyncEligible,
+              enabled:
+                  account.isSyncEligible &&
+                  !ref
+                      .watch(accountSyncActivityProvider)
+                      .busy(taskListSyncScope(list.accountId, list.id)),
               tooltip: account.needsReconnect
                   ? accountReconnectRequiredSyncMessage
                   : null,
@@ -1247,183 +1313,8 @@ Color? _colorFromHex(String? value) {
   return parsed == null ? null : Color(0xff000000 | parsed);
 }
 
-@visibleForTesting
-Uri? scheduleCalendarProviderWebUri(
-  AccountEntity account,
-  CalendarSourceEntity source,
-) {
-  if (source.accountId != account.id || source.provider != account.provider) {
-    return null;
-  }
-  return switch (account.provider) {
-    BusyProvider.google => Uri.https('calendar.google.com', '/calendar/u/0/r', {
-      'cid': source.providerCalendarId,
-    }),
-    BusyProvider.microsoft => Uri.https(
-      'outlook.live.com',
-      '/calendar/0/view/month',
-    ),
-    BusyProvider.appleICloud => null,
-    BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
-    BusyProvider.webCal => null,
-    BusyProvider.caldav => null,
-  };
-}
-
-@visibleForTesting
-Uri? scheduleTaskProviderWebUri(AccountEntity account) {
-  return switch (account.provider) {
-    BusyProvider.google => Uri.https('tasks.google.com', '/'),
-    BusyProvider.microsoft => Uri.https('to-do.office.com', '/tasks/'),
-    BusyProvider.appleICloud => null,
-    BusyProvider.nextcloud => _safeAccountWebUri(account.authority),
-    BusyProvider.webCal => null,
-    BusyProvider.caldav => null,
-  };
-}
-
-Uri? _safeAccountWebUri(String authority) {
-  final uri = Uri.tryParse(authority.trim());
-  if (uri == null ||
-      uri.scheme.toLowerCase() != 'https' ||
-      uri.host.isEmpty ||
-      uri.userInfo.isNotEmpty ||
-      uri.hasQuery ||
-      uri.hasFragment) {
-    return null;
-  }
-  return uri;
-}
-
 Future<void> _openProviderWeb(Uri uri) async {
   await launchUrl(uri, mode: LaunchMode.externalApplication);
-}
-
-Future<void> _refreshCalendarSource(
-  BuildContext context,
-  WidgetRef ref,
-  CalendarSourceEntity source,
-) async {
-  if (!await _manualRefreshAccountIsEligible(context, ref, source.accountId)) {
-    return;
-  }
-  final generation = await ref.read(authorizationGenerationReaderProvider)(
-    source.accountId,
-  );
-  try {
-    await ref
-        .read(accountSyncOperationsProvider)
-        .syncCalendar(source.accountId, full: false);
-  } on Object catch (error) {
-    if (!context.mounted) {
-      return;
-    }
-    await _handleRefreshFailure(
-      context,
-      ref,
-      source.accountId,
-      AuthorizationScopedFailure(
-        accountId: source.accountId,
-        generation: generation,
-        cause: error,
-      ),
-    );
-  }
-}
-
-Future<void> _refreshTaskListAccount(
-  BuildContext context,
-  WidgetRef ref,
-  String accountId,
-) async {
-  if (!await _manualRefreshAccountIsEligible(context, ref, accountId)) {
-    return;
-  }
-  final generation = await ref.read(authorizationGenerationReaderProvider)(
-    accountId,
-  );
-  try {
-    await ref
-        .read(accountSyncOperationsProvider)
-        .syncTasks(accountId, full: false);
-  } on Object catch (error) {
-    if (!context.mounted) {
-      return;
-    }
-    await _handleRefreshFailure(
-      context,
-      ref,
-      accountId,
-      AuthorizationScopedFailure(
-        accountId: accountId,
-        generation: generation,
-        cause: error,
-      ),
-    );
-  }
-}
-
-Future<void> _handleRefreshFailure(
-  BuildContext context,
-  WidgetRef ref,
-  String accountId,
-  Object error,
-) async {
-  await showAccountSyncFailure(context, ref, accountId, error);
-}
-
-Future<bool> _manualRefreshAccountIsEligible(
-  BuildContext context,
-  WidgetRef ref,
-  String accountId,
-) async {
-  final account = await ref
-      .read(accountsRepositoryProvider)
-      .accountById(accountId);
-  if (account?.isSyncEligible == true) {
-    return true;
-  }
-  if (account?.needsReconnect == true && context.mounted) {
-    await showAccountSyncFailure(
-      context,
-      ref,
-      accountId,
-      const AccountNotSyncEligibleException(needsReconnect: true),
-    );
-  }
-  return false;
-}
-
-bool _canRenameTaskList(
-  AccountEntity account,
-  TaskListEntity list,
-  TaskCollectionCapabilities? davCapabilities,
-) {
-  if (account.provider == BusyProvider.microsoft) {
-    return list.canRenameOrDeleteForMicrosoft;
-  }
-  if (list.davCollectionId != null) {
-    return davCapabilities?.supportsListRename ?? false;
-  }
-  return true;
-}
-
-bool _canDeleteTaskList(
-  AccountEntity account,
-  TaskListEntity list,
-  TaskCollectionCapabilities? davCapabilities,
-) {
-  if (account.provider == BusyProvider.caldav &&
-      (list.isShared == true || list.davCollectionId == null)) {
-    return false;
-  }
-  if (account.provider == BusyProvider.microsoft) {
-    return list.canRenameOrDeleteForMicrosoft;
-  }
-  if (list.davCollectionId != null) {
-    return davCapabilities?.supportsListDelete ?? false;
-  }
-  return true;
 }
 
 String? _taskListRenameRestriction(
@@ -1491,6 +1382,7 @@ String? _calendarDeleteRestriction(
 }
 
 enum AccountHeaderCollectionAction {
+  refresh,
   trash,
   newCalendar,
   newTaskList,
@@ -1602,12 +1494,13 @@ Future<void> _createAccountTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(account.id))
         .createTaskList(title);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1674,19 +1567,13 @@ Future<void> _changeCalendarColor(
         .read(calendarRepositoryProvider)
         .setSourceColor(source.id, choice);
     _requestCalendarMutationSync(ref, source.accountId);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
-  } on NextcloudRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(
-        context,
-        context.l10n.nextcloudRefreshPending,
-      );
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       _showCalendarMutationFailure(
         context,
         context.l10n.calendarUpdateFailed(
@@ -1728,19 +1615,13 @@ Future<void> _renameCalendar(
         .read(calendarRepositoryProvider)
         .renameLocalSource(source.id, title.trim());
     _requestCalendarMutationSync(ref, source.accountId);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
-  } on NextcloudRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(
-        context,
-        context.l10n.nextcloudRefreshPending,
-      );
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       _showCalendarMutationFailure(
         context,
         context.l10n.calendarUpdateFailed(
@@ -1785,19 +1666,13 @@ Future<void> _deleteCalendar(
   try {
     await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
     _requestCalendarMutationSync(ref, source.accountId);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
-  } on NextcloudRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(
-        context,
-        context.l10n.nextcloudRefreshPending,
-      );
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       final message =
           (error is CalendarMutationNotAllowed &&
                   error.reason ==
@@ -1848,12 +1723,13 @@ Future<void> _renameTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(list.accountId))
         .renameTaskList(list.id, title.trim());
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1900,12 +1776,13 @@ Future<void> _deleteTaskList(
     await ref
         .read(taskListsRepositoryForAccountProvider(list.accountId))
         .deleteTaskList(list.id);
-  } on DavRefreshPending {
-    if (context.mounted) {
-      _showCalendarMutationFailure(context, context.l10n.davRefreshPending);
-    }
   } on Object catch (error) {
     if (context.mounted) {
+      if (localizedCollectionRefreshPending(context.l10n, error)
+          case final warning?) {
+        _showCalendarMutationFailure(context, warning);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1936,22 +1813,6 @@ Future<WebCalSubscriptionEntity?> _subscriptionForSource(
   return subscriptions
       .where((subscription) => subscription.calendarSourceId == source.id)
       .firstOrNull;
-}
-
-Future<void> _refreshSubscriptionSource(
-  BuildContext context,
-  WidgetRef ref,
-  CalendarSourceEntity source,
-) async {
-  try {
-    final subscription = await _subscriptionForSource(ref, source);
-    if (subscription == null) return;
-    await ref
-        .read(webCalSubscriptionServiceProvider)
-        .refreshSubscription(subscription.id, force: true);
-  } on Object catch (error) {
-    if (context.mounted) _showWebCalError(context, error);
-  }
 }
 
 Future<void> _renameSubscriptionSource(

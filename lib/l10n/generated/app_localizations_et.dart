@@ -1440,10 +1440,48 @@ class AppLocalizationsEt extends AppLocalizations {
   String get refreshAll => 'Värskenda kõiki';
 
   @override
-  String get listRefreshed => 'Loend on värskendatud.';
+  String get refreshAccount => 'Värskenda kontot';
 
   @override
-  String get allTasksRefreshed => 'Kõik kontod on värskendatud.';
+  String get refreshCollection => 'Värskenda kogu';
+
+  @override
+  String get syncPartiallyCompleted => 'Värskendamine osaliselt lõpetatud';
+
+  @override
+  String get syncDeferred => 'Värskendamine edasi lükatud';
+
+  @override
+  String get syncPendingChanges => 'Kohalikud muudatused ootel';
+
+  @override
+  String get syncFailedLocalChanges =>
+      'Mõnda kohalikku muudatust ei saanud sünkroonida';
+
+  @override
+  String get syncQueued => 'Värskendus on järjekorras';
+
+  @override
+  String get syncNotYetRefreshed => 'Veel sünkroonimata';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'Viimati värskendatud $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'Sündmuste kaetus';
+
+  @override
+  String get scheduleCoveragePending =>
+      'Selle ajavahemiku sündmusi kontrollitakse või pole veel kontrollitud.';
+
+  @override
+  String get scheduleCoverageVerified =>
+      'Selle ajavahemiku sündmused on kontrollitud.';
+
+  @override
+  String get listRefreshed => 'Loend on värskendatud.';
 
   @override
   String exportedFile(String path) {
@@ -2092,7 +2130,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'Laadib kõigi ühendatud kontode andmed täielikult uuesti. Kasutage seda ainult sünkroonimisprobleemide tõrkeotsinguks.';
+      'Loob toetatud kontode kalendrite ja ülesannete sünkroonimise lähteoleku uuesti ning kontrollib tellimusi. Kasutage seda sünkroonimisprobleemide tõrkeotsinguks.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -2117,9 +2155,6 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'Nõuab süsteemisalve ikooni.';
-
-  @override
-  String get syncComplete => 'Sünkroonimine on lõpetatud.';
 
   @override
   String syncFailed(String error) {
@@ -3999,4 +4034,10 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'See manus on vigane või ületab suurusepiirangu.';
+
+  @override
+  String get moveEvent => 'Teisalda sündmus';
+
+  @override
+  String get agendaLoadMoreDays => 'Laadi rohkem päevi';
 }

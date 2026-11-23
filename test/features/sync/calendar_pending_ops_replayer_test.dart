@@ -15,7 +15,7 @@ import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
 import 'package:busymax/src/features/calendar/domain/google_status_event.dart';
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';

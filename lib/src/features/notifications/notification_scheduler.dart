@@ -11,6 +11,7 @@ import 'notification_schedule_service.dart';
 import 'reminder_presentation.dart';
 
 import 'reminder_delivery_policy.dart';
+import 'reminder_action.dart' show applyReminderAction;
 export 'reminder_delivery_policy.dart' show defaultReminderSnoozeDuration;
 
 typedef ScheduledReminderActionHandler = Future<void> Function(
@@ -492,35 +493,18 @@ class NotificationScheduler {
       }
       return;
     }
-    final updated =
-        await (_database.update(_database.notificationSchedule)..where(
-              (table) =>
-                  _sameDelivery(table, row) &
-                  table.dismissedAtUtc.isNull() &
-                  table.expiredAtUtc.isNull(),
-            ))
-            .write(
-              action == ReminderNotificationAction.snooze
-                  ? NotificationScheduleCompanion(
-                      generation: Value(const Uuid().v4()),
-                      sentAtUtc: const Value(null),
-                      deferredUntilUtc: const Value(null),
-                      snoozedUntilUtc: Value(
-                        _nowUtc().add(_snoozeDuration).millisecondsSinceEpoch,
-                      ),
-                      updatedAtLocal: Value(
-                        DateTime.now().millisecondsSinceEpoch,
-                      ),
-                    )
-                  : NotificationScheduleCompanion(
-                      dismissedAtUtc: Value(_nowUtc().millisecondsSinceEpoch),
-                      snoozedUntilUtc: const Value(null),
-                      updatedAtLocal: Value(
-                        DateTime.now().millisecondsSinceEpoch,
-                      ),
-                    ),
-            );
-    if (updated == 0) return;
+    final updated = await applyReminderAction(
+      database: _database,
+      scheduleId: row.id,
+      generation: row.generation,
+      accountId: row.accountId,
+      sourceType: row.sourceType,
+      scheduledAtUtc: row.scheduledAtUtc,
+      action: action,
+      nowUtc: _nowUtc(),
+      snoozeDuration: _snoozeDuration,
+    );
+    if (!updated) return;
     final deliveryId = _deliveryId(row);
     await _cancelReminder(deliveryId);
     _deferredUntilUtc.remove(deliveryId);

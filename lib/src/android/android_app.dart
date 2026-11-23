@@ -1,3 +1,5 @@
+import 'android_sync_activity.dart';
+import '../features/sync/domain_sync_schedule.dart';
 import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/daily_summary_policy.dart';
 
@@ -11,7 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../app/app_bootstrap.dart';
-import '../app/common/busymax_motion_widgets.dart';
+import '../app/busymax_surface_colors.dart';
 import '../l10n/app_locale.dart';
 import '../l10n/locale_resolution.dart';
 import '../l10n/l10n.dart';
@@ -22,9 +24,7 @@ import 'android_notifications.dart';
 import 'presentation/android_schedule_screen.dart';
 import 'presentation/android_settings_screen.dart';
 import 'presentation/android_diagnostics_screen.dart';
-import 'presentation/android_tasks_screen.dart';
-
-final androidSelectedDestinationProvider = StateProvider<int>((ref) => 0);
+import 'android_workspace_navigation.dart';
 
 class AndroidBusyMaxApp extends ConsumerStatefulWidget {
   const AndroidBusyMaxApp({super.key});
@@ -45,7 +45,9 @@ class _AndroidBusyMaxAppState extends ConsumerState<AndroidBusyMaxApp> {
   }
 
   void _platformChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -61,6 +63,7 @@ class _AndroidBusyMaxAppState extends ConsumerState<AndroidBusyMaxApp> {
     final settings = ref.watch(appSettingsControllerProvider);
     return MaterialApp(
       restorationScopeId: 'busymax_android',
+      navigatorObservers: [androidWorkspaceRouteObserver],
       debugShowCheckedModeBanner: false,
       onGenerateTitle: (_) => 'BusyMax',
       locale: settings.locale,
@@ -101,19 +104,47 @@ class _AndroidBusyMaxAppState extends ConsumerState<AndroidBusyMaxApp> {
   }
 
   ThemeData _theme(Brightness brightness) {
+    final surfaces = busyMaxFallbackSurfaceColors(brightness);
     final scheme = ColorScheme.fromSeed(
       seedColor: const Color(0xff6d28d9),
       brightness: brightness,
     );
     return ThemeData(
       useMaterial3: true,
-      colorScheme: scheme,
+      colorScheme: scheme.copyWith(
+        surface: surfaces.window,
+        onSurface: surfaces.foreground,
+        onSurfaceVariant: surfaces.mutedForeground,
+        outlineVariant: surfaces.divider,
+        surfaceContainer: surfaces.card,
+        surfaceContainerLowest: surfaces.view,
+        surfaceContainerLow: surfaces.sidebar,
+        surfaceContainerHigh: surfaces.dialog,
+        surfaceContainerHighest: surfaces.popover,
+      ),
+      extensions: [surfaces],
       visualDensity: VisualDensity.standard,
-      scaffoldBackgroundColor: scheme.surface,
+      scaffoldBackgroundColor: surfaces.window,
+      appBarTheme: AppBarTheme(
+        backgroundColor: surfaces.headerbarFlat,
+        surfaceTintColor: Colors.transparent,
+      ),
       inputDecorationTheme: const InputDecorationTheme(
         border: OutlineInputBorder(),
       ),
-      cardTheme: const CardThemeData(margin: EdgeInsets.zero),
+      cardTheme: CardThemeData(
+        margin: EdgeInsets.zero,
+        color: surfaces.card,
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surfaces.sidebar,
+        surfaceTintColor: Colors.transparent,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surfaces.dialog,
+        surfaceTintColor: Colors.transparent,
+      ),
     );
   }
 }
@@ -159,16 +190,25 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _invalidateExternalDatabaseState();
+      if (ref.read(accountSyncActivityProvider.notifier)
+          case final AndroidSyncActivity activity) {
+        unawaited(activity.reconcilePlatformActivity());
+      }
       unawaited(_refresh());
     }
   }
 
   Future<void> _refresh() async {
     await ref.read(appSettingsControllerProvider.notifier).reload();
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     await ref.read(androidNotificationServiceProvider).refreshReadiness();
     try {
-      await ref.read(allAccountsSyncRunnerProvider)();
+      await withSyncTrigger(
+        SyncTrigger.foreground,
+        ref.read(allAccountsSyncRunnerProvider),
+      );
     } on Object {
       // SyncRuns and account state expose the individual failure.
     }
@@ -178,15 +218,31 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
   Future<void> _consumeInitialActivations() async {
     final document = await BusyMaxAndroidPlatform.instance
         .takeInitialActivation();
-    if (document != null) await _openDocumentActivation(document);
-    if (!mounted) return;
+    if (document != null) {
+      await _openDocumentActivation(document);
+    }
+    if (!mounted) {
+      return;
+    }
     final reminder = ref
         .read(androidNotificationServiceProvider)
         .takeInitialActivation();
-    if (reminder != null) await _openReminder(reminder);
+    if (reminder != null) {
+      await _openReminder(reminder);
+    }
   }
 
   Future<void> _handlePlatformEvent(AndroidPlatformEvent event) async {
+    if (event.type == 'syncActivity') {
+      if ((ref.read(accountSyncActivityProvider.notifier), event.data['scopes'])
+          case (
+            final AndroidSyncActivity activity,
+            final List<Object?> scopes,
+          )) {
+        activity.updateFromPlatform(scopes);
+      }
+      return;
+    }
     if (event.type == 'systemSettingsChanged') {
       final zone = await BusyMaxAndroidPlatform.instance.currentTimeZoneId();
       final uses24Hour = await BusyMaxAndroidPlatform.instance
@@ -227,6 +283,8 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
     final database = ref.read(databaseProvider);
     database.notifyUpdates({
       TableUpdate.onTable(database.davCollections),
+      TableUpdate.onTable(database.domainSyncSchedules),
+      TableUpdate.onTable(database.pendingOps),
       TableUpdate.onTable(database.davCollectionCreations),
       TableUpdate.onTable(database.davCollectionCreationAcknowledgments),
     });
@@ -241,12 +299,16 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
 
   Future<void> _openDocumentActivation(AndroidActivation activation) async {
     final uri = activation.uri;
-    if (!mounted || activation.kind != 'document' || uri == null) return;
+    if (!mounted || activation.kind != 'document' || uri == null) {
+      return;
+    }
     try {
       final document = await BusyMaxAndroidPlatform.instance.readDocumentUri(
         uri,
       );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       await showAndroidIcsImport(context, ref, document: document);
     } on Object catch (error) {
       if (mounted) {
@@ -260,12 +322,11 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
   Future<void> _openReminder(AndroidReminderActivation activation) async {
     if (activation.sourceType == 'summary') {
       final date = parseNotificationDate(activation.itemId);
-      if (date == null || !mounted) return;
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => AndroidTasksScreen(notificationDate: date),
-        ),
-      );
+      if (date == null || !mounted) {
+        return;
+      }
+      ref.read(androidWorkspaceRequestProvider.notifier).state =
+          AndroidWorkspaceRequest(date: date, summary: true);
       return;
     }
     if (activation.sourceType == 'sync-failure' ||
@@ -276,7 +337,9 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
           : await (database.select(database.accounts)
                   ..where((row) => row.id.equals(activation.accountId)))
                 .getSingleOrNull();
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       if (activation.accountId != 'all' && account == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.l10n.notificationItemUnavailable)),
@@ -310,104 +373,40 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
                   schedule.sourceType.equals(activation.sourceType),
             ))
             .getSingleOrNull();
+    final schedules = NotificationScheduleService(database: database);
+    final task = activation.sourceType == 'task';
+    final taskListId = task && row != null
+        ? await schedules.taskListForOpenReminder(row)
+        : null;
     final valid =
         row != null &&
-        await NotificationScheduleService(database: database)
-            .validateAndReconcileReminder(row, forOpen: true);
-    if (!mounted) return;
+        (task
+            ? taskListId != null
+            : await schedules.validateAndReconcileReminder(row, forOpen: true));
+    if (!mounted) {
+      return;
+    }
     if (!valid) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.l10n.notificationItemUnavailable)),
       );
       return;
     }
-    ref.read(androidSelectedDestinationProvider.notifier).state = 0;
-    if (activation.sourceType == 'event') {
-      await showAndroidEventEditor(context, ref, eventId: row.sourceId);
-    } else if (activation.sourceType == 'task') {
-      await showAndroidTaskById(
-        context,
-        ref,
-        accountId: activation.accountId,
-        taskId: row.sourceId,
-      );
-    }
+    ref
+        .read(androidWorkspaceRequestProvider.notifier)
+        .state = AndroidWorkspaceRequest(
+      date: DateTime.now(),
+      itemId: row.sourceId,
+      accountId: activation.accountId,
+      taskListId: taskListId,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final selected = ref.watch(androidSelectedDestinationProvider);
-    final destinations = <NavigationDestination>[
-      NavigationDestination(
-        icon: const Icon(Icons.calendar_today_outlined),
-        selectedIcon: const Icon(Icons.calendar_today),
-        label: context.l10n.scheduleSection,
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.checklist_outlined),
-        selectedIcon: const Icon(Icons.checklist),
-        label: context.l10n.tasks,
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.settings_outlined),
-        selectedIcon: const Icon(Icons.settings),
-        label: context.l10n.settings,
-      ),
-    ];
-    final pages = const [
-      AndroidScheduleScreen(),
-      AndroidTasksScreen(),
-      AndroidSettingsScreen(),
-    ];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useRail = constraints.maxWidth >= 840;
-        final content = BusyMaxRetainedCrossfade(
-          index: selected,
-          children: pages,
-        );
-        if (useRail) {
-          return Scaffold(
-            body: SafeArea(
-              child: Row(
-                children: [
-                  NavigationRail(
-                    selectedIndex: selected,
-                    extended: constraints.maxWidth >= 1200,
-                    onDestinationSelected: (value) =>
-                        ref
-                                .read(
-                                  androidSelectedDestinationProvider.notifier,
-                                )
-                                .state =
-                            value,
-                    destinations: [
-                      for (final destination in destinations)
-                        NavigationRailDestination(
-                          icon: destination.icon,
-                          selectedIcon: destination.selectedIcon,
-                          label: Text(destination.label),
-                        ),
-                    ],
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: content),
-                ],
-              ),
-            ),
-          );
-        }
-        return Scaffold(
-          body: SafeArea(child: content),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: selected,
-            onDestinationSelected: (value) =>
-                ref.read(androidSelectedDestinationProvider.notifier).state =
-                    value,
-            destinations: destinations,
-          ),
-        );
-      },
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: const SafeArea(child: AndroidScheduleScreen()),
     );
   }
 }

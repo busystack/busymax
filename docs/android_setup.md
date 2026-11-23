@@ -1,7 +1,7 @@
 # Android setup and provider registration
 
 BusyMax Android is a beta application with package ID
-`io.busystack.busymax`, version `0.4.0`, minimum API 24, and compile/target
+`io.busystack.busymax`, version `0.4.1`, minimum API 24, and compile/target
 API 37. The supported toolchain is Flutter 3.47.5, its bundled Dart 3.13.4,
 JDK 17, Android platform 37, and Build Tools 37.x.
 
@@ -42,12 +42,22 @@ The public configuration keys have these exact consumers:
 Create Android OAuth registrations for `io.busystack.busymax`, enable the
 Google Calendar and Google Tasks APIs, and register every certificate context
 that will install the app: debug, locally distributed release, and Play app
-signing. Put their SHA-256 fingerprints in the local configuration as an owner
-record; Gradle does not send these values anywhere. Google authorization uses
+signing. The Android OAuth client in Google Cloud must match the application ID
+and the signing certificate's **SHA-1** fingerprint. The SHA-256 values in the
+local configuration are owner records; they do not register an OAuth client,
+and Gradle does not send them to Google. Google authorization uses
 the on-device `AuthorizationClient` with explicit account selection. The
 desktop client ID and desktop client secret are neither required nor embedded
 on Android. An AOSP device without Google Play services intentionally leaves
 only Google unavailable; Microsoft, Apple, Nextcloud, and WebCal remain usable.
+
+The isolated `io.busystack.busymax.caldavqa` and
+`io.busystack.busymax.nextcloudqa` packages need their own Android OAuth clients
+if used for Google testing. Registering `io.busystack.busymax` does not cover
+those package names. A package/signature rejection can occur after the account
+chooser; Google's device log reports that the application is not registered.
+For normal account setup, launch the **BusyMax Android** configuration without
+the QA Gradle properties.
 
 ## Microsoft MSAL
 
@@ -104,6 +114,22 @@ The same entrypoint is available as the checked-in **BusyMax Android** IDE run
 configuration. Live-provider tests must use disposable QA accounts and the
 certificate registration matching the installed build.
 
+In Android Studio, select **BusyMax Android** in the run configuration dropdown.
+Its Dart entrypoint is `lib/main_android.dart`. The auto-generated **main.dart**
+configuration runs the Linux alias and must not be used for Android. An
+existing IDE session may need the configuration selected again after an
+external workspace-settings change.
+
+For a direct Flutter launch, use:
+
+```sh
+flutter run -d DEVICE_ID -t lib/main_android.dart
+```
+
+A white screen with `MissingPluginException` for `yaru_window` and a stack frame
+in `main_linux.dart` means the Linux entrypoint was launched on Android. Stop
+that run and launch **BusyMax Android**; hot reload does not change entrypoints.
+
 On a fresh checkout, the complete non-device verification command is:
 
 ```sh
@@ -132,3 +158,95 @@ work with a different permitted account. Use an actual routed LAN endpoint;
 loopback/adb reverse alone does not qualify the local-network restriction.
 API 37 acceptance remains a separate gate in the dated qualification record. Widget and plugin unit
 tests do not qualify Android 17's native permission behavior.
+
+## Linux-referenced Android rework
+
+The current reference is the reachable Linux UI at
+`3e27eca0578dd2c1c182b5346b8290eb90bc8ed6`, followed by the explicitly recorded
+working-tree changes. The former implementation map described substitutions
+such as a visible zoom slider, picker-only resizing, a separate All tasks entry
+and an all-day overflow sheet. Those descriptions were not parity acceptance.
+
+The concrete source/behavior mapping, exercised flows, runtime identity and
+remaining acceptance work are maintained in
+[Android Linux reference](android_linux_reference.md). The rework is incomplete;
+provider capabilities and large regression totals alone do not qualify it.
+
+For comparison captures and interaction checks, run
+`integration_test/android_workspace_parity_test.dart` with
+`--dart-define=BUSYMAX_PARITY_QA=true`. Android uses the existing isolated QA
+application configuration and writes PNGs into its application-support `parity`
+directory. Linux writes to `/tmp/busymax-parity-linux`, overridable with
+`BUSYMAX_PARITY_OUTPUT`. `BUSYMAX_PARITY_ANDROID_UI=true` runs the Android widgets
+on the Linux engine for additional layout inspection; those captures are **not**
+Android device acceptance. The fixture uses an in-memory database, settings,
+credentials and recovery records.
+
+Device acceptance remains a separate requirement: all five views, editors,
+source actions and settings must be exercised on Android in portrait, landscape,
+a wider window, 200% text, RTL, light/dark and with the keyboard visible. Passing
+widget tests or Linux-hosted Android captures does not complete that gate.
+
+Run the native fixture and capture driver on a designated disposable emulator:
+
+```sh
+BUSYMAX_FLUTTER_EXECUTABLE=/path/to/flutter/bin/flutter \
+ANDROID_SDK_ROOT=/path/to/android-sdk \
+python3 tool/android/check_workspace_parity.py \
+  --device emulator-5556 --output build/android-parity/android
+```
+
+The driver installs the isolated `io.busystack.busymax.caldavqa` package, drives
+native keyboard and Back events, checks saving an event and a task, and captures
+the five views at the existing small-phone, landscape, enlarged-text and tablet
+sizes. Emulator display overrides are restored when it exits. Use `--phone`
+with an explicitly selected USB device to run the interaction checks without
+changing that device's display preferences. The regular BusyMax installation
+and its data remain separate. The driver retains screenshots and `runtime.log`
+in the requested output directory. These controlled checks do not send live
+provider requests or qualify production OAuth registrations.
+
+The 2026-11-15 runtime qualification used an authorized OnePlus A6003 (API 29)
+and a disposable official API 35 emulator. The populated fixture passed on both;
+the emulator also exercised native display sizes 360×800 at 100%, 412×915 at
+130%, 915×412 at 130%, 1200×800 at 100%, 800×1280 at 200%, and 320×500 at 200%.
+Each size covered all five views. The checks included previews, full editors,
+native keyboard and Back, dirty-draft cancellation/discard, scrolling long task
+notes in preview and editor, saving an event and a task, read-only inspection,
+empty Agenda, sources, Settings, and Arabic/dark
+appearance. Enlarged-text captures also include editors, preview, sources and
+Schedule settings. The normal `main_android.dart` QA build was separately
+installed and cold-launched on the phone; Week, the workspace menu, all six
+Settings categories and native Back were exercised. Regular BusyMax data and
+phone display preferences were preserved.
+
+The real Linux application passed its five-view fixture run on an independent
+X display, including native GTK header-icon initialization. Captures and logs
+are retained under the ignored `build/android-parity/{android,phone,linux}`
+directories. Production OAuth registrations, live-provider opt-in tests, and
+API 37 native local-network permission/upgrade qualification remain separate
+gates; the fixture and shared regression suite do not replace them.
+
+Final automated qualification on 2026-11-15:
+
+| Check | Result |
+| --- | --- |
+| Complete Flutter suite (`flutter test --no-pub --concurrency=4 --timeout=2m --reporter=expanded`) | 5,387 passed, 121 opt-in/fixture skips, 0 failures; 9m05s |
+| Native Android plugin unit tests | 18 passed across 4 suites, 0 failures/errors/skips |
+| Android lint | 0 errors, 9 existing warnings |
+| Static analysis / formatting | No issues; 903 Dart files, 0 formatting changes |
+| Generated output / platform boundaries / repository hygiene | Reproducible / valid / passed |
+| Upstream integrity | 8 checked packages and 1,171 SDK files verified; Flutter 3.47.5 / Dart 3.13.4 |
+| Native fixture runs | Phone, emulator and real Linux application passed; screenshots visually inspected |
+| Release APK | Test-signed; signature, ZIP/native 16 KB alignment, manifest and notification drawable checks passed |
+
+The usable isolated phone build is `build/android-parity/busymax-qa-debug.apk`.
+The test-signed release APK is
+`build/app/outputs/flutter-apk/app-release.apk`. Full logs, artifact hashes and
+representative screenshot paths are recorded in
+`build/android-parity/verification.json`. The additional AAB was built and its
+native ELF alignment checked; bundletool configuration metadata was not
+inspected because no local bundletool jar was configured. Windows regression
+widgets and shared logic passed in the Flutter suite; a native Windows runtime
+was not exercised on this Linux host. These are development/test artifacts,
+without production OAuth registrations or production signing qualification.

@@ -1231,6 +1231,7 @@ final class DavPendingOperationsReplayer {
   /// each blocked operation; missing/unknown privileges never clear its denial.
   Future<void> revalidatePermissionsAfterDiscovery({
     Set<String> blockedCollectionIds = const {},
+    Set<String>? operationIds,
   }) async {
     await _database.transaction(() async {
       final account = await (_database.select(
@@ -1252,6 +1253,7 @@ final class DavPendingOperationsReplayer {
       }
       final restored = <PendingOp>[];
       for (final op in blocked) {
+        if (operationIds != null && !operationIds.contains(op.id)) continue;
         if (blockedCollectionIds.contains(op.davCollectionId) ||
             blockedCollectionIds.contains(op.destinationCollectionId)) {
           continue;
@@ -1322,6 +1324,7 @@ final class DavPendingOperationsReplayer {
 
   Future<DavReplaySummary> replayDueOperations({
     Set<String> blockedCollectionIds = const {},
+    Set<String>? operationIds,
   }) async {
     final account = await (_database.select(
       _database.accounts,
@@ -1372,6 +1375,7 @@ final class DavPendingOperationsReplayer {
         ...[op.davCollectionId, op.destinationCollectionId].whereType<String>(),
     };
     for (final listed in operations) {
+      if (operationIds != null && !operationIds.contains(listed.id)) continue;
       final candidate = await _database.pendingOpsDao.getOp(listed.id);
       if (candidate == null || !isDavPendingOperation(candidate)) continue;
       if (blockedCollections.contains(candidate.davCollectionId) ||

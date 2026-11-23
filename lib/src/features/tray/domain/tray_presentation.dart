@@ -49,6 +49,7 @@ final class BusyMaxTrayPresentation {
   const BusyMaxTrayPresentation({
     required this.connectivity,
     required this.synchronizationRunning,
+    this.hasSyncIssues = false,
     required this.lastSuccessfulSynchronizationUtc,
     required this.events,
     required this.incompleteTasksDueToday,
@@ -61,6 +62,7 @@ final class BusyMaxTrayPresentation {
 
   final NetworkAvailability connectivity;
   final bool synchronizationRunning;
+  final bool hasSyncIssues;
   final DateTime? lastSuccessfulSynchronizationUtc;
   final List<BusyMaxTrayEventEntry> events;
   final int incompleteTasksDueToday;
@@ -75,6 +77,7 @@ final class BusyMaxTrayPresentation {
       other is BusyMaxTrayPresentation &&
       other.connectivity == connectivity &&
       other.synchronizationRunning == synchronizationRunning &&
+      other.hasSyncIssues == hasSyncIssues &&
       other.lastSuccessfulSynchronizationUtc ==
           lastSuccessfulSynchronizationUtc &&
       const ListEquality<BusyMaxTrayEventEntry>().equals(
@@ -92,6 +95,7 @@ final class BusyMaxTrayPresentation {
   int get hashCode => Object.hash(
     connectivity,
     synchronizationRunning,
+    hasSyncIssues,
     lastSuccessfulSynchronizationUtc,
     const ListEquality<BusyMaxTrayEventEntry>().hash(events),
     incompleteTasksDueToday,

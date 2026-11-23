@@ -1,3 +1,5 @@
+import '../application/save_task_draft.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -373,52 +375,20 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     TaskDetailsDraft draft,
     Map<String, Object?> patch,
   ) async {
-    var mutated = false;
-    if (patch.isNotEmpty) {
-      await repository.patchTask(
-        task.taskListId,
-        task.id,
-        TaskPatchInput(
-          patch,
-          locationChange: draft.locationChange,
-          observedTask: draft.observedTask,
-          observedOccurrenceKey:
-              patch.keys.any(
-                const {
-                  'status',
-                  'completed',
-                  'taskStatus',
-                  'percentComplete',
-                  'completedAtUtc',
-                }.contains,
-              )
-              ? draft.observedTask?.occurrenceKey
-              : null,
-        ),
-      );
-      mutated = true;
-    }
-    if (draft.taskListId != task.taskListId) {
-      try {
-        await repository.moveTask(
-          TaskMoveInput(
-            sourceTaskListId: task.taskListId,
-            taskId: task.id,
-            destinationTaskListId: draft.taskListId,
-          ),
-        );
-      } on Object catch (error) {
-        if (mutated) {
-          final committed = await repository.readTask(task.taskListId, task.id);
-          if (committed != null) {
-            throw TaskSavePartialException(committed, error);
-          }
-        }
-        rethrow;
-      }
-      mutated = true;
-    }
-    if (mutated) {
+    await saveTaskDraftChanges(
+      repository: repository,
+      sourceListId: task.taskListId,
+      taskId: task.id,
+      destinationListId: draft.taskListId,
+      patch: taskDraftPatch(
+        patch,
+        locationChange: draft.locationChange,
+        observedTask: draft.observedTask,
+      ),
+    );
+    if (patch.isNotEmpty ||
+        draft.locationChange.changed ||
+        draft.taskListId != task.taskListId) {
       final moving = draft.taskListId != task.taskListId;
       final patchedStatus = patch['status']?.toString().toLowerCase();
       final originalCompleted = task.status?.toLowerCase() == 'completed';

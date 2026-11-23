@@ -5,9 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
-import '../../features/schedule/presentation/attachment_download.dart';
-import '../../features/schedule/presentation/attachment_upload_coordinator.dart';
-import '../../features/schedule/presentation/google_event_attachment_reference.dart';
+import '../../features/schedule/application/attachment_upload_coordinator.dart';
+import '../../features/schedule/application/event_attachment_operations.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../l10n/l10n.dart';
 import '../../microsoft_calendar/microsoft_event_attachment.dart';
@@ -261,7 +260,7 @@ class _AndroidEventAttachmentsDialogState
     if (eventId == null) return;
     final document = await BusyMaxAndroidPlatform.instance.openDocument(
       mimeTypes: const ['*/*'],
-      maximumBytes: 150 * 1024 * 1024,
+      maximumBytes: maximumEventAttachmentBytes,
     );
     if (document == null || !mounted) return;
     final name = safeAttachmentFileName(document.name ?? '');
@@ -397,37 +396,21 @@ class _AndroidEventAttachmentsDialogState
     String? addFileUrl,
     String? removeFileUrl,
   }) async {
+    if (_saving) return;
     setState(() => _saving = true);
     try {
-      final List<EventAttachmentLink> links;
-      var cacheUpdated = true;
-      if (widget.item.provider == BusyProvider.google) {
-        final changed = await changeGoogleEventAttachmentReference(
-          item: widget.item,
-          client: ref.read(
-            googleCalendarApiClientForAccountProvider(widget.item.accountId),
-          ),
-          repository: ref.read(calendarRepositoryProvider),
-          addFileUrl: addFileUrl,
-          removeFileUrl: removeFileUrl,
-        );
-        links = changed.links;
-        cacheUpdated = changed.cacheUpdated;
-      } else {
-        final detail = await ref
-            .read(calendarRepositoryProvider)
-            .changeNextcloudUriAttachmentReference(
-              accountId: widget.item.accountId,
-              eventId: widget.item.id,
-              addUrl: addFileUrl,
-              removeUrl: removeFileUrl,
-            );
-        links = eventAttachmentLinks(detail?.attachments);
-        cacheUpdated = detail != null;
-      }
+      final result = await changeEventAttachmentReference(
+        item: widget.item,
+        googleClient: () => ref.read(
+          googleCalendarApiClientForAccountProvider(widget.item.accountId),
+        ),
+        repository: ref.read(calendarRepositoryProvider),
+        addUrl: addFileUrl,
+        removeUrl: removeFileUrl,
+      );
       if (!mounted) return;
-      setState(() => _referenceLinks = links);
-      if (!cacheUpdated) {
+      setState(() => _referenceLinks = result.links);
+      if (!result.cacheUpdated) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(context.l10n.refreshFailed(context.l10n.attachments)),
@@ -461,34 +444,24 @@ class _AndroidEventAttachmentsDialogState
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted || _saving) return;
     setState(() => _saving = true);
     try {
-      await ref
-          .read(
-            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
-          )
-          .deleteEventAttachment(
-            calendarId: widget.item.providerCalendarId,
-            eventId: eventId,
-            attachmentId: attachment.id,
-          );
-      ref
-          .read(attachmentUploadCoordinatorProvider)
-          .attachmentRemoved(
-            AttachmentUploadCoordinator.eventKey(
-              widget.item.accountId,
-              widget.item.providerCalendarId,
-              eventId,
-            ),
-            attachment.id,
-          );
-      _refresh();
+      await deleteEventAttachment(
+        item: widget.item,
+        attachment: attachment,
+        client: ref.read(
+          microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+        ),
+        uploads: ref.read(attachmentUploadCoordinatorProvider),
+      );
     } on Object catch (error) {
-      _refresh();
       _error(error);
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        _refresh();
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -500,28 +473,22 @@ class _AndroidEventAttachmentsDialogState
   }
 
   Future<void> _save(MicrosoftEventAttachment attachment) async {
-    final name = safeAttachmentFileName(attachment.name);
-    if (name == null) {
-      _error(const FormatException('Invalid attachment name.'));
-      return;
-    }
     final eventId = widget.item.providerEventId;
     if (eventId == null) return;
     setState(() => _saving = true);
     try {
-      final bytes = await ref
-          .read(
-            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
-          )
-          .downloadEventAttachment(
-            calendarId: widget.item.providerCalendarId,
-            eventId: eventId,
-            attachment: attachment,
-          );
+      final download = await downloadEventAttachment(
+        item: widget.item,
+        attachment: attachment,
+        client: ref.read(
+          microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+        ),
+      );
+      if (!mounted) return;
       await BusyMaxAndroidPlatform.instance.createDocument(
-        suggestedName: name,
+        suggestedName: download.name,
         mimeType: attachment.contentType ?? 'application/octet-stream',
-        bytes: Uint8List.fromList(bytes),
+        bytes: Uint8List.fromList(download.bytes),
       );
     } on Object catch (error) {
       _error(error);

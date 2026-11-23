@@ -245,7 +245,9 @@ void main() {
     (tester) async {
       final inventory = Completer<void>();
       addTearDown(() {
-        if (!inventory.isCompleted) inventory.complete();
+        if (!inventory.isCompleted) {
+          inventory.complete();
+        }
       });
       final fixture = await _mount(
         tester,
@@ -316,7 +318,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(inventory.reads, greaterThan(previousReads));
         expect(find.text('Schedule unavailable'), findsNothing);
-        if (!cached) await _searchShortcut(tester);
+        if (!cached) {
+          await _searchShortcut(tester);
+        }
         expect(find.text('No due task'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
@@ -363,7 +367,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Following horizon meeting'), findsNothing);
       final previousCalls = scopes.length;
-      await tester.tap(find.byTooltip('Next period'));
+      await tester.tap(find.byTooltip('Next page'));
       await tester.pumpAndSettle();
       expect(
         scopes.length,
@@ -380,7 +384,9 @@ void main() {
       final normalRefresh = Completer<void>();
       final refreshStarted = Completer<void>();
       addTearDown(() {
-        if (!normalRefresh.isCompleted) normalRefresh.complete();
+        if (!normalRefresh.isCompleted) {
+          normalRefresh.complete();
+        }
       });
       var coverageCalls = 0;
       final fixture = await _mount(
@@ -809,11 +815,15 @@ void main() {
     (tester) async {
       final fixture = await _mount(tester, 'android', width: 480);
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.tune));
+      await tester.tap(find.byTooltip('Calendars and task lists'));
       await tester.pumpAndSettle();
       expect(find.byType(AndroidScheduleSearchFilters), findsNothing);
-      expect(find.byType(CheckboxListTile), findsWidgets);
-      Navigator.of(tester.element(find.byType(CheckboxListTile).first)).pop();
+      expect(find.byType(Checkbox), findsWidgets);
+      expect(
+        tester.widget<Checkbox>(find.byType(Checkbox).first).value,
+        isTrue,
+      );
+      Navigator.of(tester.element(find.byType(Checkbox).first)).pop();
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.search));
       await tester.pumpAndSettle();
@@ -826,7 +836,7 @@ void main() {
         find.text(DateFormat.yMMMMEEEEd('en').format(DateTime(2040, 2, 15))),
         findsOneWidget,
       );
-      await tester.tap(find.byIcon(Icons.tune));
+      await tester.tap(find.byTooltip('Filters'));
       await tester.pumpAndSettle();
       final panel = find.byType(AndroidScheduleSearchFilters);
       expect(panel, findsOneWidget);
@@ -944,7 +954,9 @@ void main() {
     var closedBeforeFocus = false;
     tester.binding.addPostFrameCallback((_) {
       final close = find.widgetWithIcon(IconButton, Icons.close);
-      if (close.evaluate().length != 1) return;
+      if (close.evaluate().length != 1) {
+        return;
+      }
       closedBeforeFocus = true;
       tester.widget<IconButton>(close).onPressed!();
     });
@@ -955,10 +967,11 @@ void main() {
 
     expect(closedBeforeFocus, isTrue);
     expect(find.byIcon(Icons.search), findsOneWidget);
-    final retainedField = tester.widget<TextField>(
-      find.byType(TextField, skipOffstage: false),
+    expect(find.byType(TextField), findsNothing);
+    expect(
+      FocusManager.instance.primaryFocus?.context?.widget,
+      isNot(isA<EditableText>()),
     );
-    expect(retainedField.focusNode!.hasFocus, isFalse);
   });
 
   testWidgets(
@@ -970,7 +983,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.search));
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.tune));
+      await tester.tap(find.byTooltip('Filters'));
       await tester.pumpAndSettle();
 
       final panel = find.byType(AndroidScheduleSearchFilters);
@@ -1246,7 +1259,9 @@ class _ControlledTaskListsRepository extends TaskListsRepository {
   @override
   Future<List<TaskListEntity>> listTaskLists() async {
     reads++;
-    if (fail) throw StateError('Task inventory unavailable');
+    if (fail) {
+      throw StateError('Task inventory unavailable');
+    }
     return super.listTaskLists();
   }
 }

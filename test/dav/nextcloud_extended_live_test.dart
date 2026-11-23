@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:busymax/src/dav/dav_errors.dart';
 
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_mutations.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart' show IcalComponentKey;
 

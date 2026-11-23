@@ -4,7 +4,7 @@ import '../../maps/domain/geographic_point.dart';
 import '../../maps/domain/location_result.dart';
 import '../../../providers/busy_provider.dart';
 import '../data/calendar_event_detail.dart';
-import '../domain/google_status_event.dart';
+import 'google_status_event.dart';
 
 enum RecurringEventMutationScope {
   entireSeries,
@@ -14,6 +14,20 @@ enum RecurringEventMutationScope {
 
 bool supportsThisAndFollowingEventMutation(BusyProvider provider) =>
     provider != BusyProvider.microsoft;
+
+/// BusyMax matches guest addresses case-insensitively while retaining the
+/// address supplied by the provider or guest.
+String eventAttendeeIdentity(String email) => email.trim().toLowerCase();
+
+bool containsEventAttendee(
+  Iterable<EventAttendeeDraft> attendees,
+  String email,
+) {
+  final identity = eventAttendeeIdentity(email);
+  return attendees.any(
+    (attendee) => eventAttendeeIdentity(attendee.email) == identity,
+  );
+}
 
 class EventAttendeeDraft {
   const EventAttendeeDraft({
@@ -524,12 +538,12 @@ class EventEditorDraft {
   final bool? isOrganizer;
   final bool canManageAttendees;
 
-  bool get canSave {
+  bool get canSave => title.trim().isNotEmpty && hasValidInterval;
+
+  bool get hasValidInterval {
     final start = this.start;
     final end = this.end;
-    if (title.trim().isEmpty || start == null || end == null) {
-      return false;
-    }
+    if (start == null || end == null) return false;
     if (!allDay) {
       final startInstant = providerDateTimeAsUtcInstant(
         providerWallTimeIso8601String(start),
@@ -546,6 +560,25 @@ class EventEditorDraft {
     final startDate = DateTime.utc(start.year, start.month, start.day);
     final endDate = DateTime.utc(end.year, end.month, end.day);
     return endDate.isAfter(startDate);
+  }
+
+  /// Normalizes an invalid interval after editing a date or toggling all-day.
+  /// Timed defaults represent one elapsed hour in the end field's time zone.
+  EventEditorDraft withValidEnd() {
+    final start = this.start;
+    if (start == null || hasValidInterval) return this;
+    if (allDay) {
+      return copyWith(
+        end: DateTime.utc(start.year, start.month, start.day + 1),
+      );
+    }
+    final instant = providerDateTimeAsUtcInstant(
+      providerWallTimeIso8601String(start),
+      startTimeZone,
+    )!.add(const Duration(hours: 1));
+    return copyWith(
+      end: providerDateTimeAsCivilTime(instant.toIso8601String(), endTimeZone),
+    );
   }
 
   EventEditorDraft copyWith({

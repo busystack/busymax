@@ -1,4 +1,42 @@
-import '../../features/calendar/presentation/dav_event_reminders.dart';
+import '../../features/sync/sync_request.dart';
+import '../../features/sync/sync_activity_icon.dart';
+import 'android_sync_feedback.dart';
+import 'android_schedule_coverage_dialog.dart';
+import '../android_local_network_access.dart';
+import '../../features/calendar/application/attendee_suggestion_session.dart';
+import 'android_editor_group.dart';
+import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
+import '../../ui/common/schedule/schedule_interactions.dart';
+import '../../features/calendar/application/save_event_draft.dart';
+import '../../features/calendar/domain/event_property_policy.dart';
+import '../../features/connectivity/network_connectivity_service.dart';
+
+import 'package:package_info_plus/package_info_plus.dart';
+
+import '../../calendar_providers/calendar_colors.dart';
+import 'android_feedback_screen.dart';
+import '../../ui/common/schedule/schedule_day_week_view.dart';
+import '../../ui/common/schedule/schedule_month_view.dart';
+import '../../ui/common/schedule/schedule_year_view.dart';
+import '../../ui/common/schedule/schedule_agenda_view.dart';
+import '../../ui/common/schedule/mini_calendar.dart';
+import '../../schedule/schedule_navigation_intent.dart';
+import '../../schedule/schedule_creation_destinations.dart';
+import '../../features/calendar/domain/event_move_policy.dart';
+import '../../features/calendar/domain/event_timing_policy.dart';
+import 'android_event_description_editor.dart';
+import '../../calendar_providers/calendar_description.dart';
+import 'android_time_zone_picker.dart';
+import '../../schedule/schedule_sidebar_order.dart';
+import '../../schedule/schedule_sidebar_sources.dart';
+import '../../schedule/schedule_event_rescheduling.dart';
+import 'android_event_actions.dart';
+import '../../schedule/schedule_agenda_query.dart';
+import '../android_workspace_navigation.dart';
+import '../../features/tasks/domain/task_checklist_item.dart';
+import '../../features/task_lists/data/task_lists_repository.dart';
+import '../../features/calendar/domain/dav_event_reminders.dart';
+import '../../features/calendar/domain/event_reminders.dart';
 import 'android_dav_attachments_section.dart';
 import '../../features/recurrence/presentation/recurrence_summary.dart';
 
@@ -11,18 +49,19 @@ import 'package:busymax_android_platform/busymax_android_platform.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
+import '../../db/creation_receipt_store.dart';
+import '../android_creation_recovery.dart';
 import '../../app/app_bootstrap.dart';
 import '../../contacts/busymax_contacts_controller.dart';
 import '../../app/common/busymax_motion_widgets.dart';
-import '../../app/common/busymax_mutation_list.dart';
 import '../../calendar_providers/calendar_mutation.dart';
 import '../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../../features/calendar/domain/google_status_event.dart';
 import '../../features/calendar/presentation/google_status_event_labels.dart';
 import '../../features/maps/application/external_location_launcher.dart';
@@ -32,8 +71,10 @@ import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/schedule/presentation/cloud_calendar_series_export.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
+import '../../features/recurrence/domain/recurrence_editing.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/localized_formatters.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../l10n/time_format_scope.dart';
 import '../../l10n/week_preferences_scope.dart';
@@ -48,7 +89,6 @@ import '../../schedule/schedule_source_visibility.dart';
 import '../../schedule/task_list_mutation_intent.dart';
 import '../../schedule/schedule_search_criteria.dart';
 import 'android_schedule_search_filters.dart';
-import '../../features/schedule/presentation/schedule_search_result_text.dart';
 import '../android_notifications.dart';
 import 'android_availability_dialog.dart';
 import 'android_event_attachments_dialog.dart';
@@ -56,45 +96,110 @@ import 'android_recurrence_dialog.dart';
 import 'android_date_picker.dart';
 import 'android_settings_screen.dart';
 import 'android_tasks_screen.dart';
-import 'android_task_motion.dart';
 
 final _androidScheduleItemsProvider = FutureProvider.autoDispose
     .family<
-      List<ScheduleItem>,
+      ScheduleAgendaPage,
       ({
         DateTime anchor,
         ScheduleViewMode mode,
         String query,
         int firstWeekday,
         ScheduleSearchCriteria? search,
+        int agendaDays,
+        int overdueLimit,
+        int noDateLimit,
+        DateTime? notificationDate,
       })
     >((ref, key) async {
       ref.watch(scheduleDataRevisionProvider);
-      final sources = await ref.watch(calendarSourcesStreamProvider.future);
-      final lists = await ref.watch(scheduleTaskListsProvider.future);
+      final sourceState = ref.watch(calendarSourcesStreamProvider);
+      final listState = ref.watch(scheduleTaskListsProvider);
+      final sources = sourceState.hasError && sourceState.hasValue
+          ? sourceState.requireValue
+          : await ref.watch(calendarSourcesStreamProvider.future);
+      final lists = listState.hasError && listState.hasValue
+          ? listState.requireValue
+          : await ref.watch(scheduleTaskListsProvider.future);
       final settings = ref.watch(appSettingsControllerProvider);
       final visibility = ScheduleSourceVisibility.fromSources(
         calendarSources: sources,
         taskLists: lists,
         settings: settings,
       );
+      final repository = ref.watch(scheduleRepositoryProvider);
+      if (key.notificationDate != null) {
+        return ScheduleAgendaPage(
+          items: await repository.listAllTasks(
+            filters: ScheduleFilters(
+              includeCalendarEvents: false,
+              taskCompletion: ScheduleTaskCompletion.open,
+              notificationDeadline: key.notificationDate,
+            ),
+          ),
+        );
+      }
+      if (key.search == null && key.mode == ScheduleViewMode.agenda) {
+        return queryScheduleAgenda(
+          repository,
+          range: ScheduleRange.days(DateTime.now(), count: key.agendaDays),
+          sourceIds: visibility.visibleCalendarSourceIds,
+          taskListKeys: visibility.visibleTaskListKeys,
+          overdueLimit: key.overdueLimit,
+          noDateLimit: key.noDateLimit,
+        );
+      }
+      return ScheduleAgendaPage(
+        items: await repository.listItems(
+          range:
+              key.search?.range ??
+              _rangeFor(key.anchor, key.mode, firstWeekday: key.firstWeekday),
+          filters:
+              key.search?.filters(key.query) ??
+              ScheduleFilters(
+                query: key.query,
+                sourceIds: visibility.visibleCalendarSourceIds,
+                taskListKeys: visibility.visibleTaskListKeys,
+                sourceFilterActive: true,
+                taskListFilterActive: true,
+                taskCompletion: ScheduleTaskCompletion.all,
+                showNoDateTasks: false,
+              ),
+        ),
+      );
+    });
+
+// A mini-calendar always draws six weeks, independently of full Month's
+// actual week count. Fetch precisely the dates that its markers represent.
+final _androidMiniCalendarItemsProvider = FutureProvider.autoDispose
+    .family<List<ScheduleItem>, ({DateTime month, int firstWeekday})>((
+      ref,
+      key,
+    ) async {
+      ref.watch(scheduleDataRevisionProvider);
+      final sources = await ref.watch(calendarSourcesStreamProvider.future);
+      final lists = await ref.watch(scheduleTaskListsProvider.future);
+      final visibility = ScheduleSourceVisibility.fromSources(
+        calendarSources: sources,
+        taskLists: lists,
+        settings: ref.watch(appSettingsControllerProvider),
+      );
+      final start = ScheduleRange.month(
+        key.month,
+        firstWeekday: key.firstWeekday,
+      ).start;
       return ref
           .watch(scheduleRepositoryProvider)
           .listItems(
-            range:
-                key.search?.range ??
-                _rangeFor(key.anchor, key.mode, firstWeekday: key.firstWeekday),
-            filters:
-                key.search?.filters(key.query) ??
-                ScheduleFilters(
-                  query: key.query,
-                  sourceIds: visibility.visibleCalendarSourceIds,
-                  taskListKeys: visibility.visibleTaskListKeys,
-                  sourceFilterActive: true,
-                  taskListFilterActive: true,
-                  taskCompletion: ScheduleTaskCompletion.all,
-                  showNoDateTasks: key.mode == ScheduleViewMode.agenda,
-                ),
+            range: ScheduleRange.days(start, count: 42),
+            filters: ScheduleFilters(
+              sourceIds: visibility.visibleCalendarSourceIds,
+              taskListKeys: visibility.visibleTaskListKeys,
+              sourceFilterActive: true,
+              taskListFilterActive: true,
+              taskCompletion: ScheduleTaskCompletion.all,
+              showNoDateTasks: false,
+            ),
           );
     });
 
@@ -106,9 +211,27 @@ class AndroidScheduleScreen extends ConsumerStatefulWidget {
       _AndroidScheduleScreenState();
 }
 
-class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
+class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
+    with RouteAware {
+  AndroidWorkspaceRequest? _queuedRequest;
+  ModalRoute<dynamic>? _workspaceRoute;
   DateTime _anchor = DateTime.now();
+  DateTime? _searchAnchor;
+  List<ScheduleItem>? _cachedSearchItems;
+  ScheduleSearchCriteria? _cachedSearchCriteria;
+  String? _cachedSearchQuery;
+  ScheduleAgendaPage? _cachedAgendaPage;
+  String? _cachedAgendaScope;
+  int _agendaDays = 30;
+  int _overdueLimit = 8;
+  int _noDateLimit = 8;
+  DateTime? _notificationDate;
   bool _searching = false;
+  bool _sidebarVisible = true;
+  bool _persistentSourcesAvailable = false;
+  bool _searchFiltersVisible = true;
+  bool _allTaskLists = false;
+  TaskListEntity? _creationTaskList;
   String _query = '';
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
@@ -121,12 +244,21 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
   var _taskMutationGeneration = 0;
   TaskListMutationIntent? _taskMutationIntent;
   final Set<String> _taskMutationsInFlight = {};
+  final Set<String> _openDetails = {};
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != _workspaceRoute && route != null) {
+      androidWorkspaceRouteObserver.unsubscribe(this);
+      androidWorkspaceRouteObserver.subscribe(this, route);
+      _workspaceRoute = route;
+    }
     final firstWeekday = _firstWeekday(context);
-    if (_searchFirstWeekday == firstWeekday) return;
+    if (_searchFirstWeekday == firstWeekday) {
+      return;
+    }
     _searchFirstWeekday = firstWeekday;
     _searchCriteria = _searchCriteria?.copyWith(firstWeekday: firstWeekday);
     _initialSearchCriteria = _initialSearchCriteria?.copyWith(
@@ -136,9 +268,23 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
 
   @override
   void dispose() {
+    androidWorkspaceRouteObserver.unsubscribe(this);
     _searchFocusNode.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    final request = _queuedRequest;
+    if (request != null) {
+      _queuedRequest = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_openWorkspaceRequest(request));
+        }
+      });
+    }
   }
 
   @override
@@ -149,24 +295,95 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       replacements,
     );
     final settings = ref.watch(appSettingsControllerProvider);
-    final mode = settings.androidScheduleViewMode ?? ScheduleViewMode.agenda;
-    final items = ref.watch(
+    if (_allTaskLists && _searchCriteria != null) {
+      final lists = ref.watch(scheduleTaskListsProvider).valueOrNull;
+      if (lists != null) {
+        _searchCriteria = _searchCriteria!.copyWith(
+          taskListKeys: {
+            for (final list in lists)
+              ScheduleTaskListKey(
+                accountId: list.accountId,
+                taskListId: list.id,
+              ),
+          },
+        );
+      }
+    }
+    ref.listen(androidWorkspaceRequestProvider, (_, request) {
+      if (request != null) {
+        unawaited(_openWorkspaceRequest(request));
+      }
+    });
+    final mode = settings.androidScheduleViewMode ?? settings.scheduleViewMode;
+    final page = ref.watch(
       _androidScheduleItemsProvider((
         anchor: DateTime(_anchor.year, _anchor.month, _anchor.day),
         mode: mode,
         query: _query,
         search: _searching ? _searchCriteria : null,
         firstWeekday: _firstWeekday(context),
+        agendaDays: _agendaDays,
+        overdueLimit: _overdueLimit,
+        noDateLimit: _noDateLimit,
+        notificationDate: _notificationDate,
       )),
     );
+    var items = page.whenData((value) => value.items);
+    if (!_searching && mode == ScheduleViewMode.agenda) {
+      final sourceInventory = ref.watch(calendarSourcesStreamProvider);
+      final taskInventory = ref.watch(scheduleTaskListsProvider);
+      final visibility = ScheduleSourceVisibility.fromSources(
+        calendarSources: sourceInventory.valueOrNull ?? const [],
+        taskLists: taskInventory.valueOrNull ?? const [],
+        settings: settings,
+      );
+      final sourceKeys = visibility.visibleCalendarSourceIds.toList()..sort();
+      final listKeys =
+          visibility.visibleTaskListKeys
+              .map((key) => '${key.accountId}\u0000${key.taskListId}')
+              .toList()
+            ..sort();
+      final scope = jsonEncode([
+        ScheduleProjection.day(DateTime.now()).toIso8601String(),
+        sourceKeys,
+        listKeys,
+      ]);
+      if (!sourceInventory.isLoading &&
+          !taskInventory.isLoading &&
+          _cachedAgendaScope != scope) {
+        _cachedAgendaPage = null;
+        _cachedAgendaScope = scope;
+      }
+      if (page.hasValue) {
+        _cachedAgendaPage = page.requireValue;
+      }
+      if (!items.hasValue && _cachedAgendaPage != null) {
+        items = items.copyWithPrevious(AsyncData(_cachedAgendaPage!.items));
+      }
+    }
     final searchCriteria = _searchCriteria;
+    if (_searching && searchCriteria != null) {
+      if (_cachedSearchCriteria != searchCriteria ||
+          _cachedSearchQuery != _query) {
+        _cachedSearchItems = null;
+        _cachedSearchCriteria = searchCriteria;
+        _cachedSearchQuery = _query;
+      }
+      if (items.hasValue) {
+        _cachedSearchItems = items.requireValue;
+      } else if (_cachedSearchItems != null) {
+        items = items.copyWithPrevious(AsyncData(_cachedSearchItems!));
+      }
+    }
     final displayedRange =
         searchCriteria?.range ??
-        _rangeFor(
-          DateTime(_anchor.year, _anchor.month, _anchor.day),
-          mode,
-          firstWeekday: _firstWeekday(context),
-        );
+        (mode == ScheduleViewMode.agenda
+            ? ScheduleRange.days(DateTime.now(), count: _agendaDays)
+            : _rangeFor(
+                DateTime(_anchor.year, _anchor.month, _anchor.day),
+                mode,
+                firstWeekday: _firstWeekday(context),
+              ));
     final coverageFilters = _searching && searchCriteria != null
         ? searchCriteria.filters(_query)
         : ScheduleFilters(
@@ -180,7 +397,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
             sourceFilterActive: true,
           );
     final bool? coverageComplete =
-        items.hasValue && coverageFilters.requiresCalendarCoverage
+        _notificationDate == null &&
+            items.hasValue &&
+            coverageFilters.requiresCalendarCoverage
         ? ref
               .read(scheduleRepositoryProvider)
               .cloudCoverageCompleteFor(
@@ -193,112 +412,245 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
             items: items,
             criteria: searchCriteria,
             query: _query,
+            coverageComplete: coverageComplete,
           )
-        : _buildCalendarPresentation(items: items, mode: mode);
-    return Scaffold(
-      appBar: AppBar(
-        title: BusyMaxBinaryPresentation(
-          alternateActive: _searching,
-          child: _searching
-              ? TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocusNode,
-                  decoration: InputDecoration(
-                    hintText: context.l10n.windowsSearch,
-                    border: InputBorder.none,
-                    suffixIcon: IconButton(
-                      tooltip: MaterialLocalizations.of(context)
-                          .clearButtonTooltip,
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _query = '');
-                      },
+        : _buildCalendarPresentation(
+            items: items,
+            mode: mode,
+            agendaPage: page.valueOrNull ?? _cachedAgendaPage,
+            coverageComplete: coverageComplete,
+          );
+    return PopScope(
+      canPop: !_searching,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _searching) {
+          _closeSearch();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: _searching
+                ? context.l10n.searchFiltersAction
+                : context.l10n.collectionSettings,
+            icon: const Icon(Icons.view_sidebar_outlined),
+            onPressed: () {
+              if (_persistentSourcesAvailable) {
+                setState(() {
+                  if (_searching) {
+                    _searchFiltersVisible = !_searchFiltersVisible;
+                  } else {
+                    _sidebarVisible = !_sidebarVisible;
+                  }
+                });
+              } else if (_searching) {
+                _showSearchFilters();
+              } else {
+                _showSources(context);
+              }
+            },
+          ),
+          bottom: _searching
+              ? null
+              : PreferredSize(
+                  preferredSize: const Size.fromHeight(52),
+                  child: _navigationRow(context, mode),
+                ),
+          title: BusyMaxBinaryPresentation(
+            alternateActive: _searching,
+            child: _searching
+                ? TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    decoration: InputDecoration(
+                      hintText: context.l10n.windowsSearch,
+                      border: InputBorder.none,
+                      suffixIcon: IconButton(
+                        tooltip: MaterialLocalizations.of(context)
+                            .clearButtonTooltip,
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+                    ),
+                    onChanged: (value) => setState(() {
+                      _query = value;
+                      _notificationDate = null;
+                    }),
+                  )
+                : InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: mode == ScheduleViewMode.agenda ? null : _selectDate,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Tooltip(
+                            message: _periodLabel(context, _anchor, mode),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Text(
+                                _periodLabel(context, _anchor, mode),
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  onChanged: (value) => setState(() => _query = value),
-                )
-              : InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: _selectDate,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 48),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Text(_periodLabel(context, _anchor, mode)),
+          ),
+          actions: [
+            IconButton(
+              key: const ValueKey('schedule-coverage-status'),
+              tooltip: context.l10n.scheduleCoverageStatus,
+              icon: Icon(switch (coverageComplete) {
+                false => Icons.warning_amber_rounded,
+                null => Icons.more_horiz,
+                true => Icons.calendar_today_outlined,
+              }),
+              onPressed: () => unawaited(
+                showScheduleCoverage(
+                  context,
+                  coverageComplete,
+                  () => ref
+                      .read(scheduleRepositoryProvider)
+                      .retryCloudCoverage(displayedRange, coverageFilters),
+                  openSettings: () => unawaited(
+                    Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => const AndroidSettingsScreen(
+                          category: AndroidSettingsCategory.accounts,
+                        ),
                       ),
                     ),
                   ),
                 ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: context.l10n.windowsSearch,
-            onPressed: _searching ? _closeSearch : _openSearch,
-            icon: Icon(_searching ? Icons.close : Icons.search),
-          ),
-          IconButton(
-            tooltip: _searching
-                ? context.l10n.searchFiltersAction
-                : context.l10n.collectionSettings,
-            onPressed: () =>
-                _searching ? _showSearchFilters() : _showSources(context),
-            icon: const Icon(Icons.tune),
-          ),
-          if (!_searching)
-            PopupMenuButton<ScheduleViewMode>(
-              tooltip: context.l10n.scheduleDisplaySettings,
-              initialValue: mode,
-              onSelected: ref
-                  .read(appSettingsControllerProvider.notifier)
-                  .setAndroidScheduleViewMode,
-              itemBuilder: (context) => [
-                for (final candidate in ScheduleViewMode.values)
-                  PopupMenuItem(
-                    value: candidate,
-                    child: Text(_modeLabel(context, candidate)),
-                  ),
-              ],
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          BusyMaxVerticalReveal(
-            visible: !_searching,
-            child: _navigationRow(context, mode),
-          ),
-          if (coverageComplete != true && items.hasValue)
-            Card(
-              child: ListTile(
-                leading: Icon(
-                  coverageComplete == null
-                      ? Icons.sync
-                      : Icons.cloud_off_outlined,
-                ),
-                title: Text(
-                  coverageComplete == null
-                      ? context.l10n.scheduleLoading
-                      : context.l10n.scheduleRangeIncomplete,
-                ),
-                dense: true,
               ),
             ),
-          Expanded(
-            child: BusyMaxBinaryPresentation(
-              alternateActive: _searching,
-              child: presentation,
+            IconButton(
+              tooltip: context.l10n.windowsSearch,
+              onPressed: _searching ? _closeSearch : _openSearch,
+              icon: Icon(_searching ? Icons.close : Icons.search),
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'android-schedule-add',
-        onPressed: () => _createItem(context),
-        tooltip: context.l10n.create,
-        child: const Icon(Icons.add),
+            if (!_searching && MediaQuery.sizeOf(context).width >= 760)
+              IconButton(
+                tooltip: context.l10n.refreshAll,
+                icon: const SyncActivityIcon(
+                  scope: allSyncScope,
+                  refresh: Icon(Icons.refresh),
+                  warning: Icon(Icons.warning_amber_rounded),
+                  child: Icon(Icons.refresh),
+                ),
+                onPressed: () => unawaited(_refreshWorkspace()),
+              ),
+            PopupMenuButton<String>(
+              key: const ValueKey('android-workspace-menu'),
+              tooltip: context.l10n.options,
+              icon: _searching || MediaQuery.sizeOf(context).width < 760
+                  ? const SyncActivityIcon(
+                      scope: allSyncScope,
+                      refresh: Icon(Icons.refresh),
+                      warning: Icon(Icons.warning_amber_rounded),
+                      child: Icon(Icons.more_vert),
+                    )
+                  : null,
+              onSelected: (value) async {
+                switch (value) {
+                  case 'refresh':
+                    await _refreshWorkspace();
+                  case 'settings':
+                    if (context.mounted) {
+                      await Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const AndroidSettingsScreen(),
+                        ),
+                      );
+                    }
+                  case 'report':
+                    if (context.mounted) {
+                      await Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const AndroidFeedbackScreen(),
+                        ),
+                      );
+                    }
+                  case 'about':
+                    final info = await PackageInfo.fromPlatform();
+                    if (context.mounted) {
+                      showAboutDialog(
+                        context: context,
+                        applicationName: 'BusyMax',
+                        applicationVersion: info.version,
+                        applicationLegalese: '© BusyStack',
+                      );
+                    }
+                }
+              },
+              itemBuilder: (context) => [
+                if (_searching || MediaQuery.sizeOf(context).width < 760)
+                  PopupMenuItem(
+                    value: 'refresh',
+                    child: Text(context.l10n.refreshAll),
+                  ),
+                PopupMenuItem(
+                  value: 'settings',
+                  child: Text(context.l10n.settings),
+                ),
+                PopupMenuItem(
+                  value: 'report',
+                  enabled: ref
+                      .read(buildConfigProvider)
+                      .feedbackEndpoint
+                      .isNotEmpty,
+                  child: Text(context.l10n.sendFeedback),
+                ),
+                PopupMenuItem(
+                  value: 'about',
+                  child: Text(context.l10n.aboutBusyMax),
+                ),
+              ],
+            ),
+          ],
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            _persistentSourcesAvailable =
+                constraints.maxWidth >= 980 &&
+                constraints.maxHeight >=
+                    (_searching
+                        ? 240
+                        : miniCalendarPreferredHeight(context, 320) + 220);
+            return Row(
+              children: [
+                if (_persistentSourcesAvailable &&
+                    (_searching ? _searchFiltersVisible : _sidebarVisible)) ...[
+                  SizedBox(
+                    width: 320,
+                    child: _searching ? _searchFilterPanel() : _sourcesPane(),
+                  ),
+                  const VerticalDivider(width: 1),
+                ],
+                Expanded(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: BusyMaxBinaryPresentation(
+                          alternateActive: _searching,
+                          child: presentation,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -306,13 +658,74 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
   Widget _buildCalendarPresentation({
     required AsyncValue<List<ScheduleItem>> items,
     required ScheduleViewMode mode,
+    ScheduleAgendaPage? agendaPage,
+    required bool? coverageComplete,
   }) {
+    final accounts = ref.watch(accountsStreamProvider);
+    final sourceState = ref.watch(calendarSourcesStreamProvider);
+    final listState = ref.watch(scheduleTaskListsProvider);
+    final visibility = ScheduleSourceVisibility.fromSources(
+      calendarSources: sourceState.valueOrNull ?? const [],
+      taskLists: listState.valueOrNull ?? const [],
+      settings: ref.watch(appSettingsControllerProvider),
+    );
+    if (!items.isLoading &&
+        !items.hasError &&
+        accounts.hasValue &&
+        accounts.requireValue.isNotEmpty &&
+        sourceState.hasValue &&
+        listState.hasValue &&
+        !visibility.hasCalendarSources &&
+        !visibility.hasTaskLists) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.calendar_today_outlined),
+              const SizedBox(height: 12),
+              Text(
+                context.l10n.scheduleNoSources,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              Text(
+                context.l10n.scheduleNoSourcesDescription,
+                textAlign: TextAlign.center,
+              ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => const AndroidSettingsScreen(),
+                      ),
+                    ),
+                    child: Text(context.l10n.settings),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => unawaited(_refreshWorkspace()),
+                    child: Text(context.l10n.refreshAll),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     // A provider-family key change may be loading for longer than the period
     // motion. Keep the destination calendar mounted with an empty, coherent
     // projection instead of replacing it with the progress indicator.
-    final displayedItems = items.isLoading || items.hasError
-        ? const <ScheduleItem>[]
-        : items.valueOrNull ?? const <ScheduleItem>[];
+    final rawItems = items.valueOrNull ?? const <ScheduleItem>[];
+    final displayedItems = mode == ScheduleViewMode.agenda
+        ? scheduleAgendaItems(
+            rawItems,
+            ScheduleRange.days(DateTime.now(), count: _agendaDays),
+          )
+        : rawItems;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -334,23 +747,98 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
             taskMutationIntent: _taskMutationIntent,
             taskMutationsInFlight: _taskMutationsInFlight,
             onTaskMutationConsumed: _consumeTaskMutation,
-            agendaEmptyBuilder: items.isLoading
+            agendaPage: agendaPage,
+            agendaRange: ScheduleRange.days(DateTime.now(), count: _agendaDays),
+            canCreateEvent: _canCreateEvent,
+            canCreateTask: _canCreateTask,
+            onLoadMore: () => setState(() => _agendaDays += 30),
+            onLoadMoreOverdue: () => setState(() => _overdueLimit += 8),
+            onLoadMoreNoDate: () => setState(() => _noDateLimit += 8),
+            onCreate: (start, end) => end == null
+                ? _createItem(context, start: start)
+                : _createEvent(context, start: start, end: end),
+            onToggleChecklist: _toggleChecklist,
+            onReschedule: _rescheduleEvent,
+            dayStartMinute: ref
+                .watch(appSettingsControllerProvider)
+                .scheduleDayStartMinute,
+            dayEndMinute: ref
+                .watch(appSettingsControllerProvider)
+                .scheduleDayEndMinute,
+            agendaEmptyBuilder: items.isLoading || coverageComplete != true
                 ? (context) => const SizedBox.shrink()
-                : null,
+                : (context) => Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(context.l10n.noEventsOrTasks),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            if (_canCreateEvent)
+                              TextButton.icon(
+                                icon: const Icon(Icons.event_outlined),
+                                label: Text(context.l10n.newEvent),
+                                onPressed: () => _createEvent(context),
+                              ),
+                            if (_canCreateTask)
+                              TextButton.icon(
+                                icon: const Icon(Icons.checklist_outlined),
+                                label: Text(context.l10n.newTask),
+                                onPressed: () =>
+                                    _createItem(context, itemType: 'task'),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
           ),
         ),
         if (items.isLoading)
-          const IgnorePointer(
-            child: Center(child: CircularProgressIndicator()),
+          IgnorePointer(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 8),
+                  Text(context.l10n.scheduleLoading),
+                ],
+              ),
+            ),
           ),
-        if (items.hasError)
+        if (items.hasError && !items.hasValue)
           Positioned.fill(
             child: ColoredBox(
               color: Theme.of(context).scaffoldBackgroundColor,
-              child: _Message(
-                icon: Icons.error_outline,
-                title: context.l10n.scheduleUnavailable,
-                detail: '${items.error}',
+              child: Column(
+                children: [
+                  Expanded(
+                    child: _Message(
+                      icon: Icons.error_outline,
+                      title: context.l10n.scheduleUnavailable,
+                      detail: '${items.error}',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _retrySchedule,
+                    child: Text(context.l10n.retry),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (items.hasError && items.hasValue)
+          Align(
+            alignment: Alignment.topCenter,
+            child: Material(
+              child: ListTile(
+                title: Text(context.l10n.scheduleUnavailable),
+                trailing: TextButton(
+                  onPressed: _retrySchedule,
+                  child: Text(context.l10n.retry),
+                ),
               ),
             ),
           ),
@@ -362,42 +850,256 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     required AsyncValue<List<ScheduleItem>> items,
     required ScheduleSearchCriteria criteria,
     required String query,
+    required bool? coverageComplete,
   }) {
     if (items.isLoading && items.valueOrNull == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (items.hasError) {
-      return _Message(
-        icon: Icons.error_outline,
-        title: context.l10n.scheduleUnavailable,
-        detail: '${items.error}',
+    if (items.hasError && items.valueOrNull == null) {
+      return Column(
+        children: [
+          Expanded(
+            child: _Message(
+              icon: Icons.error_outline,
+              title:
+                  criteria.type == ScheduleSearchType.tasks ||
+                      ref.watch(scheduleTaskListsProvider).hasError
+                  ? context.l10n.collectionsLoadFailed
+                  : context.l10n.scheduleUnavailable,
+              detail: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
+          TextButton(
+            onPressed: () => _retrySchedule(),
+            child: Text(context.l10n.retry),
+          ),
+        ],
       );
     }
-    return _AgendaList(
-      key: const ValueKey('android-search-results'),
-      items: items.valueOrNull ?? const [],
-      onOpen: (item) => _showItem(context, item),
-      onToggleTask: _toggleTask,
-      searchCriteria: criteria,
-      searchQuery: query,
-      taskMutationIntent: _taskMutationIntent,
-      taskMutationsInFlight: _taskMutationsInFlight,
-      onTaskMutationConsumed: _consumeTaskMutation,
-      emptyBuilder: (context) => _Message(
-        icon: Icons.search_off,
-        title: !criteria.hasSources
-            ? context.l10n.searchNoSources
-            : context.l10n.scheduleNoSearchResults,
-        detail: context.l10n.scheduleNoSearchResultsDescription,
-      ),
+    return Column(
+      children: [
+        if (items.hasError)
+          ListTile(
+            title: Text(context.l10n.scheduleUnavailable),
+            trailing: TextButton(
+              onPressed: () => _retrySchedule(),
+              child: Text(context.l10n.retry),
+            ),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () {
+              final filters = criteria.filters(query);
+              final range = criteria.range;
+              if (range == null || !filters.requiresCalendarCoverage) {
+                _retrySchedule();
+                return Future.value();
+              }
+              return ref
+                  .read(scheduleRepositoryProvider)
+                  .retryCloudCoverage(range, filters);
+            },
+            child: _AgendaList(
+              key: const ValueKey('android-search-results'),
+              items: items.valueOrNull ?? const [],
+              onOpen: (item) => _showItem(context, item),
+              onToggleTask: _toggleTask,
+              onToggleChecklist: _toggleChecklist,
+              searchCriteria: criteria,
+              searchQuery: query,
+              taskMutationIntent: _taskMutationIntent,
+              taskMutationsInFlight: _taskMutationsInFlight,
+              onTaskMutationConsumed: _consumeTaskMutation,
+              emptyBuilder: (context) => coverageComplete != true
+                  ? const SizedBox.shrink()
+                  : _Message(
+                      icon: Icons.search_off,
+                      title: !criteria.hasSources
+                          ? context.l10n.searchNoSources
+                          : context.l10n.scheduleNoSearchResults,
+                      detail: context.l10n.scheduleNoSearchResultsDescription,
+                    ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Future<void> _openSearch() async {
+  void _retrySchedule() {
+    ref.invalidate(scheduleTaskListsForAccountProvider);
+    ref.invalidate(scheduleTaskListsProvider);
+    ref.invalidate(calendarSourcesStreamProvider);
+    ref.invalidate(_androidScheduleItemsProvider);
+  }
+
+  Future<void> _browseTasks({TaskListEntity? list}) async {
+    await _openSearch(focus: false);
+    if (!mounted || _searchCriteria == null) {
+      return;
+    }
+    List<TaskListEntity> lists;
+    try {
+      lists = await ref.read(scheduleTaskListsProvider.future);
+    } on Object {
+      lists = ref.read(scheduleTaskListsProvider).valueOrNull ?? const [];
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _allTaskLists = list == null;
+      _creationTaskList = list;
+      _searchCriteria = _searchCriteria!.copyWith(
+        type: ScheduleSearchType.tasks,
+        date: ScheduleSearchDate.any,
+        taskListKeys: {
+          for (final candidate in lists)
+            if (list == null ||
+                (candidate.accountId == list.accountId &&
+                    candidate.id == list.id))
+              ScheduleTaskListKey(
+                accountId: candidate.accountId,
+                taskListId: candidate.id,
+              ),
+        },
+      );
+      _initialSearchCriteria = _searchCriteria;
+    });
+    _searchFocusNode.unfocus();
+  }
+
+  Future<void> _openWorkspaceRequest(AndroidWorkspaceRequest request) async {
+    ref.read(androidWorkspaceRequestProvider.notifier).state = null;
+    if (_workspaceRoute?.isCurrent == false) {
+      _queuedRequest = request;
+      return;
+    }
+    if (request.summary) {
+      await _browseTasks();
+      if (mounted) {
+        setState(() {
+          _anchor = request.date;
+          _notificationDate = request.date;
+        });
+      }
+      return;
+    }
+    final repository = ref.read(scheduleRepositoryProvider);
+    final accountId = request.accountId;
+    final itemId = request.itemId;
+    final item = request.task
+        ? accountId == null || itemId == null
+              ? null
+              : await repository.findReminderTask(
+                  accountId: accountId,
+                  taskListId: request.taskListId!,
+                  taskId: itemId,
+                )
+        : (await repository.listItems(
+            range: ScheduleRange.day(request.date),
+            filters: ScheduleFilters(
+              accountIds: accountId == null ? const {} : {accountId},
+              ignoreDateRange: true,
+              includeTasks: false,
+            ),
+          )).where((item) => item.id == itemId).firstOrNull;
+    if (!mounted) {
+      return;
+    }
+    if (item == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.notificationItemUnavailable)),
+      );
+      return;
+    }
+    if (!request.task && _searching) {
+      _closeSearch();
+    }
+    if (!request.task) {
+      setState(() => _anchor = item.start ?? request.date);
+      await ref
+          .read(appSettingsControllerProvider.notifier)
+          .setAndroidScheduleViewMode(ScheduleViewMode.day);
+    }
+    if (request.task) {
+      await _browseTasks();
+    }
+    if (mounted) {
+      await _showItem(context, item);
+    }
+  }
+
+  Future<void> _rescheduleEvent(
+    ScheduleRescheduleRequest request,
+    bool Function() isActive,
+  ) async {
+    try {
+      await ScheduleReschedulingCoordinator(
+        repository: ref.read(calendarRepositoryProvider),
+        chooseScope: (_, following) =>
+            showAndroidRecurringScope(context, supportsFollowing: following),
+        chooseGuestUpdates: (draft) => showAndroidGuestDeliveryDialog(
+          context,
+          provider: request.item.provider,
+        ),
+        confirmSeriesTimingChange: (change, scope) =>
+            confirmAndroidSeriesTimingChange(context, change, scope),
+        requestSync: (accountId) async => ref
+            .read(
+              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+            )
+            .request(),
+      ).commit(request, isActive: () => mounted && isActive());
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${context.l10n.scheduleRescheduleFailed} $error'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleChecklist(
+    TaskScheduleItem parent,
+    TaskChecklistItemEntity step,
+  ) async {
+    try {
+      await ref
+          .read(tasksRepositoryForAccountProvider(parent.accountId))
+          .patchChecklistSubtask(
+            taskListId: parent.sourceId,
+            parentTaskId: parent.id,
+            checklistItemId: step.id,
+            completed: !step.completed,
+          );
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
+  }
+
+  Future<void> _openSearch({bool focus = true}) async {
     final generation = ++_searchRequestGeneration;
-    final sources = await ref.read(calendarSourcesStreamProvider.future);
-    final lists = await ref.read(scheduleTaskListsProvider.future);
-    if (!mounted || generation != _searchRequestGeneration) return;
+    List<CalendarSourceEntity> sources;
+    List<TaskListEntity> lists;
+    try {
+      sources = await ref.read(calendarSourcesStreamProvider.future);
+    } on Object {
+      sources = ref.read(calendarSourcesStreamProvider).valueOrNull ?? const [];
+    }
+    try {
+      lists = await ref.read(scheduleTaskListsProvider.future);
+    } on Object {
+      lists = ref.read(scheduleTaskListsProvider).valueOrNull ?? const [];
+    }
+    if (!mounted || generation != _searchRequestGeneration) {
+      return;
+    }
     final visibility = ScheduleSourceVisibility.fromSources(
       calendarSources: sources,
       taskLists: lists,
@@ -405,6 +1107,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     );
     final now = DateTime.now();
     setState(() {
+      if (!_searching) {
+        _searchAnchor = _anchor;
+      }
       _initialSearchCriteria = ScheduleSearchCriteria(
         referenceDate: DateTime(now.year, now.month, now.day),
         firstWeekday: _firstWeekday(context),
@@ -415,7 +1120,10 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       _searching = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_searching || generation != _searchRequestGeneration) {
+      if (!focus ||
+          !mounted ||
+          !_searching ||
+          generation != _searchRequestGeneration) {
         return;
       }
       _searchFocusNode.requestFocus();
@@ -427,6 +1135,12 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     _searchFocusNode.unfocus();
     setState(() {
       _searching = false;
+      _cachedSearchItems = null;
+      _anchor = _searchAnchor ?? _anchor;
+      _searchAnchor = null;
+      _notificationDate = null;
+      _allTaskLists = false;
+      _creationTaskList = null;
       _searchCriteria = null;
       _initialSearchCriteria = null;
       _query = '';
@@ -434,51 +1148,118 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     });
   }
 
-  Widget _navigationRow(BuildContext context, ScheduleViewMode mode) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-      child: Row(
-        children: [
+  Future<void> _refreshWorkspace() => refreshAndroidAccounts(context, ref);
+
+  Widget _searchFilterPanel() => AndroidScheduleSearchFilters(
+    value: _searchCriteria!,
+    accounts: ref.watch(accountsStreamProvider).valueOrNull ?? const [],
+    sources: ref.watch(calendarSourcesStreamProvider).valueOrNull ?? const [],
+    taskLists: ref.watch(scheduleTaskListsProvider).valueOrNull ?? const [],
+    onChanged: (value) => setState(() {
+      _notificationDate = null;
+      _allTaskLists = false;
+      _searchCriteria = value;
+    }),
+    onClear: () => setState(() => _searchCriteria = _initialSearchCriteria),
+  );
+
+  Widget _navigationRow(BuildContext context, ScheduleViewMode mode) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: Row(
+      children: [
+        IconButton(
+          tooltip: context.l10n.today,
+          icon: const Icon(Icons.today_outlined),
+          onPressed: () => setState(() {
+            _navigationDirection = 0;
+            _anchor = DateTime.now();
+          }),
+        ),
+        if (mode != ScheduleViewMode.agenda) ...[
           IconButton(
-            tooltip: context.l10n.shortcutPreviousPeriod,
-            onPressed: () => _movePeriod(mode, -1),
+            tooltip: MaterialLocalizations.of(context).previousPageTooltip,
             icon: const Icon(Icons.chevron_left),
-          ),
-          FilledButton.tonal(
-            onPressed: () => setState(() {
-              _navigationDirection = 0;
-              _anchor = DateTime.now();
-            }),
-            child: Text(context.l10n.today),
+            onPressed: () => _movePeriod(mode, -1),
           ),
           IconButton(
-            tooltip: context.l10n.shortcutNextPeriod,
-            onPressed: () => _movePeriod(mode, 1),
+            tooltip: MaterialLocalizations.of(context).nextPageTooltip,
             icon: const Icon(Icons.chevron_right),
-          ),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              _modeLabel(context, mode),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            onPressed: () => _movePeriod(mode, 1),
           ),
         ],
-      ),
-    );
-  }
+        Expanded(
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: PopupMenuButton<ScheduleViewMode>(
+              tooltip: context.l10n.viewSelector,
+              onSelected: (value) => unawaited(
+                ref
+                    .read(appSettingsControllerProvider.notifier)
+                    .setAndroidScheduleViewMode(value),
+              ),
+              itemBuilder: (context) => [
+                for (final value in ScheduleViewMode.values)
+                  CheckedPopupMenuItem(
+                    value: value,
+                    checked: value == mode,
+                    child: Text(_modeLabel(context, value)),
+                  ),
+              ],
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _modeLabel(context, mode),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: context.l10n.create,
+          icon: const Icon(Icons.add),
+          onPressed: _canCreateEvent || _canCreateTask
+              ? () => _createItem(context)
+              : null,
+        ),
+      ],
+    ),
+  );
+
+  bool get _canCreateEvent =>
+      (ref.watch(calendarSourcesStreamProvider).valueOrNull ??
+              const <CalendarSourceEntity>[])
+          .any((source) => source.capabilities.canCreateEvents);
+  bool get _canCreateTask =>
+      (ref.watch(scheduleTaskListsProvider).valueOrNull ??
+              const <TaskListEntity>[])
+          .where(
+            (list) => ref.watch(scheduleTaskListCreateEligibleProvider(list)),
+          )
+          .toList()
+          .isNotEmpty;
 
   void _movePeriod(ScheduleViewMode mode, int direction) {
     setState(() {
-      _anchor = _move(_anchor, mode, direction);
+      _anchor = adjacentScheduleDate(_anchor, mode, direction);
       _navigationDirection = direction;
       _navigationGeneration += 1;
     });
   }
 
   Future<void> _showSearchFilters() async {
-    if (_searchCriteria == null) return;
+    if (_searchCriteria == null) {
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -504,11 +1285,13 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                       ref.read(scheduleTaskListsProvider).valueOrNull ??
                       const [],
                   onChanged: (value) {
-                    setState(
-                      () => _searchCriteria = value.copyWith(
+                    setState(() {
+                      _notificationDate = null;
+                      _allTaskLists = false;
+                      _searchCriteria = value.copyWith(
                         firstWeekday: _firstWeekday(context),
-                      ),
-                    );
+                      );
+                    });
                     update(() {});
                   },
                   onClear: () {
@@ -528,87 +1311,33 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     );
   }
 
-  Future<void> _showSources(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) {
-          final sources = ref.watch(calendarSourcesStreamProvider);
-          final lists = ref.watch(scheduleTaskListsProvider);
-          final accounts =
-              ref.watch(accountsStreamProvider).valueOrNull ??
-              const <AccountEntity>[];
-          final accountLabels = {
-            for (final account in accounts) account.id: account.displayLabel,
-          };
-          final settings = ref.watch(appSettingsControllerProvider);
-          return SafeArea(
-            child: SizedBox(
-              height: MediaQuery.sizeOf(context).height * .72,
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: 24),
-                children: [
-                  ListTile(
-                    title: Text(context.l10n.collectionSettings),
-                    titleTextStyle: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  ...(sources.valueOrNull ?? const <CalendarSourceEntity>[]).map(
-                    (source) => CheckboxListTile(
-                      secondary: const Icon(Icons.calendar_month),
-                      title: Text(source.summary),
-                      subtitle: Text(
-                        '${source.provider.displayName} · '
-                        '${source.authenticatedAccountEmail ?? source.accountId}',
-                      ),
-                      value: source.selected,
-                      onChanged: (selected) => ref
-                          .read(calendarRepositoryProvider)
-                          .setSourceSelected(source.id, selected == true),
-                    ),
-                  ),
-                  ...(lists.valueOrNull ?? const []).map(
-                    (list) => CheckboxListTile(
-                      secondary: const Icon(Icons.checklist),
-                      title: Text(list.title),
-                      subtitle: Text(
-                        accountLabels[list.accountId] ?? list.accountId,
-                      ),
-                      value: settings.isTaskListVisibleInSchedule(
-                        list.accountId,
-                        list.id,
-                      ),
-                      onChanged: (visible) => ref
-                          .read(appSettingsControllerProvider.notifier)
-                          .setTaskListVisibleInSchedule(
-                            accountId: list.accountId,
-                            taskListId: list.id,
-                            visible: visible == true,
-                          ),
-                    ),
-                  ),
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.settings_outlined),
-                    title: Text(context.l10n.collectionSettings),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.of(this.context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => const AndroidSettingsScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+  Widget _sourcesPane({bool dismissOnNavigate = false}) => _AndroidSourcesPane(
+    compact: dismissOnNavigate,
+    selectedDate: _anchor,
+    onNavigate: (date, mode) {
+      if (dismissOnNavigate) {
+        Navigator.pop(context);
+      }
+      setState(() => _anchor = date);
+      unawaited(
+        ref
+            .read(appSettingsControllerProvider.notifier)
+            .setAndroidScheduleViewMode(mode),
+      );
+    },
+  );
+
+  Future<void> _showSources(BuildContext context) => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (_) => SafeArea(
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * .88,
+        child: _sourcesPane(dismissOnNavigate: true),
       ),
-    );
-  }
+    ),
+  );
 
   Future<void> _selectDate() async {
     final selected = await showBusyMaxDatePicker(
@@ -617,37 +1346,60 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       firstDate: DateTime(1900),
       lastDate: DateTime(2200),
     );
-    if (selected != null && mounted) setState(() => _anchor = selected);
+    if (selected != null && mounted) {
+      setState(() => _anchor = selected);
+    }
   }
 
-  Future<void> _createItem(BuildContext context) async {
-    final type = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.event_outlined),
-              title: Text(context.l10n.newEvent),
-              onTap: () => Navigator.pop(context, 'event'),
+  Future<void> _createItem(
+    BuildContext context, {
+    DateTime? start,
+    DateTime? end,
+    String? itemType,
+  }) async {
+    final type =
+        itemType ??
+        await showModalBottomSheet<String>(
+          context: context,
+          showDragHandle: true,
+          builder: (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.event_outlined),
+                  title: Text(context.l10n.newEvent),
+                  enabled: _canCreateEvent,
+                  onTap: _canCreateEvent
+                      ? () => Navigator.pop(context, 'event')
+                      : null,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.check_circle_outline),
+                  title: Text(context.l10n.newTask),
+                  enabled: _canCreateTask,
+                  onTap: _canCreateTask
+                      ? () => Navigator.pop(context, 'task')
+                      : null,
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.check_circle_outline),
-              title: Text(context.l10n.newTask),
-              onTap: () => Navigator.pop(context, 'task'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (!context.mounted || type == null) return;
-    if (type == 'event') {
-      await _createEvent(context);
+          ),
+        );
+    if (!context.mounted || type == null) {
       return;
     }
-    final lists = ref.read(scheduleTaskListsProvider).valueOrNull ?? const [];
+    if (type == 'event') {
+      await _createEvent(context, start: start, end: end);
+      return;
+    }
+    final lists =
+        (ref.read(scheduleTaskListsProvider).valueOrNull ??
+                const <TaskListEntity>[])
+            .where(
+              (list) => ref.read(scheduleTaskListCreateEligibleProvider(list)),
+            )
+            .toList();
     if (lists.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -658,6 +1410,13 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         ref.read(accountsStreamProvider).valueOrNull ?? const <AccountEntity>[];
     final settings = ref.read(appSettingsControllerProvider);
     final list =
+        (lists.any(
+              (l) =>
+                  l.accountId == _creationTaskList?.accountId &&
+                  l.id == _creationTaskList?.id,
+            )
+            ? _creationTaskList
+            : null) ??
         preferredCreationDestination(
           lists,
           selected: settings.defaultTaskList,
@@ -670,295 +1429,675 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
           lists,
           title: context.l10n.newTask,
           accountLabels: {
-            for (final account in accounts) account.id: account.displayLabel,
+            for (final account in accounts) account.id: account.selectorLabel,
           },
         );
-    if (list == null || !context.mounted) return;
+    if (list == null || !context.mounted) {
+      return;
+    }
     final account = accounts
         .where((value) => value.id == list.accountId)
         .firstOrNull;
-    if (account == null) return;
+    if (account == null) {
+      return;
+    }
     final result = await showAndroidTaskEditor(
       context,
       ref,
       creationList: list,
       creationProvider: account.provider,
-      initialDue: DateTime(_anchor.year, _anchor.month, _anchor.day),
+      initialDue: start ?? DateTime(_anchor.year, _anchor.month, _anchor.day),
       onMutationStarted: _consumeEditorResult,
       onMutationCommitted: _consumeEditorResult,
       onMutationFailed: _clearEditorMutation,
     );
-    if (result == null) return;
+    if (result == null) {
+      return;
+    }
   }
 
   Future<void> _showItem(BuildContext context, ScheduleItem item) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheetContext).height * .82,
-          ),
-          child: SingleChildScrollView(
-            key: const ValueKey('android-schedule-details-scroll'),
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  item.title,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(item.sourceName ?? item.provider.displayName),
-                if (item is CalendarScheduleItem)
-                  Text(scheduleEventIntervalLabel(context, item))
-                else if (item.start != null)
-                  Text(
-                    formatClockDateTime(
-                      context,
-                      item.start!,
-                      DateFormat.yMMMd().format(item.start!),
-                    ),
-                  ),
-                if (item is CalendarScheduleItem) ...[
-                  if (item.mayNotifyParticipants)
-                    Text(context.l10n.caldavSchedulingWarning),
-                  for (final line in googleStatusDetailLines(
-                    context.l10n,
-                    item.eventType,
-                    item.googleStatusProperties,
-                  ))
-                    Text(line),
-                  if (calendarEventDescription(item).trim().isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: SelectableText(calendarEventDescription(item)),
-                    ),
-                  if (item.organizer != null)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.person_outline),
-                      title: Text(
-                        '${context.l10n.organizer}: '
-                        '${scheduleEventPersonName(item.organizer)}',
+    if (item is TaskScheduleItem && androidTaskEditorIsActive(context)) {
+      await showAndroidTaskEditor(
+        context,
+        ref,
+        task: item,
+        onMutationStarted: _consumeEditorResult,
+        onMutationCommitted: _consumeEditorResult,
+        onMutationFailed: _clearEditorMutation,
+      );
+      return;
+    }
+    final identity = '${item.accountId}\u0000${item.sourceId}\u0000${item.id}';
+    if (!_openDetails.add(identity)) {
+      return;
+    }
+    final location = resolveSavedScheduleLocation(
+      item: item,
+      repository: ref.read(locationResolutionRepositoryProvider),
+    );
+    var editing = false;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * .82,
+            ),
+            child: SingleChildScrollView(
+              key: const ValueKey('android-schedule-details-scroll'),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        item is CalendarScheduleItem
+                            ? Icons.calendar_today_outlined
+                            : Icons.checklist_outlined,
+                        color: ScheduleProjection.colorForItem(
+                          item,
+                          Theme.of(context).brightness,
+                        ),
                       ),
-                    ),
-                  if (item.currentUserResponse case final response?)
-                    Text(
-                      '${context.l10n.yourResponse}: '
-                      '${scheduleEventResponseLabel(context, response)}',
-                    ),
-                  for (final attendee in item.attendees)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.person_outline),
-                      title: Text(
-                        scheduleEventAttendeeLabel(context, attendee),
-                      ),
-                      subtitle: attendee['scheduleStatus'] == null
-                          ? null
-                          : Text(
-                              '${context.l10n.nextcloudSchedulingStatus}: ${attendee['scheduleStatus']}',
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.headlineSmall,
                             ),
-                    ),
-                  if (item.joinMeetingUrl case final meetingLink?)
-                    FilledButton.icon(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(
-                          _openEventWebLink(meetingLink, meeting: true),
-                        );
-                      },
-                      icon: const Icon(Icons.video_call_outlined),
-                      label: Text(context.l10n.joinMeeting),
-                    ),
-                  if (item.eventLinkUrl case final eventLink?)
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(_openEventWebLink(eventLink));
-                      },
-                      icon: const Icon(Icons.open_in_new),
-                      label: Text(context.l10n.eventLink),
-                    ),
-                  if (item.attachmentsMayExist ||
-                      item.attachmentLinks.isNotEmpty)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.attach_file),
-                      title: Text(context.l10n.attachments),
-                    ),
-                  for (final attachment in item.attachmentLinks)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.open_in_new),
-                      title: Text(attachment.name),
-                      subtitle: attachment.mimeType == null
-                          ? null
-                          : Text(attachment.mimeType!),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(_openEventWebLink(attachment.url));
-                      },
-                    ),
-                  if (item.provider.isDav && item.attachmentsLoaded)
-                    AndroidDavAttachmentsSection.event(
-                      eventId: item.id,
-                      showHeading:
-                          !item.attachmentsMayExist &&
-                          item.attachmentLinks.isEmpty,
-                    ),
-                  if (item.attachmentsMayExist && !item.attachmentsLoaded)
-                    Text(context.l10n.attachmentsNotLoaded),
-                  if (item.provider == BusyProvider.microsoft &&
-                      item.providerEventId != null)
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(
-                          showAndroidEventAttachmentsDialog(context, item),
-                        );
-                      },
-                      icon: const Icon(Icons.attach_file),
-                      label: Text(context.l10n.attachments),
-                    ),
-                  for (final uri in calendarEventDescriptionLinks(item))
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(_openEventWebLink(uri.toString()));
-                      },
-                      child: Text(uri.toString()),
-                    ),
-                ],
-                if (item case CalendarScheduleItem(:final location?)
-                    when location.isNotEmpty)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.place),
-                    title: Text(location),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () => unawaited(
-                      const ExternalLocationLauncher(
-                        platform: _androidLocationPlatform,
-                      ).open(projectedScheduleItemLocationDestination(item)),
-                    ),
-                  ),
-                if (item case TaskScheduleItem(:final notes?)
-                    when notes.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Text(notes),
-                  ),
-                if (item is TaskScheduleItem)
-                  for (final link in item.availableSourceLinks)
-                    TextButton.icon(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(_openEventWebLink(link.url));
-                      },
-                      icon: const Icon(Icons.open_in_new),
-                      label: Text(
-                        link.label?.isNotEmpty == true
-                            ? link.label!
-                            : context.l10n.openInProvider,
+                            Text(
+                              item is CalendarScheduleItem
+                                  ? context.l10n.createEventAtTime
+                                  : context.l10n.createTaskAtDate,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                if (item is CalendarScheduleItem &&
-                    item.canRespondToInvitation) ...[
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      FilledButton.tonal(
-                        onPressed: () {
-                          Navigator.pop(sheetContext);
-                          unawaited(
-                            _respondToInvitation(
-                              item,
-                              CalendarInvitationResponse.accept,
-                            ),
-                          );
-                        },
-                        child: Text(context.l10n.acceptInvitation),
-                      ),
-                      OutlinedButton(
-                        onPressed: () {
-                          Navigator.pop(sheetContext);
-                          unawaited(
-                            _respondToInvitation(
-                              item,
-                              CalendarInvitationResponse.tentative,
-                            ),
-                          );
-                        },
-                        child: Text(context.l10n.tentativeInvitation),
-                      ),
-                      OutlinedButton(
-                        onPressed: () {
-                          Navigator.pop(sheetContext);
-                          unawaited(
-                            _respondToInvitation(
-                              item,
-                              CalendarInvitationResponse.decline,
-                            ),
-                          );
-                        },
-                        child: Text(context.l10n.declineInvitation),
+                      if (item.capabilities.canEdit || item is TaskScheduleItem)
+                        FilledButton.icon(
+                          onPressed: () async {
+                            if (editing) {
+                              return;
+                            }
+                            editing = true;
+                            Navigator.pop(sheetContext);
+                            if (item is CalendarScheduleItem) {
+                              await _editEvent(context, item);
+                            } else if (item is TaskScheduleItem) {
+                              final result = await showAndroidTaskEditor(
+                                context,
+                                ref,
+                                task: item,
+                                onMutationStarted: _consumeEditorResult,
+                                onMutationCommitted: _consumeEditorResult,
+                                onMutationFailed: _clearEditorMutation,
+                              );
+                              if (result == null) {
+                                return;
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.edit),
+                          label: Text(
+                            item is CalendarScheduleItem
+                                ? context.l10n.editEvent
+                                : item.capabilities.canEdit
+                                ? context.l10n.editTask
+                                : context.l10n.taskDetails,
+                          ),
+                        ),
+                      if (item.capabilities.canDelete)
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.delete_outline),
+                          label: Text(switch (item) {
+                            CalendarScheduleItem(isNextcloudAttendee: true) =>
+                              context.l10n.nextcloudDeclineAndRemove,
+                            CalendarScheduleItem(
+                              isNextcloudMeeting: true,
+                              isOrganizer: true,
+                            ) =>
+                              context.l10n.nextcloudCancelMeeting,
+                            _ => context.l10n.delete,
+                          }),
+                          onPressed: () async {
+                            if (await _deleteItem(item) &&
+                                sheetContext.mounted) {
+                              Navigator.pop(sheetContext);
+                            }
+                          },
+                        ),
+                      ...[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () => _exportItem(sheetContext, item),
+                          icon: const Icon(Icons.file_download_outlined),
+                          label: Text(context.l10n.export),
+                        ),
+                      ],
+                      TextButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        child: Text(context.l10n.close),
                       ),
                     ],
                   ),
-                ],
-                const SizedBox(height: 16),
-                if (item.capabilities.canEdit)
-                  FilledButton.icon(
-                    onPressed: () async {
-                      Navigator.pop(sheetContext);
-                      if (item is CalendarScheduleItem) {
-                        await _editEvent(context, item);
-                      } else if (item is TaskScheduleItem) {
-                        final result = await showAndroidTaskEditor(
-                          context,
-                          ref,
-                          task: item,
-                          onMutationStarted: _consumeEditorResult,
-                          onMutationCommitted: _consumeEditorResult,
-                          onMutationFailed: _clearEditorMutation,
+                  if (item is CalendarScheduleItem && item.canReschedule)
+                    TextButton.icon(
+                      icon: const Icon(Icons.schedule),
+                      label: Text(context.l10n.moveEvent),
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(
+                          showAndroidEventTimingActions(
+                            context,
+                            item,
+                            (request) =>
+                                _rescheduleEvent(request, () => mounted),
+                          ),
                         );
-                        if (result == null) return;
-                      }
-                    },
-                    icon: const Icon(Icons.edit),
-                    label: Text(
-                      item is CalendarScheduleItem
-                          ? context.l10n.editEvent
-                          : context.l10n.editTask,
+                      },
                     ),
-                  ),
-                if (item is CalendarScheduleItem ||
-                    item.provider == BusyProvider.nextcloud) ...[
+                  if (item is CalendarScheduleItem) ...[
+                    if (item.joinMeetingUrl case final meetingLink?)
+                      FilledButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          unawaited(
+                            _openEventWebLink(meetingLink, meeting: true),
+                          );
+                        },
+                        icon: const Icon(Icons.video_call_outlined),
+                        label: Text(context.l10n.joinMeeting),
+                      ),
+                    if (item.provider == BusyProvider.microsoft &&
+                        item.providerEventId != null)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          unawaited(
+                            showAndroidEventAttachmentsDialog(context, item),
+                          );
+                        },
+                        icon: const Icon(Icons.attach_file),
+                        label: Text(context.l10n.attachments),
+                      ),
+                  ],
+                  if (item is CalendarScheduleItem &&
+                      item.canRespondToInvitation) ...[
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor:
+                                item.currentUserResponse?.toLowerCase() ==
+                                    'accepted'
+                                ? Theme.of(context).colorScheme.primaryContainer
+                                : null,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            unawaited(
+                              _respondToInvitation(
+                                item,
+                                CalendarInvitationResponse.accept,
+                              ),
+                            );
+                          },
+                          child: Text(context.l10n.acceptInvitation),
+                        ),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor:
+                                const [
+                                  'tentative',
+                                  'tentativelyaccepted',
+                                ].contains(
+                                  item.currentUserResponse?.toLowerCase(),
+                                )
+                                ? Theme.of(context).colorScheme.primaryContainer
+                                : null,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            unawaited(
+                              _respondToInvitation(
+                                item,
+                                CalendarInvitationResponse.tentative,
+                              ),
+                            );
+                          },
+                          child: Text(context.l10n.tentativeInvitation),
+                        ),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor:
+                                item.currentUserResponse?.toLowerCase() ==
+                                    'declined'
+                                ? Theme.of(context).colorScheme.primaryContainer
+                                : null,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            unawaited(
+                              _respondToInvitation(
+                                item,
+                                CalendarInvitationResponse.decline,
+                              ),
+                            );
+                          },
+                          child: Text(context.l10n.declineInvitation),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () => _exportItem(sheetContext, item),
-                    icon: const Icon(Icons.file_download_outlined),
-                    label: Text(context.l10n.export),
+                  if (item is CalendarScheduleItem)
+                    Text(scheduleEventIntervalLabel(context, item))
+                  else if (item.start != null)
+                    Text(
+                      item.allDay
+                          ? '${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).format(item.start!)} · ${context.l10n.allDay}'
+                          : formatClockDateTime(
+                              context,
+                              item.start!,
+                              DateFormat.yMMMd(
+                                Localizations.localeOf(context).toLanguageTag(),
+                              ).format(item.start!),
+                            ),
+                    ),
+                  Text(
+                    '${item.sourceName ?? item.provider.displayName} · ${item.accountEmail ?? item.accountDisplayName ?? item.accountId}',
                   ),
+                  if (item is CalendarScheduleItem) ...[
+                    for (final line in googleStatusDetailLines(
+                      context.l10n,
+                      item.eventType,
+                      item.googleStatusProperties,
+                    ))
+                      Text(line),
+                    FutureBuilder<ExternalLocationDestination?>(
+                      future: location,
+                      initialData: projectedScheduleItemLocationDestination(
+                        item,
+                      ),
+                      builder: (context, snapshot) {
+                        final destination = snapshot.data;
+                        if (destination == null) {
+                          return const SizedBox.shrink();
+                        }
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.place),
+                          title: Text(
+                            savedScheduleLocationDisplayText(item, destination),
+                          ),
+                          trailing: const Icon(Icons.open_in_new),
+                          onTap: () async {
+                            try {
+                              final resolved = await location;
+                              final result =
+                                  await const ExternalLocationLauncher(
+                                    platform: _androidLocationPlatform,
+                                  ).open(resolved);
+                              if (result ==
+                                  ExternalLocationLaunchResult.opened) {
+                                return;
+                              }
+                            } on Object {
+                              /* Report failed external handoff below. */
+                            }
+                            if (mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    this
+                                        .context
+                                        .l10n
+                                        .externalLocationOpenFailed,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        );
+                      },
+                    ),
+                    if (item.organizer != null)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.person_outline),
+                        title: Text(
+                          '${context.l10n.organizer}: '
+                          '${scheduleEventPersonName(item.organizer)}',
+                        ),
+                      ),
+                    if (item.currentUserResponse case final response?)
+                      Text(
+                        '${context.l10n.yourResponse}: '
+                        '${scheduleEventResponseLabel(context, response)}',
+                      ),
+                    if (item.isNextcloudAttendee)
+                      Text(context.l10n.nextcloudAttendeeRestrictions),
+                    if (item.mayNotifyParticipants)
+                      Text(context.l10n.caldavSchedulingWarning),
+                    for (final attendee in item.attendees)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.person_outline),
+                        title: Text(
+                          scheduleEventAttendeeLabel(context, attendee),
+                        ),
+                        subtitle: attendee['scheduleStatus'] == null
+                            ? null
+                            : Text(
+                                '${context.l10n.nextcloudSchedulingStatus}: ${attendee['scheduleStatus']}',
+                              ),
+                      ),
+                    for (final minutes in item.reminderMinutesBeforeStart)
+                      Text(
+                        '${context.l10n.reminder}: ${context.l10n.reminderMinutesBefore(minutes)}',
+                      ),
+                    if (item.categories.isNotEmpty)
+                      Text(
+                        '${context.l10n.categories}: ${item.categories.join(', ')}',
+                      ),
+                    if (calendarEventDescription(item).trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: _AndroidEventDescription(item: item),
+                      ),
+                    if (item.eventLinkUrl case final eventLink?)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          unawaited(_openEventWebLink(eventLink));
+                        },
+                        icon: const Icon(Icons.open_in_new),
+                        label: Text(context.l10n.eventLink),
+                      ),
+                    for (final uri in calendarEventDescriptionLinks(item))
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          unawaited(_openEventWebLink(uri.toString()));
+                        },
+                        child: Text(uri.toString()),
+                      ),
+                    if (item.attachmentsMayExist ||
+                        item.attachmentLinks.isNotEmpty)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.attach_file),
+                        title: Text(context.l10n.attachments),
+                      ),
+                    for (final attachment in item.attachmentLinks)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.open_in_new),
+                        title: Text(attachment.name),
+                        subtitle: attachment.mimeType == null
+                            ? null
+                            : Text(attachment.mimeType!),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          unawaited(_openEventWebLink(attachment.url));
+                        },
+                      ),
+                    if (item.provider.isDav && item.attachmentsLoaded)
+                      AndroidDavAttachmentsSection.event(
+                        eventId: item.id,
+                        showHeading:
+                            !item.attachmentsMayExist &&
+                            item.attachmentLinks.isEmpty,
+                      ),
+                    if (item.attachmentsMayExist && !item.attachmentsLoaded)
+                      Text(context.l10n.attachmentsNotLoaded),
+                  ],
+                  if (item is TaskScheduleItem) ...[
+                    Text(
+                      item.cancelled
+                          ? context.l10n.taskStatusCancelled
+                          : item.completed
+                          ? context.l10n.taskStatusCompleted
+                          : context.l10n.openStatus,
+                    ),
+                    if (item.due != null)
+                      Text(
+                        '${context.l10n.dueDate}: ${DateFormat.yMMMd().format(item.due!)}',
+                      ),
+                    if (item.reminder != null)
+                      Text(
+                        '${context.l10n.reminder}: ${formatClockDateTime(context, item.reminder!, DateFormat.yMMMd().format(item.reminder!))}',
+                      ),
+                    if (item.provider.isDav)
+                      AndroidDavAttachmentsSection.task(
+                        target: (
+                          accountId: item.accountId,
+                          taskListId: item.sourceId,
+                          taskId: item.id,
+                        ),
+                      ),
+                    if (item.categories.isNotEmpty)
+                      Text(
+                        '${context.l10n.categories}: ${item.categories.join(', ')}',
+                      ),
+                    FutureBuilder<ExternalLocationDestination?>(
+                      future: location,
+                      initialData: projectedScheduleItemLocationDestination(
+                        item,
+                      ),
+                      builder: (context, snapshot) {
+                        final destination = snapshot.data;
+                        if (destination == null) {
+                          return const SizedBox.shrink();
+                        }
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.place),
+                          title: Text(
+                            savedScheduleLocationDisplayText(item, destination),
+                          ),
+                          trailing: const Icon(Icons.open_in_new),
+                          onTap: () async {
+                            try {
+                              final resolved = await location;
+                              final result =
+                                  await const ExternalLocationLauncher(
+                                    platform: _androidLocationPlatform,
+                                  ).open(resolved);
+                              if (result ==
+                                  ExternalLocationLaunchResult.opened) {
+                                return;
+                              }
+                            } on Object {
+                              /* Report failed external handoff below. */
+                            }
+                            if (mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    this
+                                        .context
+                                        .l10n
+                                        .externalLocationOpenFailed,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        );
+                      },
+                    ),
+                    if (item case TaskScheduleItem(:final notes?)
+                        when notes.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(notes),
+                      ),
+                    for (final link in item.availableSourceLinks)
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          unawaited(_openEventWebLink(link.url));
+                        },
+                        icon: const Icon(Icons.open_in_new),
+                        label: Text(
+                          link.label?.isNotEmpty == true
+                              ? link.label!
+                              : context.l10n.openInProvider,
+                        ),
+                      ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    } finally {
+      _openDetails.remove(identity);
+    }
+  }
+
+  Future<bool> _deleteItem(ScheduleItem item) async {
+    if (!item.capabilities.canDelete) {
+      return false;
+    }
+    try {
+      RecurringEventMutationScope? scope;
+      if (item is CalendarScheduleItem &&
+          item.providerRecurringEventId != null) {
+        final detail = await ref
+            .read(calendarRepositoryProvider)
+            .loadEventDetail(item.id);
+        if (!mounted || detail == null) {
+          return false;
+        }
+        scope = await showAndroidRecurringScope(
+          context,
+          supportsFollowing:
+              !item.isNextcloudAttendee &&
+              eventSupportsThisAndFollowing(detail),
+        );
+        if (scope == null || !mounted) {
+          return false;
+        }
+      }
+      var policy = CalendarGuestUpdatePolicy.send;
+      if (item is CalendarScheduleItem &&
+          (item.mayNotifyParticipants ||
+              (item.provider != BusyProvider.caldav &&
+                  item.isOrganizer == true &&
+                  item.attendees.any(
+                    (a) => a['self'] != true && a['organizer'] != true,
+                  )))) {
+        final result = await showAndroidGuestDeliveryDialog(
+          context,
+          provider: item.provider,
+          deleting: true,
+        );
+        if (result == null || !mounted) {
+          return false;
+        }
+        policy = result;
+      } else {
+        final attendee =
+            item is CalendarScheduleItem && item.isNextcloudAttendee;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              attendee
+                  ? context.l10n.nextcloudDeclineAndRemove
+                  : item is TaskScheduleItem
+                  ? context.l10n.deleteTask
+                  : context.l10n.deleteEvent,
+            ),
+            content: Text(
+              attendee
+                  ? context.l10n.nextcloudDeclineRemovalWarning
+                  : item is TaskScheduleItem
+                  ? '${context.l10n.deleteTaskConfirmation(item.title)}${item.isAssigned ? '\n\n${context.l10n.deleteAssignedTaskWarning}' : ''}'
+                  : context.l10n.deleteCalendarConfirmation(item.title),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(context.l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  attendee
+                      ? context.l10n.nextcloudDeclineAndRemove
+                      : context.l10n.delete,
+                ),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) {
+          return false;
+        }
+      }
+      if (item is CalendarScheduleItem) {
+        final account = await ref
+            .read(calendarRepositoryProvider)
+            .deleteLocalEvent(
+              item.id,
+              recurringScope: scope,
+              guestUpdatePolicy: policy,
+            );
+        ref
+            .read(
+              pendingCalendarMutationSyncRequesterForAccountProvider(account),
+            )
+            .request();
+      } else if (item is TaskScheduleItem) {
+        await ref
+            .read(tasksRepositoryForAccountProvider(item.accountId))
+            .deleteTask(
+              item.sourceId,
+              item.id,
+              confirmedAssignedSourceDeletion: item.isAssigned,
+            );
+      }
+      return true;
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
+      }
+      return false;
+    }
   }
 
   Future<void> _openEventWebLink(String value, {bool meeting = false}) async {
-    if (await openScheduleWebLink(value) || !mounted) return;
+    if (await openScheduleWebLink(value) || !mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -976,7 +2115,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       if (item is CalendarScheduleItem) {
         final repository = ref.read(calendarRepositoryProvider);
         final detail = await repository.loadEventDetail(item.id);
-        if (!mounted || !context.mounted) return;
+        if (!mounted || !context.mounted) {
+          return;
+        }
         final recurring =
             detail != null &&
             (detail.recurrence != null ||
@@ -1005,7 +2146,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                 ),
               )
             : false;
-        if (series == null) return;
+        if (series == null) {
+          return;
+        }
         if (series && item.provider == BusyProvider.google) {
           raw = await exportGoogleEventSeries(
             client: ref.read(
@@ -1032,8 +2175,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         raw = await ref
             .read(tasksRepositoryForAccountProvider(item.accountId))
             .nativeTaskExport(item.sourceId, item.id);
+        raw ??= scheduleItemToICalendar(item, nowUtc: DateTime.now().toUtc());
       }
-      if (raw == null) return;
+      if (raw == null) {
+        return;
+      }
       final uri = await BusyMaxAndroidPlatform.instance.createDocument(
         suggestedName: item is TaskScheduleItem ? 'task.ics' : 'event.ics',
         mimeType: 'text/calendar',
@@ -1053,7 +2199,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     }
   }
 
-  Future<void> _createEvent(BuildContext context) async {
+  Future<void> _createEvent(
+    BuildContext context, {
+    DateTime? start,
+    DateTime? end,
+  }) async {
     final sources =
         (ref.read(calendarSourcesStreamProvider).valueOrNull ??
                 const <CalendarSourceEntity>[])
@@ -1098,8 +2248,16 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                   ),
                 ),
               ));
-    if (source == null || !context.mounted) return;
-    final start = DateTime(_anchor.year, _anchor.month, _anchor.day, 9);
+    if (source == null || !context.mounted) {
+      return;
+    }
+    start ??= DateTime(_anchor.year, _anchor.month, _anchor.day, 9);
+    final zone = source.provider.isDav
+        ? await BusyMaxAndroidPlatform.instance.currentTimeZoneId()
+        : null;
+    if (!context.mounted) {
+      return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -1109,9 +2267,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
             accountId: source.accountId,
             sourceId: source.id,
             providerCalendarId: source.providerCalendarId,
-            start: start,
-            end: start.add(const Duration(hours: 1)),
-          ),
+            start: start!,
+            end: end ?? start.add(const Duration(hours: 1)),
+          ).copyWith(startTimeZone: zone, endTimeZone: zone),
         ),
       ),
     );
@@ -1128,7 +2286,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     CalendarScheduleItem item,
     CalendarInvitationResponse response,
   ) async {
-    if (!item.canRespondToInvitation) return;
+    if (!item.canRespondToInvitation) {
+      return;
+    }
     try {
       RecurringEventMutationScope? scope;
       if (item.provider == BusyProvider.nextcloud &&
@@ -1151,7 +2311,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
             ),
           ),
         );
-        if (scope == null || !mounted) return;
+        if (scope == null || !mounted) {
+          return;
+        }
       }
       final accountId = await ref
           .read(calendarRepositoryProvider)
@@ -1162,7 +2324,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
           )
           .request();
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1179,7 +2343,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
 
   Future<void> _toggleTask(TaskScheduleItem task) async {
     final key = '${task.accountId}\u0000${task.sourceId}\u0000${task.id}';
-    if (!task.capabilities.canEdit || !_taskMutationsInFlight.add(key)) return;
+    if (!task.capabilities.canEdit || !_taskMutationsInFlight.add(key)) {
+      return;
+    }
     final intent = TaskListMutationIntent(
       presentation: TaskListMutationPresentation.completion,
       accountId: task.accountId,
@@ -1218,19 +2384,25 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _taskMutationsInFlight.remove(key));
+      if (mounted) {
+        setState(() => _taskMutationsInFlight.remove(key));
+      }
     }
   }
 
   void _consumeTaskMutation(TaskListMutationIntent intent) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     if (_taskMutationIntent?.generation == intent.generation) {
       setState(() => _taskMutationIntent = null);
     }
   }
 
   void _consumeEditorResult(AndroidTaskEditorResult result) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     final presentation = switch (result.action) {
       AndroidTaskEditorAction.created => TaskListMutationPresentation.insertion,
       AndroidTaskEditorAction.deleted ||
@@ -1262,7 +2434,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
   }
 
   void _clearEditorMutation() {
-    if (mounted) setState(() => _taskMutationIntent = null);
+    if (mounted) {
+      setState(() => _taskMutationIntent = null);
+    }
   }
 }
 
@@ -1274,9 +2448,13 @@ Future<void> showAndroidEventEditor(
   final detail = await ref
       .read(calendarRepositoryProvider)
       .loadEventDetail(eventId);
-  if (!context.mounted || detail == null) return;
+  if (!context.mounted || detail == null) {
+    return;
+  }
   final sources = await ref.read(calendarSourcesStreamProvider.future);
-  if (!context.mounted) return;
+  if (!context.mounted) {
+    return;
+  }
   await Navigator.of(context).push<void>(
     MaterialPageRoute(
       fullscreenDialog: true,
@@ -1291,6 +2469,502 @@ Future<void> showAndroidEventEditor(
 ExternalLocationPlatform _androidLocationPlatform() =>
     ExternalLocationPlatform.android;
 
+class _AndroidSourcesPane extends ConsumerStatefulWidget {
+  const _AndroidSourcesPane({
+    required this.selectedDate,
+    required this.onNavigate,
+    this.compact = false,
+  });
+  final bool compact;
+  final DateTime selectedDate;
+  final void Function(DateTime, ScheduleViewMode) onNavigate;
+
+  @override
+  ConsumerState<_AndroidSourcesPane> createState() =>
+      _AndroidSourcesPaneState();
+}
+
+class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
+  DateTime? _month;
+  final _accountDisclosures = <String, ExpansibleController>{};
+  final _creatingCalendarAccounts = <String>{};
+  final _creatingTaskListAccounts = <String>{};
+  @override
+  void dispose() {
+    for (final controller in _accountDisclosures.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AndroidSourcesPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedDate.year != widget.selectedDate.year ||
+        oldWidget.selectedDate.month != widget.selectedDate.month) {
+      _month = DateTime(widget.selectedDate.year, widget.selectedDate.month);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.watch(sidebarOrderRegistrationProvider);
+    final settings = ref.watch(appSettingsControllerProvider);
+    final accounts = ref.watch(accountsStreamProvider);
+    final orderedAccounts = settings.sidebarOrder.apply(
+      SidebarOrderSection.accounts,
+      accounts.valueOrNull ?? const <AccountEntity>[],
+      (a) => a.id,
+    );
+    final subscriptionsState = ref.watch(sidebarSubscriptionSourcesProvider);
+    final subscriptions = settings.sidebarOrder.apply(
+      SidebarOrderSection.subscriptions,
+      subscriptionsState.valueOrNull ?? const <CalendarSourceEntity>[],
+      (source) => source.id,
+    );
+    final month =
+        _month ?? DateTime(widget.selectedDate.year, widget.selectedDate.month);
+    final monthItems =
+        ref
+            .watch(
+              _androidMiniCalendarItemsProvider((
+                month: month,
+                firstWeekday: _firstWeekday(context),
+              )),
+            )
+            .valueOrNull ??
+        const <ScheduleItem>[];
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: widget.compact
+                  ? constraints.maxHeight * .52
+                  : constraints.maxHeight - 220,
+            ),
+            child: SingleChildScrollView(
+              child: MiniCalendar(
+                selectedDate: widget.selectedDate,
+                firstWeekday: _firstWeekday(context),
+                items: monthItems,
+                onDisplayedMonthChanged: (date) =>
+                    setState(() => _month = date),
+                onSelected: (date) =>
+                    widget.onNavigate(date, ScheduleViewMode.day),
+                onMonthSelected: (date) =>
+                    widget.onNavigate(date, ScheduleViewMode.month),
+                onYearSelected: (date) =>
+                    widget.onNavigate(date, ScheduleViewMode.year),
+                onWeekSelected: (date) =>
+                    widget.onNavigate(date, ScheduleViewMode.week),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
+              children: [
+                if (accounts.isLoading) const LinearProgressIndicator(),
+                if (accounts.hasError)
+                  ListTile(title: Text(context.l10n.scheduleUnavailable)),
+                for (final account in orderedAccounts.where(
+                  (account) => !account.isSubscription,
+                ))
+                  _account(account, orderedAccounts),
+                if (subscriptions.isNotEmpty ||
+                    subscriptionsState.isLoading) ...[
+                  ListTile(title: Text(context.l10n.subscriptions)),
+                  if (subscriptionsState.isLoading)
+                    const LinearProgressIndicator(),
+                  for (final source in subscriptions)
+                    _calendarSource(
+                      source,
+                      SidebarOrderSection.subscriptions,
+                      subscriptions.map((source) => source.id).toList(),
+                    ),
+                ],
+                if (accounts.hasValue &&
+                    !accounts.isLoading &&
+                    !accounts.hasError &&
+                    orderedAccounts
+                        .where((account) => !account.isSubscription)
+                        .isEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.person_add_outlined),
+                    title: Text(context.l10n.addAccount),
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => const AndroidSettingsScreen(
+                          category: AndroidSettingsCategory.accounts,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _account(AccountEntity account, List<AccountEntity> accounts) {
+    final settings = ref.watch(appSettingsControllerProvider);
+    final sourcesState = ref.watch(sidebarCalendarSourcesProvider(account.id));
+    final listsState = ref.watch(sidebarTaskListsProvider(account.id));
+    final sources = settings.sidebarOrder.apply(
+      SidebarOrderSection.calendars,
+      calendarSourcesShownInSidebar(
+        sourcesState.valueOrNull ?? const <CalendarSourceEntity>[],
+        accountId: account.id,
+      ),
+      (s) => s.id,
+      accountId: account.id,
+    );
+    final lists = settings.sidebarOrder.apply(
+      SidebarOrderSection.taskLists,
+      listsState.valueOrNull ?? const <TaskListEntity>[],
+      (l) => l.id,
+      accountId: account.id,
+    );
+    final disclosure = _accountDisclosures.putIfAbsent(
+      account.id,
+      ExpansibleController.new,
+    );
+    final networkAvailability =
+        ref.watch(networkAvailabilityProvider).valueOrNull ??
+        ref.read(networkConnectivityMonitorProvider).availability;
+    final capabilities = AccountCollectionCreationCapabilities.resolve(
+      account: account,
+      networkAvailability: networkAvailability,
+      calendarCreationRunning: _creatingCalendarAccounts.contains(account.id),
+      taskListCreationRunning: _creatingTaskListAccounts.contains(account.id),
+    );
+    final invitations = account.provider == BusyProvider.nextcloud
+        ? ref
+                  .watch(nextcloudPendingInvitationCountProvider(account.id))
+                  .valueOrNull ??
+              0
+        : 0;
+    final secondaryLabel = scheduleAccountSecondaryLabel(account);
+    final subtitle = [
+      if (invitations > 0)
+        '${context.l10n.nextcloudFederationInvitations} ($invitations)',
+      if (secondaryLabel != null) secondaryLabel,
+    ].join('\n');
+    return ExpansionTile(
+      controller: disclosure,
+      initiallyExpanded: true,
+      maintainState: false,
+      tilePadding: const EdgeInsetsDirectional.only(start: 8),
+      leading: ListenableBuilder(
+        listenable: disclosure,
+        builder: (context, _) => IconButton(
+          tooltip: disclosure.isExpanded
+              ? MaterialLocalizations.of(context).expandedIconTapHint
+              : MaterialLocalizations.of(context).collapsedIconTapHint,
+          icon: Icon(
+            disclosure.isExpanded
+                ? Icons.expand_more
+                : Directionality.of(context) == TextDirection.rtl
+                ? Icons.chevron_left
+                : Icons.chevron_right,
+          ),
+          onPressed: disclosure.toggle,
+        ),
+      ),
+      title: Row(
+        children: [
+          Tooltip(
+            message: account.provider.displayName,
+            child: SyncActivityIcon(
+              scope: accountSyncScope(account.id),
+              refresh: const Icon(Icons.refresh, size: 18),
+              warning: const Icon(Icons.warning_amber_rounded, size: 18),
+              child: Icon(
+                account.provider == BusyProvider.google
+                    ? Icons.g_mobiledata
+                    : account.provider == BusyProvider.microsoft
+                    ? Icons.window
+                    : Icons.cloud_outlined,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(child: Text(account.displayLabel)),
+        ],
+      ),
+      subtitle: subtitle.isEmpty ? null : Text(subtitle),
+      trailing: PopupMenuButton<String>(
+        tooltip: context.l10n.options,
+        onSelected: (action) async {
+          if (action == 'refresh') {
+            if (account.provider.isDav &&
+                !await ensureAndroidLocalNetworkAccess(
+                  context,
+                  account.authority,
+                )) {
+              return;
+            }
+            if (mounted) {
+              await refreshFromAndroid(
+                context,
+                ref,
+                accountSyncScope(account.id),
+              );
+            }
+          } else if (action == 'calendar' || action == 'task-list') {
+            final running = action == 'calendar'
+                ? _creatingCalendarAccounts
+                : _creatingTaskListAccounts;
+            if (!running.add(account.id)) return;
+            setState(() {});
+            try {
+              await createAndroidAccountCollection(
+                context,
+                ref,
+                account,
+                calendar: action == 'calendar',
+              );
+            } finally {
+              running.remove(account.id);
+              if (mounted) setState(() {});
+            }
+          } else if (action == 'trash') {
+            if (context.mounted) {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      AndroidNextcloudTrashScreen(accountId: account.id),
+                ),
+              );
+            }
+          } else {
+            await ref
+                .read(appSettingsControllerProvider.notifier)
+                .moveSidebarItem(
+                  SidebarOrderSection.accounts,
+                  account.id,
+                  action == 'up' ? -1 : 1,
+                  accounts.map((a) => a.id),
+                );
+          }
+        },
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            value: 'refresh',
+            child: Text(context.l10n.refreshAccount),
+          ),
+          if (account.provider == BusyProvider.nextcloud)
+            PopupMenuItem(
+              value: 'trash',
+              enabled: networkAvailability != NetworkAvailability.offline,
+              child: Text(context.l10n.nextcloudTrash),
+            ),
+          PopupMenuItem(
+            value: 'up',
+            enabled: accounts.indexOf(account) > 0,
+            child: Text(context.l10n.moveUp),
+          ),
+          PopupMenuItem(
+            value: 'down',
+            enabled: accounts.indexOf(account) < accounts.length - 1,
+            child: Text(context.l10n.moveDown),
+          ),
+          if (capabilities.supportsCalendarCreation)
+            PopupMenuItem(
+              value: 'calendar',
+              enabled: capabilities.calendarActionEnabled,
+              child: Text(context.l10n.newCalendar),
+            ),
+          if (capabilities.supportsTaskListCreation)
+            PopupMenuItem(
+              value: 'task-list',
+              enabled: capabilities.taskListActionEnabled,
+              child: Text(context.l10n.newTaskList),
+            ),
+        ],
+      ),
+      children: [
+        if (sourcesState.isLoading || listsState.isLoading)
+          const LinearProgressIndicator(),
+        if (sourcesState.hasError || listsState.hasError)
+          ListTile(
+            title: Text(context.l10n.scheduleUnavailable),
+            subtitle: Text('${sourcesState.error ?? listsState.error}'),
+          ),
+        if (!account.calendarsEnabled)
+          ListTile(
+            title: Text('${context.l10n.calendars} · ${context.l10n.off}'),
+          ),
+        if (account.calendarsEnabled &&
+            sources.isEmpty &&
+            !sourcesState.isLoading &&
+            !sourcesState.hasError)
+          ListTile(title: Text(context.l10n.noCalendarsSynced)),
+        for (final source in sources)
+          _calendarSource(
+            source,
+            SidebarOrderSection.calendars,
+            sources.map((s) => s.id).toList(),
+            accountId: account.id,
+          ),
+        for (final list in lists)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Checkbox(
+              value: settings.isTaskListVisibleInSchedule(
+                list.accountId,
+                list.id,
+              ),
+              semanticLabel: '${context.l10n.scheduleSection}: ${list.title}',
+              onChanged: (v) => ref
+                  .read(appSettingsControllerProvider.notifier)
+                  .setTaskListVisibleInSchedule(
+                    accountId: list.accountId,
+                    taskListId: list.id,
+                    visible: v == true,
+                  ),
+            ),
+            title: Row(
+              children: [
+                SyncActivityIcon(
+                  scope: taskListSyncScope(list.accountId, list.id),
+                  refresh: const Icon(Icons.refresh, size: 18),
+                  warning: const Icon(Icons.warning_amber_rounded, size: 18),
+                  child: const Icon(Icons.checklist_outlined, size: 18),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(list.title)),
+              ],
+            ),
+
+            trailing: _orderMenu(
+              SidebarOrderSection.taskLists,
+              list.id,
+              lists.map((l) => l.id).toList(),
+              account.id,
+              (extra) => showAndroidTaskListActions(
+                context,
+                ref,
+                list,
+                accounts,
+                extraActions: extra,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _calendarSource(
+    CalendarSourceEntity source,
+    SidebarOrderSection section,
+    List<String> siblings, {
+    String? accountId,
+  }) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: Checkbox(
+      value: source.selected,
+      semanticLabel: '${context.l10n.scheduleSection}: ${source.summary}',
+      onChanged: (v) => ref
+          .read(calendarRepositoryProvider)
+          .setSourceSelected(source.id, v == true),
+    ),
+    title: Row(
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          margin: const EdgeInsetsDirectional.only(end: 6),
+          child: IconTheme(
+            data: IconThemeData(
+              size: 18,
+              color: _androidSourceColor(source, Theme.of(context).brightness),
+            ),
+            child: SyncActivityIcon(
+              scope: calendarSyncScope(source.accountId, source.id),
+              refresh: const Icon(Icons.refresh),
+              warning: const Icon(Icons.warning_amber_rounded),
+              child: const Icon(Icons.calendar_today_outlined),
+            ),
+          ),
+        ),
+        Expanded(child: Text(source.summary)),
+      ],
+    ),
+
+    trailing: _orderMenu(
+      section,
+      source.id,
+      siblings,
+      accountId,
+      (extra) => showAndroidCalendarSourceActions(
+        context,
+        ref,
+        source,
+        extraActions: extra,
+      ),
+    ),
+  );
+
+  Widget _orderMenu(
+    SidebarOrderSection section,
+    String id,
+    List<String> siblings,
+    String? accountId,
+    void Function(List<Widget> Function(BuildContext)) actions,
+  ) => IconButton(
+    tooltip: context.l10n.options,
+    icon: const Icon(Icons.more_vert),
+    onPressed: () => actions(
+      (sheetContext) => [
+        for (final direction in [-1, 1])
+          ListTile(
+            leading: Icon(
+              direction < 0 ? Icons.arrow_upward : Icons.arrow_downward,
+            ),
+            title: Text(
+              direction < 0 ? context.l10n.moveUp : context.l10n.moveDown,
+            ),
+            enabled: direction < 0
+                ? siblings.indexOf(id) > 0
+                : siblings.indexOf(id) < siblings.length - 1,
+            onTap: () {
+              Navigator.pop(sheetContext);
+              unawaited(
+                ref
+                    .read(appSettingsControllerProvider.notifier)
+                    .moveSidebarItem(
+                      section,
+                      id,
+                      direction,
+                      siblings,
+                      accountId: accountId,
+                    ),
+              );
+            },
+          ),
+      ],
+    ),
+  );
+}
+
+Color _androidSourceColor(CalendarSourceEntity source, Brightness brightness) {
+  final color = calendarSourceBackgroundColorHex(
+    provider: source.provider,
+    colorId: source.colorId,
+    backgroundColor: source.backgroundColor,
+  );
+  final value = int.tryParse((color ?? '').replaceFirst('#', ''), radix: 16);
+  return value == null
+      ? ScheduleProjection.deterministicSourceColor(source.id, brightness)
+      : Color(0xff000000 | value);
+}
+
 class _ScheduleBody extends StatelessWidget {
   const _ScheduleBody({
     required this.anchor,
@@ -1300,10 +2974,22 @@ class _ScheduleBody extends StatelessWidget {
     required this.onModeChanged,
     required this.onOpen,
     required this.onToggleTask,
+    required this.onCreate,
+    required this.onToggleChecklist,
+    required this.dayStartMinute,
+    required this.dayEndMinute,
+    required this.onReschedule,
     this.taskMutationIntent,
     this.taskMutationsInFlight = const {},
     this.onTaskMutationConsumed,
     this.agendaEmptyBuilder,
+    this.agendaPage,
+    this.agendaRange,
+    required this.canCreateEvent,
+    required this.canCreateTask,
+    this.onLoadMore,
+    this.onLoadMoreOverdue,
+    this.onLoadMoreNoDate,
   });
   final DateTime anchor;
   final ScheduleViewMode mode;
@@ -1312,45 +2998,116 @@ class _ScheduleBody extends StatelessWidget {
   final ValueChanged<ScheduleViewMode> onModeChanged;
   final ValueChanged<ScheduleItem> onOpen;
   final ValueChanged<TaskScheduleItem> onToggleTask;
+  final void Function(DateTime start, DateTime? end) onCreate;
+  final void Function(TaskScheduleItem, TaskChecklistItemEntity)
+  onToggleChecklist;
+  final int dayStartMinute, dayEndMinute;
+  final ScheduleRescheduleCallback onReschedule;
   final TaskListMutationIntent? taskMutationIntent;
   final Set<String> taskMutationsInFlight;
   final ValueChanged<TaskListMutationIntent>? onTaskMutationConsumed;
   final WidgetBuilder? agendaEmptyBuilder;
+  final ScheduleAgendaPage? agendaPage;
+  final ScheduleRange? agendaRange;
+  final bool canCreateEvent, canCreateTask;
+  final VoidCallback? onLoadMore, onLoadMoreOverdue, onLoadMoreNoDate;
 
   @override
   Widget build(BuildContext context) => BusyMaxKeyedCrossfade(
     transitionKey: mode,
     child: switch (mode) {
-      ScheduleViewMode.month => _MonthView(
-        anchor: anchor,
-        items: items,
-        onSelectDate: onSelectDate,
-        onOpen: onOpen,
-        onToggleTask: onToggleTask,
-        taskMutationsInFlight: taskMutationsInFlight,
+      ScheduleViewMode.month => GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity.abs() < 150) {
+            return;
+          }
+          onSelectDate(
+            adjacentScheduleDate(anchor, mode, velocity < 0 ? 1 : -1),
+          );
+        },
+        child: ScheduleMonthView(
+          key: const ValueKey('android-month-grid'),
+          range: ScheduleRange.month(
+            anchor,
+            firstWeekday: _firstWeekday(context),
+          ),
+          selectedDate: anchor,
+          items: items,
+          firstWeekday: _firstWeekday(context),
+          onDaySelected: onSelectDate,
+          onCreateAtDay: (date, {anchorContext}) =>
+              onCreate(DateTime(date.year, date.month, date.day, 9), null),
+          onItemSelected: (_, item, [position]) => onOpen(item),
+          onTaskCompletionChanged: (task, completed) => onToggleTask(task),
+          onReschedule: onReschedule,
+          onShowMore: (context, day, items) =>
+              _showAndroidDayItems(context, day, items, onOpen, onToggleTask),
+        ),
       ),
-      ScheduleViewMode.year => _YearView(
-        anchor: anchor,
-        items: items,
-        onSelectDate: onSelectDate,
-        onModeChanged: onModeChanged,
+      ScheduleViewMode.year => GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity.abs() >= 150) {
+            onSelectDate(
+              adjacentScheduleDate(anchor, mode, velocity < 0 ? 1 : -1),
+            );
+          }
+        },
+        child: ScheduleYearView(
+          key: const ValueKey('android-year-grid'),
+          selectedDate: anchor,
+          items: items,
+          firstWeekday: _firstWeekday(context),
+          onDaySelected: (date) {
+            onSelectDate(date);
+            onModeChanged(ScheduleViewMode.day);
+          },
+          onMonthSelected: (date) {
+            onSelectDate(date);
+            onModeChanged(ScheduleViewMode.month);
+          },
+          onWeekSelected: (date) {
+            onSelectDate(date);
+            onModeChanged(ScheduleViewMode.week);
+          },
+          onCreateAtDay: (date) =>
+              onCreate(DateTime(date.year, date.month, date.day, 9), null),
+        ),
       ),
-      ScheduleViewMode.week || ScheduleViewMode.day => _AndroidTimeGrid(
+      ScheduleViewMode.week || ScheduleViewMode.day => ScheduleDayWeekView(
         key: ValueKey('android-${mode.name}-time-grid'),
-        anchor: anchor,
-        days: mode == ScheduleViewMode.day ? 1 : 7,
-        firstWeekday: _firstWeekday(context),
+        range: _rangeFor(anchor, mode, firstWeekday: _firstWeekday(context)),
+        selectedDate: anchor,
+        daysShowed: mode == ScheduleViewMode.day ? 1 : 7,
         items: items,
-        onOpen: onOpen,
+        onDaySelected: onSelectDate,
+        onEmptySlot: (date) => onCreate(date, null),
+        onRangeCreated: canCreateEvent
+            ? (interval) => onCreate(interval.start, interval.end)
+            : null,
+        onItemSelected: (_, item, [position]) => onOpen(item),
+        onTaskCompletionChanged: (task, completed) => onToggleTask(task),
+        dayStartMinute: dayStartMinute,
+        dayEndMinute: dayEndMinute,
+        onReschedule: onReschedule,
       ),
       ScheduleViewMode.agenda => _AgendaList(
+        key: const PageStorageKey('android-agenda'),
+        range: agendaRange,
         items: items,
         onOpen: onOpen,
         onToggleTask: onToggleTask,
+        onToggleChecklist: onToggleChecklist,
         taskMutationIntent: taskMutationIntent,
         taskMutationsInFlight: taskMutationsInFlight,
         onTaskMutationConsumed: onTaskMutationConsumed,
         emptyBuilder: agendaEmptyBuilder,
+        onLoadMore: onLoadMore,
+        onLoadMoreOverdue: onLoadMoreOverdue,
+        onLoadMoreNoDate: onLoadMoreNoDate,
+        hasMoreOverdue: agendaPage?.hasMoreOverdueTasks ?? false,
+        hasMoreNoDate: agendaPage?.hasMoreNoDateTasks ?? false,
       ),
     },
   );
@@ -1361,6 +3118,7 @@ class _AgendaList extends StatelessWidget {
     super.key,
     this.searchCriteria,
     this.searchQuery = '',
+    this.range,
     required this.items,
     required this.onOpen,
     required this.onToggleTask,
@@ -1368,7 +3126,18 @@ class _AgendaList extends StatelessWidget {
     this.taskMutationsInFlight = const {},
     this.onTaskMutationConsumed,
     this.emptyBuilder,
+    this.onToggleChecklist,
+    this.onLoadMore,
+    this.onLoadMoreOverdue,
+    this.onLoadMoreNoDate,
+    this.hasMoreOverdue = false,
+    this.hasMoreNoDate = false,
   });
+  final void Function(TaskScheduleItem, TaskChecklistItemEntity)?
+  onToggleChecklist;
+  final VoidCallback? onLoadMore, onLoadMoreOverdue, onLoadMoreNoDate;
+  final bool hasMoreOverdue, hasMoreNoDate;
+  final ScheduleRange? range;
   final ScheduleSearchCriteria? searchCriteria;
   final String searchQuery;
   final List<ScheduleItem> items;
@@ -1379,834 +3148,196 @@ class _AgendaList extends StatelessWidget {
   final ValueChanged<TaskListMutationIntent>? onTaskMutationConsumed;
   final WidgetBuilder? emptyBuilder;
   @override
-  Widget build(BuildContext context) {
-    final agendaItems = searchCriteria == null
-        ? items
-        : (List<ScheduleItem>.of(items)
-            ..sort(compareScheduleSearchResultPresentation));
-    return BusyMaxMutationList<ScheduleItem>(
-      items: agendaItems,
-      mutation: taskMutationIntent,
-      identityOf: (item) => item is TaskScheduleItem
-          ? '${item.accountId}\u0000${item.sourceId}\u0000${item.id}'
-          : 'event\u0000${item.accountId}\u0000${item.sourceId}\u0000${item.id}',
-      mutationApplied: (item, mutation) =>
-          item is! TaskScheduleItem ||
-          mutation.completionSettled(
-            currentCompleted: item.completed,
-            currentOccurrenceKey: item.occurrenceKey,
-          ),
-      onMutationConsumed: onTaskMutationConsumed,
-      emptyBuilder:
-          emptyBuilder ??
-          (context) => Center(child: Text(context.l10n.noEventsOrTasks)),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
-      separatorBuilder: (_, _) => const SizedBox(height: 6),
-      itemBuilder: (context, item, index) {
-        final displayedCompleted = item is TaskScheduleItem
-            ? _displayedCompletion(item)
-            : false;
-        final displayDate = searchCriteria == null
-            ? item.start
-            : scheduleSearchResultDisplayDate(item);
-        final time = item.start == null
-            ? context.l10n.noDate
-            : item.allDay
-            ? context.l10n.allDay
-            : BusyMaxTimeFormatScope.of(context).format(item.start!);
-        final isToday =
-            displayDate != null && _sameDay(displayDate, DateTime.now());
-        final previousDisplayDate = index == 0
-            ? null
-            : searchCriteria == null
-            ? agendaItems[index - 1].start
-            : scheduleSearchResultDisplayDate(agendaItems[index - 1]);
-        return Card(
-          child: Column(
+  Widget build(BuildContext context) => ScheduleAgendaView(
+    range:
+        searchCriteria?.range ??
+        range ??
+        ScheduleRange.days(DateTime.now(), count: 30),
+    items: items,
+    searchCriteria: searchCriteria,
+    searchQuery: searchQuery,
+    onItemSelected: (_, item, [position]) => onOpen(item),
+    onTaskCompletionChanged: (task, completed) {
+      if (task.completed != completed &&
+          !taskMutationsInFlight.contains(
+            '${task.accountId}\u0000${task.sourceId}\u0000${task.id}',
+          )) {
+        onToggleTask(task);
+      }
+    },
+    onChecklistItemCompletionChanged: (parent, step, completed) {
+      if (step.completed != completed) {
+        onToggleChecklist?.call(parent, step);
+      }
+    },
+    taskListMutationIntent: taskMutationIntent,
+    onTaskListMutationConsumed: onTaskMutationConsumed,
+    emptyBuilder:
+        emptyBuilder ??
+        (context) => Center(child: Text(context.l10n.noEventsOrTasks)),
+    hasMoreOverdueTasks: hasMoreOverdue,
+    hasMoreNoDateTasks: hasMoreNoDate,
+    onLoadMore: onLoadMore,
+    onLoadMoreOverdue: onLoadMoreOverdue,
+    onLoadMoreNoDate: onLoadMoreNoDate,
+  );
+}
+
+Future<void> _showAndroidDayItems(
+  BuildContext context,
+  DateTime day,
+  List<ScheduleItem> items,
+  ValueChanged<ScheduleItem> onOpen,
+  ValueChanged<TaskScheduleItem> onToggleTask,
+) => showModalBottomSheet<void>(
+  context: context,
+  showDragHandle: true,
+  isScrollControlled: true,
+  builder: (sheetContext) => SafeArea(
+    child: SizedBox(
+      height: MediaQuery.sizeOf(sheetContext).height * .7,
+      child: Consumer(
+        builder: (context, ref, _) {
+          final current =
+              ref
+                  .watch(
+                    _androidScheduleItemsProvider((
+                      anchor: day,
+                      mode: ScheduleViewMode.day,
+                      query: '',
+                      search: null,
+                      firstWeekday: _firstWeekday(context),
+                      agendaDays: 30,
+                      overdueLimit: 8,
+                      noDateLimit: 8,
+                      notificationDate: null,
+                    )),
+                  )
+                  .valueOrNull
+                  ?.items ??
+              items;
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (index == 0 ||
-                  (displayDate == null && previousDisplayDate != null) ||
-                  (displayDate != null &&
-                      (previousDisplayDate == null ||
-                          !_sameDay(displayDate, previousDisplayDate))))
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Text(
-                    displayDate == null
-                        ? context.l10n.noDate
-                        : '${isToday ? '${context.l10n.today} · ' : ''}'
-                              '${DateFormat.yMMMMEEEEd().format(displayDate)}',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: isToday
-                          ? Theme.of(context).colorScheme.primary
-                          : null,
-                    ),
-                  ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  DateFormat.yMMMMEEEEd(
+                    Localizations.localeOf(context).toLanguageTag(),
+                  ).format(day),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-              ListTile(
-                minVerticalPadding: 12,
-                leading: item is TaskScheduleItem
-                    ? IconButton(
-                        tooltip: displayedCompleted
-                            ? context.l10n.taskStatusCompleted
-                            : context.l10n.taskStatusInProcess,
-                        onPressed:
-                            item.capabilities.canEdit &&
-                                !taskMutationsInFlight.contains(
-                                  '${item.accountId}\u0000${item.sourceId}\u0000${item.id}',
-                                )
-                            ? () => onToggleTask(item)
-                            : null,
-                        icon: AndroidTaskCompletionIcon(
-                          completed: displayedCompleted,
-                          animate: _animatesTaskCompletion(item),
-                        ),
-                      )
-                    : const Icon(Icons.event),
-                title: item is TaskScheduleItem
-                    ? AndroidTaskTitle(
-                        title: item.title,
-                        completed: displayedCompleted,
-                        animate: _animatesTaskCompletion(item),
-                      )
-                    : Text(
-                        item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                subtitle: Text(
-                  searchCriteria != null
-                      ? scheduleSearchResultText(
-                          context,
-                          item,
-                          searchCriteria!,
-                          searchQuery,
-                        )
-                      : '$time · ${item.sourceName ?? item.provider.displayName}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                onTap: () => onOpen(item),
               ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  bool _animatesTaskCompletion(TaskScheduleItem task) {
-    final intent = taskMutationIntent;
-    return intent?.presentation == TaskListMutationPresentation.completion &&
-        intent?.taskKey ==
-            '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent!.completionAppliesTo(task.occurrenceKey) &&
-        intent.completed != null;
-  }
-
-  bool _displayedCompletion(TaskScheduleItem task) {
-    final intent = taskMutationIntent;
-    if (intent?.presentation == TaskListMutationPresentation.completion &&
-        intent?.taskKey ==
-            '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
-        intent!.completionAppliesTo(task.occurrenceKey) &&
-        intent.completed != null) {
-      return intent.completed!;
-    }
-    return task.completed;
-  }
-}
-
-class _AndroidTimeGrid extends StatelessWidget {
-  const _AndroidTimeGrid({
-    super.key,
-    required this.anchor,
-    required this.days,
-    required this.firstWeekday,
-    required this.items,
-    required this.onOpen,
-  });
-
-  static const _axisWidth = 54.0;
-  static const _minuteHeight = .72;
-
-  final DateTime anchor;
-  final int days;
-  final int firstWeekday;
-  final List<ScheduleItem> items;
-  final ValueChanged<ScheduleItem> onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final start = days == 1
-        ? DateTime(anchor.year, anchor.month, anchor.day)
-        : ScheduleRange.week(anchor, firstWeekday: firstWeekday).start;
-    final dates = [
-      for (var index = 0; index < days; index++)
-        DateTime(start.year, start.month, start.day + index),
-    ];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final visibleColumns = constraints.maxWidth >= 700
-            ? days
-            : (days < 3 ? days : 3);
-        final availableWidth = constraints.maxWidth - _axisWidth;
-        final columnWidth = days == 1
-            ? availableWidth.clamp(112.0, double.infinity).toDouble()
-            : (availableWidth / visibleColumns.clamp(1, 7))
-                  .clamp(112.0, 220.0)
-                  .toDouble();
-        final contentWidth = _axisWidth + columnWidth * days;
-        final compactHeight = constraints.maxHeight < 240;
-        final dateHeaderHeight = compactHeight ? 36.0 : 48.0;
-        final preferredAllDayHeight =
-            (MediaQuery.textScalerOf(context).scale(28) + 70)
-                .clamp(68.0, 148.0)
-                .toDouble();
-        final maximumAllDayHeight =
-            (constraints.maxHeight - dateHeaderHeight - 32)
-                .clamp(0.0, double.infinity)
-                .toDouble();
-        final allDayHeight = preferredAllDayHeight
-            .clamp(0.0, maximumAllDayHeight)
-            .toDouble();
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: contentWidth,
-            height: constraints.maxHeight,
-            child: Column(
-              children: [
-                SizedBox(
-                  height: dateHeaderHeight,
-                  child: Row(
-                    children: [
-                      const SizedBox(width: _axisWidth),
-                      for (final day in dates)
-                        SizedBox(
-                          width: columnWidth,
-                          child: Center(
-                            child: Text(
-                              DateFormat.E().add_d().format(day),
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  height: allDayHeight,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        width: _axisWidth,
-                        child: Center(
-                          child: Text(
-                            context.l10n.allDay,
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                        ),
-                      ),
-                      for (final day in dates)
-                        SizedBox(
-                          width: columnWidth,
-                          child: _AndroidAllDayCell(
-                            items: ScheduleProjection.itemsForDay(
-                              items,
-                              day,
-                            ).where((item) => item.allDay).toList(),
-                            onOpen: onOpen,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: SizedBox(
-                      height: 24 * 60 * _minuteHeight,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SizedBox(
-                            width: _axisWidth,
-                            child: Stack(
-                              children: [
-                                for (var hour = 0; hour < 24; hour++)
-                                  PositionedDirectional(
-                                    top: hour * 60 * _minuteHeight - 8,
-                                    end: 6,
-                                    child: Text(
-                                      BusyMaxTimeFormatScope.of(context)
-                                          .format(DateTime(2026, 1, 1, hour)),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          for (final day in dates)
-                            SizedBox(
-                              width: columnWidth,
-                              child: _AndroidTimedDayColumn(
-                                day: day,
-                                items: ScheduleProjection.itemsForDay(
-                                  items,
-                                  day,
-                                ).where((item) => !item.allDay).toList(),
-                                minuteHeight: _minuteHeight,
-                                onOpen: onOpen,
+              Expanded(
+                child: ListView.separated(
+                  itemCount: current.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final item = current[index];
+                    return ListTile(
+                      leading: Icon(
+                        item is TaskScheduleItem
+                            ? Icons.checklist_outlined
+                            : Icons.event_outlined,
+                        color: item is TaskScheduleItem
+                            ? null
+                            : ScheduleProjection.colorForItem(
+                                item,
+                                Theme.of(context).brightness,
                               ),
-                            ),
-                        ],
                       ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AndroidAllDayCell extends StatelessWidget {
-  const _AndroidAllDayCell({required this.items, required this.onOpen});
-
-  final List<ScheduleItem> items;
-  final ValueChanged<ScheduleItem> onOpen;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(3),
-    decoration: BoxDecoration(
-      border: BorderDirectional(
-        start: BorderSide(color: Theme.of(context).dividerColor, width: .5),
-      ),
-    ),
-    child: items.isEmpty
-        ? null
-        : SingleChildScrollView(
-            primary: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _AndroidCalendarChip(item: items.first, onOpen: onOpen),
-                if (items.length > 1)
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(48, 32),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        textStyle: Theme.of(context).textTheme.labelSmall,
+                      title: Text(
+                        item.title,
+                        style: TextStyle(
+                          decoration: item is TaskScheduleItem && item.completed
+                              ? TextDecoration.lineThrough
+                              : null,
+                        ),
                       ),
-                      onPressed: () => _showAllDayItems(context),
-                      child: Text(context.l10n.moreItems(items.length - 1)),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-  );
-
-  Future<void> _showAllDayItems(BuildContext context) =>
-      showModalBottomSheet<void>(
-        context: context,
-        showDragHandle: true,
-        isScrollControlled: true,
-        builder: (sheetContext) => SafeArea(
-          child: FractionallySizedBox(
-            heightFactor: .62,
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return ListTile(
-                  leading: Icon(
-                    item is TaskScheduleItem
-                        ? Icons.check_circle_outline
-                        : Icons.event_outlined,
-                  ),
-                  title: Text(item.title),
-                  subtitle: Text(item.sourceName ?? item.provider.displayName),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    onOpen(item);
+                      subtitle: Text(
+                        item.sourceName ?? item.provider.displayName,
+                      ),
+                      trailing: item is TaskScheduleItem
+                          ? Checkbox(
+                              value: item.completed,
+                              onChanged: item.capabilities.canEdit
+                                  ? (_) => onToggleTask(item)
+                                  : null,
+                            )
+                          : null,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        onOpen(item);
+                      },
+                    );
                   },
-                );
-              },
-            ),
-          ),
-        ),
-      );
-}
-
-class _AndroidTimedDayColumn extends StatelessWidget {
-  const _AndroidTimedDayColumn({
-    required this.day,
-    required this.items,
-    required this.minuteHeight,
-    required this.onOpen,
-  });
-
-  final DateTime day;
-  final List<ScheduleItem> items;
-  final double minuteHeight;
-  final ValueChanged<ScheduleItem> onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final placements = _timedPlacements(items, day);
-    final laneCount = placements.fold<int>(
-      1,
-      (maximum, placement) =>
-          placement.lane + 1 > maximum ? placement.lane + 1 : maximum,
-    );
-    final now = DateTime.now();
-    return LayoutBuilder(
-      builder: (context, constraints) => DecoratedBox(
-        decoration: BoxDecoration(
-          border: BorderDirectional(
-            start: BorderSide(color: Theme.of(context).dividerColor, width: .5),
-          ),
-        ),
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            for (var hour = 0; hour < 24; hour++)
-              Positioned(
-                top: hour * 60 * minuteHeight,
-                left: 0,
-                right: 0,
-                child: Divider(
-                  height: 1,
-                  color: Theme.of(context).dividerColor.withValues(alpha: .55),
                 ),
               ),
-            for (final placement in placements)
-              Positioned(
-                top: placement.startMinute * minuteHeight + 1,
-                left: placement.lane * constraints.maxWidth / laneCount + 2,
-                width: constraints.maxWidth / laneCount - 4,
-                height:
-                    ((placement.endMinute - placement.startMinute) *
-                            minuteHeight)
-                        .clamp(28.0, 24 * 60 * minuteHeight)
-                        .toDouble(),
-                child: _AndroidCalendarChip(
-                  item: placement.item,
-                  onOpen: onOpen,
-                  showTime: true,
-                ),
-              ),
-            if (_sameDay(now, day))
-              Positioned(
-                top: (now.hour * 60 + now.minute) * minuteHeight,
-                left: 0,
-                right: 0,
-                child: Container(
-                  height: 2,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-              ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
-    );
-  }
-}
-
-class _AndroidCalendarChip extends StatelessWidget {
-  const _AndroidCalendarChip({
-    required this.item,
-    required this.onOpen,
-    this.showTime = false,
-  });
-
-  final ScheduleItem item;
-  final ValueChanged<ScheduleItem> onOpen;
-  final bool showTime;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = ScheduleProjection.colorForItem(
-      item,
-      Theme.of(context).brightness,
-    );
-    return Material(
-      color: color.withValues(alpha: .2),
-      borderRadius: BorderRadius.circular(5),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(5),
-        onTap: () => onOpen(item),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-          child: Text(
-            showTime && item.start != null
-                ? '${BusyMaxTimeFormatScope.of(context).format(item.start!)} ${item.title}'
-                : item.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-final class _AndroidTimedPlacement {
-  const _AndroidTimedPlacement({
-    required this.item,
-    required this.startMinute,
-    required this.endMinute,
-    required this.lane,
-  });
-
-  final ScheduleItem item;
-  final int startMinute;
-  final int endMinute;
-  final int lane;
-}
-
-List<_AndroidTimedPlacement> _timedPlacements(
-  List<ScheduleItem> items,
-  DateTime day,
-) {
-  final dayStart = DateTime(day.year, day.month, day.day);
-  final dayEnd = DateTime(day.year, day.month, day.day + 1);
-  final candidates = <({ScheduleItem item, int start, int end})>[];
-  for (final item in items) {
-    final rawStart = item.start;
-    if (rawStart == null) continue;
-    final rawEnd = item.end != null && item.end!.isAfter(rawStart)
-        ? item.end!
-        : rawStart.add(const Duration(minutes: 30));
-    final start = rawStart.isAfter(dayStart) ? rawStart : dayStart;
-    final end = rawEnd.isBefore(dayEnd) ? rawEnd : dayEnd;
-    if (!end.isAfter(start)) continue;
-    final startMinute = start == dayStart ? 0 : start.hour * 60 + start.minute;
-    final endMinute = end == dayEnd ? 24 * 60 : end.hour * 60 + end.minute;
-    candidates.add((item: item, start: startMinute, end: endMinute));
-  }
-  candidates.sort((a, b) {
-    final byStart = a.start.compareTo(b.start);
-    return byStart != 0 ? byStart : b.end.compareTo(a.end);
-  });
-  final laneEnds = <int>[];
-  final result = <_AndroidTimedPlacement>[];
-  for (final candidate in candidates) {
-    var lane = laneEnds.indexWhere((end) => end <= candidate.start);
-    if (lane < 0) {
-      lane = laneEnds.length;
-      laneEnds.add(candidate.end);
-    } else {
-      laneEnds[lane] = candidate.end;
-    }
-    result.add(
-      _AndroidTimedPlacement(
-        item: candidate.item,
-        startMinute: candidate.start,
-        endMinute: candidate.end,
-        lane: lane,
-      ),
-    );
-  }
-  return result;
-}
-
-class _MonthView extends StatelessWidget {
-  const _MonthView({
-    required this.anchor,
-    required this.items,
-    required this.onSelectDate,
-    required this.onOpen,
-    required this.onToggleTask,
-    this.taskMutationsInFlight = const {},
-  });
-  final DateTime anchor;
-  final List<ScheduleItem> items;
-  final ValueChanged<DateTime> onSelectDate;
-  final ValueChanged<ScheduleItem> onOpen;
-  final ValueChanged<TaskScheduleItem> onToggleTask;
-  final Set<String> taskMutationsInFlight;
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final scaledDayText = MediaQuery.textScalerOf(context).scale(16);
-        // The grid is inside the outer vertical scroller, so preserve the
-        // user's text scale with real civil-day row height instead of
-        // shrinking full-size Month labels to fit a viewport fraction.
-        final gridHeight = 30 + 6 * (scaledDayText * 1.55 + 36);
-        final agendaHeight = (constraints.maxHeight * .42).clamp(200.0, 420.0);
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragEnd: (details) {
-            final velocity = details.primaryVelocity ?? 0;
-            if (velocity.abs() < 180) return;
-            onSelectDate(
-              DateTime(anchor.year, anchor.month + (velocity < 0 ? 1 : -1)),
-            );
-          },
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                SizedBox(
-                  height: gridHeight,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                    child: _AndroidMonthGrid(
-                      key: const ValueKey('android-month-grid'),
-                      displayedMonth: DateTime(anchor.year, anchor.month),
-                      selectedDate: anchor,
-                      items: items,
-                      onDaySelected: onSelectDate,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  height: agendaHeight,
-                  child: _AgendaList(
-                    items: ScheduleProjection.itemsForDay(items, anchor),
-                    onOpen: onOpen,
-                    onToggleTask: onToggleTask,
-                    taskMutationsInFlight: taskMutationsInFlight,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _YearView extends StatelessWidget {
-  const _YearView({
-    required this.anchor,
-    required this.items,
-    required this.onSelectDate,
-    required this.onModeChanged,
-  });
-  final DateTime anchor;
-  final List<ScheduleItem> items;
-  final ValueChanged<DateTime> onSelectDate;
-  final ValueChanged<ScheduleViewMode> onModeChanged;
-  @override
-  Widget build(BuildContext context) => GridView.builder(
-    key: const ValueKey('android-year-grid'),
-    padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
-    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-      maxCrossAxisExtent: 330,
-      mainAxisExtent: 245,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
     ),
-    itemCount: 12,
-    itemBuilder: (context, index) {
-      final month = DateTime(anchor.year, index + 1);
-      return Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () {
-            onSelectDate(month);
-            onModeChanged(ScheduleViewMode.month);
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  DateFormat.MMMM().format(month),
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Expanded(
-                  child: IgnorePointer(
-                    child: _AndroidMonthGrid(
-                      displayedMonth: month,
-                      selectedDate: anchor,
-                      items: items,
-                      onDaySelected: (_) {},
-                      compact: true,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
-  );
-}
+  ),
+);
 
-class _AndroidMonthGrid extends StatelessWidget {
-  const _AndroidMonthGrid({
-    super.key,
-    required this.displayedMonth,
-    required this.selectedDate,
-    required this.items,
-    required this.onDaySelected,
-    this.compact = false,
-  });
-
-  final DateTime displayedMonth;
-  final DateTime selectedDate;
-  final List<ScheduleItem> items;
-  final ValueChanged<DateTime> onDaySelected;
-  final bool compact;
-
+class _AndroidEventDescription extends StatelessWidget {
+  const _AndroidEventDescription({required this.item});
+  final CalendarScheduleItem item;
   @override
   Widget build(BuildContext context) {
-    final firstWeekday = _firstWeekday(context);
-    final month = DateTime(displayedMonth.year, displayedMonth.month);
-    final range = androidMonthGridRange(
-      displayedMonth,
-      firstWeekday: firstWeekday,
-    );
-    final gridStart = range.start;
-    final days = [
-      for (var index = 0; index < 42; index++)
-        DateTime(gridStart.year, gridStart.month, gridStart.day + index),
-    ];
-    final weekdays = [
-      for (var index = 0; index < 7; index++)
-        ((firstWeekday + index - 1) % 7) + 1,
-    ];
-    return Column(
-      children: [
-        SizedBox(
-          height: compact ? 16 : 22,
-          child: Row(
-            children: [
-              for (final weekday in weekdays)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      DateFormat.E().format(DateTime(2026, 1, 5 + weekday - 1)),
-                      maxLines: 1,
-                      style: compact
-                          ? Theme.of(context).textTheme.labelSmall
-                          : Theme.of(context).textTheme.labelMedium,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        for (var row = 0; row < 6; row++)
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var column = 0; column < 7; column++)
-                  Expanded(
-                    child: _AndroidMonthDay(
-                      day: days[row * 7 + column],
-                      displayedMonth: month,
-                      selectedDate: selectedDate,
-                      items: items,
-                      compact: compact,
-                      onSelected: onDaySelected,
-                    ),
-                  ),
-              ],
+    if (item.descriptionHtml == null) {
+      return SelectableText(calendarEventDescription(item));
+    }
+    final document = htmlCalendarDescriptionDocument(item.descriptionHtml!);
+    final boundaries = <int>{
+      0,
+      document.text.length,
+      for (final range in document.ranges) ...[range.start, range.end],
+    }.toList()..sort();
+    return SelectableText.rich(
+      TextSpan(
+        children: [
+          for (var i = 1; i < boundaries.length; i++)
+            TextSpan(
+              text: document.text.substring(boundaries[i - 1], boundaries[i]),
+              style: TextStyle(
+                fontWeight:
+                    document.ranges.any(
+                      (r) =>
+                          r.start <= boundaries[i - 1] &&
+                          r.end >= boundaries[i] &&
+                          r.styles.contains(
+                            CalendarDescriptionInlineStyle.bold,
+                          ),
+                    )
+                    ? FontWeight.bold
+                    : null,
+                fontStyle:
+                    document.ranges.any(
+                      (r) =>
+                          r.start <= boundaries[i - 1] &&
+                          r.end >= boundaries[i] &&
+                          r.styles.contains(
+                            CalendarDescriptionInlineStyle.italic,
+                          ),
+                    )
+                    ? FontStyle.italic
+                    : null,
+                decoration:
+                    document.ranges.any(
+                      (r) =>
+                          r.start <= boundaries[i - 1] &&
+                          r.end >= boundaries[i] &&
+                          r.styles.contains(
+                            CalendarDescriptionInlineStyle.underline,
+                          ),
+                    )
+                    ? TextDecoration.underline
+                    : null,
+              ),
             ),
-          ),
-      ],
-    );
-  }
-}
-
-class _AndroidMonthDay extends StatelessWidget {
-  const _AndroidMonthDay({
-    required this.day,
-    required this.displayedMonth,
-    required this.selectedDate,
-    required this.items,
-    required this.compact,
-    required this.onSelected,
-  });
-
-  final DateTime day;
-  final DateTime displayedMonth;
-  final DateTime selectedDate;
-  final List<ScheduleItem> items;
-  final bool compact;
-  final ValueChanged<DateTime> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final matching = ScheduleProjection.itemsForDay(items, day);
-    final selected = _sameDay(day, selectedDate);
-    final scheme = Theme.of(context).colorScheme;
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          '${day.day}',
-          style:
-              (compact
-                      ? Theme.of(context).textTheme.labelSmall
-                      : Theme.of(context).textTheme.bodyMedium)
-                  ?.copyWith(
-                    color: day.month == displayedMonth.month
-                        ? null
-                        : scheme.onSurfaceVariant.withValues(alpha: .45),
-                  ),
-        ),
-        if (matching.isNotEmpty)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final item in matching.take(compact ? 2 : 3))
-                Container(
-                  width: compact ? 3 : 5,
-                  height: compact ? 3 : 5,
-                  margin: const EdgeInsets.symmetric(horizontal: 1),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: ScheduleProjection.colorForItem(
-                      item,
-                      Theme.of(context).brightness,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-      ],
-    );
-    return InkWell(
-      onTap: () => onSelected(day),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: selected ? scheme.secondaryContainer : null,
-          border: compact
-              ? null
-              : Border.all(color: Theme.of(context).dividerColor, width: .35),
-        ),
-        child: compact
-            ? FittedBox(fit: BoxFit.scaleDown, child: content)
-            : Center(child: content),
+        ],
       ),
     );
   }
@@ -2228,7 +3359,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   AuthorizationCancellation? _consentCancellation;
 
   late EventEditorDraft _draft = widget.draft;
-  late final String? _initialDescription = widget.draft.editableDescription;
+  int _descriptionGeneration = 0;
   late final TextEditingController _title = TextEditingController(
     text: _draft.title,
   );
@@ -2247,10 +3378,13 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   late final TextEditingController _categories = TextEditingController(
     text: _draft.categories.join(', '),
   );
+  final _guestInput = TextEditingController();
+  bool _addingGuest = false;
+  String? _guestError;
   final Map<String, bool> _guestOptionalOverrides = {};
   final Map<String, String> _suggestedGuestNames = {};
   List<BusyMaxContactSuggestion> _guestSuggestions = const [];
-  int _guestSuggestionGeneration = 0;
+  final _suggestionSession = AttendeeSuggestionSession();
   StreamSubscription<void>? _contactsChanges;
   int? _reminderMinutes;
   Object? _editedGoogleReminders;
@@ -2264,6 +3398,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   bool _saving = false;
   bool _allowPop = false;
   bool _recoveryLoaded = false;
+  String? _creationId;
   bool _recoveryWritesBlocked = false;
   Future<void> _recoveryIo = Future.value();
   Timer? _recoveryTimer;
@@ -2275,12 +3410,26 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   @override
   void initState() {
     super.initState();
+    if (widget.draft.eventId == null) _creationId = newAndroidCreationId();
+    if (_draft.eventId == null &&
+        _provider.isDav &&
+        !_draft.allDay &&
+        _draft.startTimeZone == null) {
+      final zone = ref.read(localTimeZoneProvider);
+      _draft = _draft.copyWith(
+        startTimeZone: zone,
+        endTimeZone: _draft.endTimeZone ?? zone,
+      );
+    }
+
     _contactsChanges = ref
         .read(busyMaxContactsControllerProvider)
         .changes
         .listen((_) {
-          _guestSuggestionGeneration++;
-          if (mounted) setState(() => _guestSuggestions = const []);
+          _suggestionSession.invalidate();
+          if (mounted) {
+            setState(() => _guestSuggestions = const []);
+          }
         });
     unawaited(_restoreRecovery());
     _recoveryTimer = Timer.periodic(
@@ -2291,7 +3440,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   @override
   void dispose() {
-    _guestSuggestionGeneration++;
+    _suggestionSession.invalidate();
     unawaited(_contactsChanges?.cancel());
     _consentCancellation?.cancel();
     _recoveryTimer?.cancel();
@@ -2302,8 +3451,168 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     _location.dispose();
     _description.dispose();
     _guests.dispose();
+    _guestInput.dispose();
     _categories.dispose();
     super.dispose();
+  }
+
+  BusyProvider get _deliveryProvider =>
+      [
+        BusyProvider.google,
+        BusyProvider.microsoft,
+        BusyProvider.nextcloud,
+      ].contains(_provider)
+      ? _provider
+      : [
+          BusyProvider.google,
+          BusyProvider.microsoft,
+        ].contains(_originalSource?.provider)
+      ? _originalSource!.provider
+      : _provider;
+
+  CalendarSourceEntity? get _originalSource =>
+      widget.sources.where((s) => s.id == widget.draft.sourceId).firstOrNull;
+  bool get _moving =>
+      _draft.eventId != null && _draft.sourceId != widget.draft.sourceId;
+  bool get _canChangeTiming =>
+      _canEdit &&
+      (_draft.originalDetail == null ||
+          detailAllowsTimingEdit(_draft.originalDetail!));
+  CalendarEventMoveStrategy _moveStrategy(EventEditorDraft draft) {
+    final source = _originalSource, destination = _source;
+    if (source == null || destination == null || draft.eventId == null) {
+      return CalendarEventMoveStrategy.none;
+    }
+    return calendarEventMoveStrategy(
+      sourceAccountId: source.accountId,
+      sourceId: source.id,
+      sourceProviderCalendarId: source.providerCalendarId,
+      sourceProvider: source.provider,
+      sourceDavCollectionId: source.davCollectionId,
+      sourceDavSchedulingPrincipal: source.davSchedulingPrincipal,
+      destinationAccountId: destination.accountId,
+      destinationId: destination.id,
+      destinationProviderCalendarId: destination.providerCalendarId,
+      destinationProvider: destination.provider,
+      destinationDavCollectionId: destination.davCollectionId,
+      destinationDavSchedulingPrincipal: destination.davSchedulingPrincipal,
+      eventType: widget.draft.eventType,
+      recurring: widget.draft.providerRecurringEventId != null,
+      recurringScope: draft.recurringMutationScope,
+    );
+  }
+
+  void _setStart(DateTime value) {
+    setState(() {
+      _draft = _draft.copyWith(start: value).withValidEnd();
+      _adjustRecurrenceTiming();
+    });
+  }
+
+  void _adjustRecurrenceTiming({String? previousTimeZone}) {
+    if (_draft.providerRecurringEventId != null ||
+        !_recurrenceRule.isSupported ||
+        !_recurrenceRule.repeats) {
+      return;
+    }
+    _recurrenceRule = retimeRecurrenceEnd(
+      _recurrenceRule,
+      previousTimeZone: previousTimeZone ?? _draft.startTimeZone,
+      start: _draft.start!,
+      timeZone: _draft.startTimeZone,
+      allDay: _draft.allDay,
+      floating:
+          _provider.isDav && (_draft.startTimeZone?.trim().isEmpty ?? true),
+    );
+    _recurrenceChanged = true;
+  }
+
+  void _selectDestination(CalendarSourceEntity source) {
+    if (googleStatusEventTypes.contains(_draft.eventType) &&
+        (source.provider != BusyProvider.google || !source.primaryCalendar)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.googleStatusPrimaryOnly)),
+      );
+      return;
+    }
+    if (_provider != source.provider &&
+        (!_recurrenceRule.isSupported ||
+            !EventRecurrenceCodec.canEncode(
+              source.provider,
+              _recurrenceRule,
+            )) &&
+        _draft.providerRecurringEventId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.recurrenceUnsupportedByProvider(
+              source.provider.displayName,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    final changedProvider = _provider != source.provider;
+    final liveReminders =
+        _provider == BusyProvider.google && _editedGoogleReminders != null
+        ? _editedGoogleReminders
+        : _provider.isDav && _editedNextcloudReminders != null
+        ? davEventReminderPayload(_editedNextcloudReminders!)
+        : _reminderMinutes != null
+        ? _eventReminders(_provider, _reminderMinutes!)
+        : _draft.reminders;
+    final reminders = EventReminderEditor(
+      _provider,
+      liveReminders,
+    ).forDestination(source.provider);
+    setState(() {
+      _draft = _draft.copyWith(
+        accountId: source.accountId,
+        sourceId: source.id,
+        providerCalendarId: source.providerCalendarId,
+        startTimeZone:
+            source.provider.isDav &&
+                _draft.eventId == null &&
+                !_draft.allDay &&
+                _draft.startTimeZone == null
+            ? ref.read(localTimeZoneProvider)
+            : _draft.startTimeZone,
+        endTimeZone:
+            source.provider.isDav &&
+                _draft.eventId == null &&
+                !_draft.allDay &&
+                _draft.endTimeZone == null
+            ? ref.read(localTimeZoneProvider)
+            : _draft.endTimeZone,
+        clearEventLabelId: _draft.sourceId != source.id,
+        eventLabelChanged: _draft.sourceId != source.id,
+        reminders: reminders,
+        remindersChanged: changedProvider || _draft.remindersChanged,
+        clearImportance: source.provider != BusyProvider.microsoft,
+        clearColorId: changedProvider,
+        showAs: changedProvider
+            ? eventShowAsForProvider(_draft.showAs, source.provider)
+            : _draft.showAs,
+        visibilityOrSensitivity: changedProvider
+            ? eventVisibilityForProvider(
+                _draft.visibilityOrSensitivity,
+                source.provider,
+              )
+            : _draft.visibilityOrSensitivity,
+        clearRecurringMutationScope:
+            _draft.providerRecurringEventId != null &&
+            _draft.sourceId != source.id,
+      );
+      if (changedProvider) {
+        _recurrenceChanged = true;
+        _editedGoogleReminders = null;
+        _editedNextcloudReminders = null;
+        _reminderMinutes = null;
+      }
+      _suggestionSession.invalidate();
+      _guestSuggestions = const [];
+    });
   }
 
   CalendarSourceEntity? get _source => widget.sources
@@ -2317,15 +3626,28 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   bool get _canEdit {
     final source = _source;
-    if (source == null) return false;
-    return _draft.eventId == null
+    if (source == null) {
+      return false;
+    }
+    return _draft.eventId == null || _moving
         ? source.capabilities.canCreateEvents
         : source.capabilities.canEditEvents;
   }
 
+  bool get _canManageGuests =>
+      _draft.canManageAttendees &&
+      _provider != BusyProvider.appleICloud &&
+      _provider != BusyProvider.caldav &&
+      (_provider != BusyProvider.nextcloud ||
+          _source?.davEffectivePermissions['canInvite'] == true);
+
   bool get _canDelete =>
       _draft.eventId != null &&
-      (_source?.capabilities.canDeleteEvents ?? false);
+      (_originalSource?.capabilities.canDeleteEvents ?? false);
+
+  bool get _isNextcloudAttendee =>
+      (_originalSource?.provider ?? _provider) == BusyProvider.nextcloud &&
+      widget.draft.isOrganizer == false;
 
   bool get _hasPendingEdits =>
       _draft != widget.draft ||
@@ -2362,79 +3684,49 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   }
 
   Future<void> _loadGuestSuggestions(String query) async {
-    final generation = ++_guestSuggestionGeneration;
     final accountId = _draft.accountId;
     final sourceId = _draft.sourceId;
-    final term = query.split(',').last.trim();
-    if (term.isEmpty) {
-      setState(() => _guestSuggestions = const []);
-      return;
-    }
-    try {
-      final suggestions = await ref
-          .read(busyMaxContactsControllerProvider)
-          .suggestAttendees(
-            term,
-            busyMaxAccountId: accountId,
-            excludedAddresses: {
-              for (final attendee in _currentAttendees()) attendee.email,
-            },
-          );
-      if (!mounted ||
-          generation != _guestSuggestionGeneration ||
-          _draft.accountId != accountId ||
-          _draft.sourceId != sourceId ||
-          _guests.text.split(',').last.trim() != term) {
-        return;
-      }
+    final suggestions = await _suggestionSession.search(
+      contacts: () => ref.read(busyMaxContactsControllerProvider),
+      query: query,
+      accountId: accountId,
+      attendees: _currentAttendees(),
+      isCurrent: () =>
+          mounted &&
+          _draft.accountId == accountId &&
+          _draft.sourceId == sourceId &&
+          _guestInput.text.trim() == query.trim(),
+    );
+    if (mounted && suggestions != null) {
       setState(() => _guestSuggestions = suggestions);
-    } on Object {
-      if (!mounted ||
-          generation != _guestSuggestionGeneration ||
-          _draft.accountId != accountId ||
-          _draft.sourceId != sourceId ||
-          _guests.text.split(',').last.trim() != term) {
-        return;
-      }
-      setState(() => _guestSuggestions = const []);
     }
   }
 
   Future<void> _selectGuestSuggestion(
     BusyMaxContactSuggestion suggestion,
   ) async {
-    if (!_draft.canManageAttendees || !_guestSuggestions.contains(suggestion)) {
+    if (!_canManageGuests || !_guestSuggestions.contains(suggestion)) {
       return;
     }
-    final generation = _guestSuggestionGeneration;
     final accountId = _draft.accountId;
     final sourceId = _draft.sourceId;
-    try {
-      if (!await ref
-          .read(busyMaxContactsControllerProvider)
-          .suggestionEligible(suggestion, busyMaxAccountId: accountId)) {
-        return;
-      }
-    } on Object {
-      return;
-    }
-    if (!mounted ||
-        generation != _guestSuggestionGeneration ||
-        _draft.accountId != accountId ||
-        _draft.sourceId != sourceId ||
-        !_draft.canManageAttendees ||
-        !_guestSuggestions.contains(suggestion)) {
-      return;
-    }
-    _guestSuggestionGeneration++;
+    final accepted = await _suggestionSession.accept(
+      contacts: () => ref.read(busyMaxContactsControllerProvider),
+      accountId: accountId,
+      suggestion: suggestion,
+      isCurrent: () =>
+          mounted &&
+          _draft.accountId == accountId &&
+          _draft.sourceId == sourceId &&
+          _canManageGuests &&
+          _guestSuggestions.contains(suggestion),
+    );
+    if (!accepted || !mounted) return;
     final emails = _guests.text
         .split(RegExp(r'[,;\n]'))
         .map((value) => value.trim())
         .where((value) => value.isNotEmpty)
         .toList();
-    if (emails.isNotEmpty && !_androidLooksLikeEmail(emails.last)) {
-      emails.removeLast();
-    }
     if (!emails.any(
       (email) => email.toLowerCase() == suggestion.email.toLowerCase(),
     )) {
@@ -2442,6 +3734,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     }
     setState(() {
       _guests.text = emails.join(', ');
+      _guestInput.clear();
+      _addingGuest = false;
+      _guestError = null;
       if (suggestion.displayName.isNotEmpty) {
         _suggestedGuestNames[suggestion.email.toLowerCase()] =
             suggestion.displayName;
@@ -2452,35 +3747,439 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   Future<void> _editRecurrence() async {
     final start = _draft.start;
-    if (start == null) return;
+    if (start == null) {
+      return;
+    }
+    if (_draft.providerRecurringEventId != null &&
+        (_draft.recurringMutationScope == null ||
+            _draft.recurringMutationScope ==
+                RecurringEventMutationScope.singleOccurrence)) {
+      final scope = await _selectRecurringScope();
+      if (scope == null ||
+          scope == RecurringEventMutationScope.singleOccurrence ||
+          !mounted) {
+        return;
+      }
+    }
     final result = await showAndroidRecurrenceDialog(
       context,
       initial: _recurrenceRule,
       baseDate: start,
       allDay: _draft.allDay,
+      floating:
+          _provider.isDav &&
+          (_draft.startTimeZone == null || _draft.startTimeZone!.isEmpty),
       timeZone: _draft.startTimeZone,
       limits: EventRecurrenceCodec.limitsFor(_provider),
       providerLabel: _provider.displayName,
     );
-    if (!mounted || result == null || result == _recurrenceRule) return;
+    if (!mounted || result == null || result == _recurrenceRule) {
+      return;
+    }
     setState(() {
       _recurrenceRule = result;
       _recurrenceChanged = true;
     });
   }
 
+  bool get _eventOrganizationPopulated =>
+      _draft.categories.isNotEmpty ||
+      _draft.eventLabelId != null ||
+      _draft.conference != null ||
+      _draft.createConference ||
+      (_draft.importance != null && _draft.importance != 'normal') ||
+      (_draft.showAs != null &&
+          !const ['opaque', 'busy'].contains(_draft.showAs)) ||
+      (_draft.visibilityOrSensitivity != null &&
+          !const [
+            'default',
+            'normal',
+            'public',
+          ].contains(_draft.visibilityOrSensitivity));
+
+  List<CalendarSourceEntity> get _selectableEventSources => [
+    for (final source in widget.sources)
+      if (source.id == _draft.sourceId ||
+          (source.capabilities.canCreateEvents &&
+              (_draft.eventId == null || !source.pendingCreate)))
+        source,
+  ];
+
+  List<Widget> _eventDestinationRows() {
+    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? [];
+    final ids = {for (final source in _selectableEventSources) source.accountId}
+        .toList();
+    String label(String id) =>
+        accounts
+            .where((account) => account.id == id)
+            .firstOrNull
+            ?.selectorLabel ??
+        widget.sources
+            .where((s) => s.accountId == id)
+            .first
+            .authenticatedAccountEmail ??
+        id;
+    ids.sort(
+      (a, b) => label(a).toLowerCase().compareTo(label(b).toLowerCase()),
+    );
+    final canSelect =
+        _canEdit &&
+        (_draft.eventId == null ||
+            (_originalSource?.capabilities.canDeleteEvents ?? false));
+    final calendars =
+        _selectableEventSources
+            .where((s) => s.accountId == _draft.accountId)
+            .toList()
+          ..sort(
+            (a, b) =>
+                a.summary.toLowerCase().compareTo(b.summary.toLowerCase()),
+          );
+    return [
+      DropdownButtonFormField<String>(
+        key: ValueKey('android-event-account-${_draft.accountId}'),
+        isExpanded: true,
+        initialValue: _draft.accountId,
+        decoration: InputDecoration(labelText: context.l10n.account),
+        items: [
+          for (final id in ids)
+            DropdownMenuItem(
+              value: id,
+              child: Text(label(id), overflow: TextOverflow.ellipsis),
+            ),
+        ],
+        onChanged: canSelect && ids.length > 1
+            ? (id) {
+                if (id == null) {
+                  return;
+                }
+                final choices =
+                    _selectableEventSources
+                        .where((s) => s.accountId == id)
+                        .toList()
+                      ..sort(
+                        (a, b) => a.summary.toLowerCase().compareTo(
+                          b.summary.toLowerCase(),
+                        ),
+                      );
+                _selectDestination(
+                  choices.where((s) => s.primaryCalendar).firstOrNull ??
+                      choices.first,
+                );
+              }
+            : null,
+      ),
+      DropdownButtonFormField<String>(
+        key: ValueKey('android-event-calendar-${_draft.sourceId}'),
+        isExpanded: true,
+        initialValue: _source?.id,
+        decoration: InputDecoration(labelText: context.l10n.calendar),
+        items: [
+          for (final source in calendars)
+            DropdownMenuItem(
+              value: source.id,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today_outlined,
+                    color: _androidSourceColor(
+                      source,
+                      Theme.of(context).brightness,
+                    ),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      source.summary,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (!source.capabilities.canCreateEvents)
+                    const Icon(Icons.lock_outline, size: 16),
+                ],
+              ),
+            ),
+        ],
+        onChanged: canSelect && calendars.length > 1
+            ? (id) =>
+                  _selectDestination(calendars.firstWhere((s) => s.id == id))
+            : null,
+      ),
+    ];
+  }
+
+  List<Widget> _eventTimeRows({required bool start}) {
+    final value = (start ? _draft.start : _draft.end)!;
+    void update(DateTime next) {
+      if (start) {
+        _setStart(next);
+      } else {
+        setState(() => _draft = _draft.copyWith(end: next));
+      }
+    }
+
+    final zone = start ? _draft.startTimeZone : _draft.endTimeZone;
+    return [
+      ListTile(
+        title: Text(start ? context.l10n.startDate : context.l10n.endDate),
+        subtitle: Text(
+          DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag())
+              .format(value),
+        ),
+        leading: const Icon(Icons.event_outlined),
+        enabled: _canChangeTiming,
+        onTap: !_canChangeTiming
+            ? null
+            : () async {
+                final date = await showBusyMaxDatePicker(
+                  context: context,
+                  initialDate: value,
+                  firstDate: DateTime(1970),
+                  lastDate: DateTime(2200),
+                );
+                if (date != null && mounted) {
+                  update(
+                    DateTime(
+                      date.year,
+                      date.month,
+                      date.day,
+                      value.hour,
+                      value.minute,
+                      value.second,
+                      value.millisecond,
+                      value.microsecond,
+                    ),
+                  );
+                }
+              },
+      ),
+      if (!_draft.allDay) ...[
+        ListTile(
+          title: Text(start ? context.l10n.startTime : context.l10n.endTime),
+          subtitle: Text(
+            formatClockTime(context, TimeOfDay.fromDateTime(value)),
+          ),
+          leading: const Icon(Icons.schedule),
+          enabled: _canChangeTiming,
+          onTap: !_canChangeTiming
+              ? null
+              : () async {
+                  final time = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay.fromDateTime(value),
+                  );
+                  if (time != null && mounted) {
+                    update(
+                      DateTime(
+                        value.year,
+                        value.month,
+                        value.day,
+                        time.hour,
+                        time.minute,
+                      ),
+                    );
+                  }
+                },
+        ),
+        ListTile(
+          title: Text(context.l10n.selectTimeZone),
+          subtitle: Text(zone ?? ref.read(localTimeZoneProvider)),
+          leading: const Icon(Icons.public),
+          enabled: _canChangeTiming,
+          onTap: !_canChangeTiming
+              ? null
+              : () async {
+                  final selected = await showAndroidTimeZonePicker(
+                    context,
+                    zone,
+                  );
+                  if (selected == null || !mounted) {
+                    return;
+                  }
+                  setState(() {
+                    _draft = start
+                        ? _draft.copyWith(startTimeZone: selected)
+                        : _draft.copyWith(endTimeZone: selected);
+                    if (start) {
+                      _adjustRecurrenceTiming(previousTimeZone: zone);
+                    }
+                  });
+                },
+        ),
+      ],
+    ];
+  }
+
+  void _setEventCategories(List<String> values) => setState(() {
+    _draft = _draft.copyWith(categories: values);
+    _categories.text = values.join(', ');
+  });
+
+  void _addGuestEmail() {
+    final email = _guestInput.text.trim();
+    if (!_androidLooksLikeEmail(email)) {
+      setState(() => _guestError = context.l10n.feedbackInvalidEmail);
+      return;
+    }
+    final attendees = _currentAttendees();
+    setState(() {
+      if (!containsEventAttendee(attendees, email)) {
+        _guests.text = [
+          ...attendees
+              .where((a) => !a.self && !a.organizer)
+              .map((a) => a.email),
+          email,
+        ].join(', ');
+      }
+      _guestInput.clear();
+      _guestError = null;
+      _addingGuest = false;
+      _guestSuggestions = const [];
+      _suggestionSession.invalidate();
+    });
+  }
+
+  List<Widget> _eventGuestRows() => [
+    for (final attendee in _currentAttendees())
+      ListTile(
+        key: ValueKey('android-event-guest-${attendee.email}'),
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.person_outline),
+        title: Text(attendee.displayName ?? attendee.email),
+        subtitle: Text(
+          [
+            if (attendee.displayName != null) attendee.email,
+            if (attendee.organizer) context.l10n.organizer,
+          ].join(' · '),
+        ),
+        trailing:
+            !_canEdit ||
+                !_canManageGuests ||
+                attendee.self ||
+                attendee.organizer
+            ? null
+            : Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  DropdownButton<bool>(
+                    value:
+                        _guestOptionalOverrides[attendee.email.toLowerCase()] ??
+                        attendee.optional,
+                    items: [
+                      DropdownMenuItem(
+                        value: false,
+                        child: Text(context.l10n.attendeeRequired),
+                      ),
+                      DropdownMenuItem(
+                        value: true,
+                        child: Text(context.l10n.attendeeOptional),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(
+                          () =>
+                              _guestOptionalOverrides[attendee.email
+                                      .toLowerCase()] =
+                                  value,
+                        );
+                      }
+                    },
+                  ),
+                  IconButton(
+                    tooltip: context.l10n.delete,
+                    icon: const Icon(Icons.close),
+                    onPressed: () => setState(() {
+                      _guests.text = _currentAttendees()
+                          .where(
+                            (a) =>
+                                !a.self &&
+                                !a.organizer &&
+                                a.email.toLowerCase() !=
+                                    attendee.email.toLowerCase(),
+                          )
+                          .map((a) => a.email)
+                          .join(', ');
+                      _guestOptionalOverrides.remove(
+                        attendee.email.toLowerCase(),
+                      );
+                      _suggestedGuestNames.remove(attendee.email.toLowerCase());
+                    }),
+                  ),
+                ],
+              ),
+      ),
+    if (_canEdit && _canManageGuests)
+      if (!_addingGuest)
+        TextButton.icon(
+          onPressed: () => setState(() {
+            _addingGuest = true;
+            _guestError = null;
+          }),
+          icon: const Icon(Icons.add),
+          label: Text(context.l10n.addGuest),
+        )
+      else ...[
+        TextField(
+          controller: _guestInput,
+          autofocus: true,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            labelText: context.l10n.addGuestEmail,
+            errorText: _guestError,
+          ),
+          onChanged: (value) => unawaited(_loadGuestSuggestions(value)),
+          onSubmitted: (_) => _addGuestEmail(),
+        ),
+        Wrap(
+          children: [
+            TextButton(
+              onPressed: _addGuestEmail,
+              child: Text(context.l10n.addGuest),
+            ),
+            TextButton(
+              onPressed: () => setState(() {
+                _addingGuest = false;
+                _guestInput.clear();
+                _guestSuggestions = const [];
+                _suggestionSession.invalidate();
+              }),
+              child: Text(context.l10n.cancel),
+            ),
+          ],
+        ),
+        for (final suggestion in _guestSuggestions)
+          ListTile(
+            key: ValueKey('android-guest-contact-${suggestion.email}'),
+            title: Text(
+              suggestion.displayName.isEmpty
+                  ? suggestion.email
+                  : suggestion.displayName,
+            ),
+            subtitle: Text(suggestion.email),
+            onTap: () => _selectGuestSuggestion(suggestion),
+          ),
+      ],
+  ];
+
   @override
   Widget build(BuildContext context) {
     return PopScope<void>(
       canPop: _allowPop || !_hasPendingEdits,
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop || _saving || _allowPop) return;
+        if (didPop || _saving || _allowPop) {
+          return;
+        }
         if (await _confirmDiscardChanges() && mounted) {
           await _clearRecovery(finalCleanup: true);
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
           setState(() => _allowPop = true);
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) Navigator.pop(context);
+            if (mounted) {
+              Navigator.pop(context);
+            }
           });
         }
       },
@@ -2498,476 +4197,469 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           ),
           actions: [
             TextButton(
-              onPressed: _saving || !_canEdit ? null : _save,
+              onPressed:
+                  _saving || !_recoveryLoaded || !_canEdit || !_draft.canSave
+                  ? null
+                  : _save,
               child: Text(context.l10n.save),
             ),
           ],
         ),
         body: Form(
-          child: ListView(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
-            children: [
-              if ((_draft.attendees.isNotEmpty ||
-                      widget.draft.attendees.isNotEmpty) &&
-                  (_source?.usesImplicitScheduling == true ||
-                      widget.sources.any(
-                        (s) =>
-                            s.id == widget.draft.sourceId &&
-                            s.usesImplicitScheduling,
-                      )))
-                Text(
-                  context.l10n.caldavSchedulingWarning,
-                  key: const ValueKey('caldav-scheduling-warning'),
-                ),
-              TextFormField(
-                controller: _title,
-                enabled: _canEdit,
-                decoration: InputDecoration(labelText: context.l10n.title),
-                autofocus: _draft.eventId == null,
-                onChanged: (v) =>
-                    setState(() => _draft = _draft.copyWith(title: v)),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _source?.id,
-                decoration: InputDecoration(labelText: context.l10n.calendar),
-                items: [
-                  for (final source in widget.sources)
-                    DropdownMenuItem(
-                      value: source.id,
-                      child: Text(
-                        '${source.summary} · ${source.authenticatedAccountEmail ?? source.accountId}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: _draft.eventId != null || !_canEdit
-                    ? null
-                    : (id) {
-                        final source = widget.sources.firstWhere(
-                          (s) => s.id == id,
-                        );
-                        if (googleStatusEventTypes.contains(_draft.eventType) &&
-                            (source.provider != BusyProvider.google ||
-                                !source.primaryCalendar)) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                context.l10n.googleStatusPrimaryOnly,
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                        _guestSuggestionGeneration++;
-                        _guestSuggestions = const [];
-                        setState(
-                          () => _draft = _draft.copyWith(
-                            accountId: source.accountId,
-                            sourceId: source.id,
-                            providerCalendarId: source.providerCalendarId,
-                            clearEventLabelId: _draft.sourceId != source.id,
-                            eventLabelChanged: _draft.sourceId != source.id,
-                            clearShowAs: !googleStatusEventTypes.contains(
-                              _draft.eventType,
-                            ),
-                            clearVisibilityOrSensitivity:
-                                !googleStatusEventTypes.contains(
-                                  _draft.eventType,
-                                ),
-                          ),
-                        );
-                      },
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.allDay),
-                value: _draft.allDay,
-                onChanged:
-                    !_canEdit ||
-                        _draft.eventType == 'focusTime' ||
-                        _draft.eventType == 'outOfOffice'
-                    ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(allDay: value),
-                      ),
-              ),
-              _DateTimeTile(
-                label: context.l10n.startDateTime,
-                value: _draft.start!,
-                allDay: _draft.allDay,
-                onChanged: !_canEdit
-                    ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(start: value),
-                      ),
-              ),
-              _DateTimeTile(
-                label: context.l10n.endDateTime,
-                value: _draft.end!,
-                allDay: _draft.allDay,
-                onChanged: !_canEdit
-                    ? null
-                    : (value) =>
-                          setState(() => _draft = _draft.copyWith(end: value)),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                key: ValueKey('android-event-show-as-${_provider.name}'),
-                initialValue:
-                    _eventShowAsValues(_provider).contains(_draft.showAs)
-                    ? _draft.showAs
-                    : _eventShowAsValues(_provider).first,
-                decoration: InputDecoration(
-                  labelText: context.l10n.availabilityShowAs,
-                ),
-                items: [
-                  for (final value in _eventShowAsValues(_provider))
-                    DropdownMenuItem(
-                      value: value,
-                      child: Text(_eventAvailabilityLabel(context, value)),
-                    ),
-                ],
-                onChanged:
-                    !_canEdit ||
-                        googleStatusEventTypes.contains(_draft.eventType)
-                    ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(showAs: value),
-                      ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                key: ValueKey('android-event-visibility-${_provider.name}'),
-                initialValue:
-                    _eventVisibilityValues(_provider)
-                        .contains(_draft.visibilityOrSensitivity)
-                    ? _draft.visibilityOrSensitivity
-                    : _eventVisibilityValues(_provider).first,
-                decoration: InputDecoration(labelText: context.l10n.visibility),
-                items: [
-                  for (final value in _eventVisibilityValues(_provider))
-                    DropdownMenuItem(
-                      value: value,
-                      child: Text(_eventVisibilityLabel(context, value)),
-                    ),
-                ],
-                onChanged: !_canEdit || _draft.eventType == 'workingLocation'
-                    ? null
-                    : (value) => setState(
-                        () => _draft = _draft.copyWith(
-                          visibilityOrSensitivity: value,
-                        ),
-                      ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _location,
-                enabled: _canEdit,
-                decoration: InputDecoration(
-                  labelText: context.l10n.location,
-                  prefixIcon: const Icon(Icons.place_outlined),
-                ),
-                onChanged: (v) =>
-                    setState(() => _draft = _draft.copyWith(location: v)),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _description,
-                enabled: _canEdit,
-                minLines: 3,
-                maxLines: 7,
-                decoration: InputDecoration(
-                  labelText: context.l10n.description,
-                ),
-                onChanged: (v) =>
-                    setState(() => _draft = _draft.copyWith(description: v)),
-              ),
-              const SizedBox(height: 12),
-              if (_draft.providerRecurringEventId == null)
-                ListTile(
-                  key: const ValueKey('android-event-recurrence'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.repeat),
-                  title: Text(context.l10n.repeat),
-                  subtitle: Text(
-                    _recurrenceRule.isSupported
-                        ? _recurrenceRule.repeats
-                              ? _recurrenceRule.toRrule()
-                              : context.l10n.repeatNone
-                        : context.l10n.unsupportedRecurrencePreserved,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if ((_draft.attendees.isNotEmpty ||
+                        widget.draft.attendees.isNotEmpty) &&
+                    (_source?.usesImplicitScheduling == true ||
+                        widget.sources.any(
+                          (s) =>
+                              s.id == widget.draft.sourceId &&
+                              s.usesImplicitScheduling,
+                        )))
+                  Text(
+                    context.l10n.caldavSchedulingWarning,
+                    key: const ValueKey('caldav-scheduling-warning'),
                   ),
-                  onTap: _canEdit ? _editRecurrence : null,
-                ),
-              if (_draft.providerRecurringEventId != null) ...[
-                const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.call_split),
-                  title: Text(context.l10n.chooseRecurringEventScope),
-                  subtitle: _draft.recurringMutationScope == null
-                      ? null
-                      : Text(
-                          _scopeLabel(context, _draft.recurringMutationScope!),
-                        ),
-                  onTap: _canEdit ? _selectRecurringScope : null,
-                ),
-              ],
-              const SizedBox(height: 12),
-              if (_provider == BusyProvider.google)
-                ..._googleReminderRows()
-              else if (_provider == BusyProvider.nextcloud ||
-                  _provider == BusyProvider.caldav)
-                ..._nextcloudReminderRows()
-              else ...[
-                DropdownButtonFormField<int>(
-                  key: ValueKey('android-event-reminder-${_draft.sourceId}'),
-                  initialValue:
-                      _reminderMinutes ??
-                      androidEventReminderSelection(
-                        _provider,
-                        _draft.reminders,
+                AndroidEditorGroup(
+                  children: [
+                    TextFormField(
+                      controller: _title,
+                      enabled: _canEdit,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.title,
                       ),
-                  decoration: InputDecoration(labelText: context.l10n.reminder),
-                  items: [
-                    DropdownMenuItem(
-                      value: -2,
-                      child: Text(context.l10n.noReminders),
+                      autofocus: _draft.eventId == null,
+                      onChanged: (v) =>
+                          setState(() => _draft = _draft.copyWith(title: v)),
                     ),
-                    DropdownMenuItem(
-                      value: 0,
-                      child: Text(context.l10n.reminderAtStart),
-                    ),
-                    for (final value in <int>{
-                      5,
-                      10,
-                      30,
-                      60,
-                      1440,
-                      if ((_reminderMinutes ??
-                              androidEventReminderSelection(
-                                _provider,
-                                _draft.reminders,
-                              ))
-                          case final int selected when selected > 0)
-                        selected,
-                    })
-                      DropdownMenuItem(
-                        value: value,
-                        child: Text(context.l10n.reminderMinutesBefore(value)),
+                    TextFormField(
+                      controller: _location,
+                      enabled: _canEdit,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.location,
+                        prefixIcon: const Icon(Icons.place_outlined),
                       ),
+                      onChanged: (v) =>
+                          setState(() => _draft = _draft.copyWith(location: v)),
+                    ),
                   ],
-                  onChanged: !_canEdit
-                      ? null
-                      : (value) => setState(() => _reminderMinutes = value),
                 ),
-                if (_reminderMinutes == null)
-                  if (androidEventReminderMinutes(_provider, _draft.reminders)
-                      case final List<int> minutes)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        minutes.isEmpty
-                            ? context.l10n.noReminders
-                            : minutes
-                                  .map(
-                                    (minute) => minute == 0
-                                        ? context.l10n.reminderAtStart
-                                        : context.l10n.reminderMinutesBefore(
-                                            minute,
-                                          ),
-                                  )
-                                  .join(', '),
-                      ),
+                AndroidEditorGroup(children: [..._eventDestinationRows()]),
+                AndroidEditorGroup(
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(context.l10n.allDay),
+                      value: _draft.allDay,
+                      onChanged:
+                          !_canChangeTiming ||
+                              _draft.eventType == 'focusTime' ||
+                              _draft.eventType == 'outOfOffice'
+                          ? null
+                          : (value) => setState(() {
+                              _draft = _draft
+                                  .copyWith(allDay: value)
+                                  .withValidEnd();
+                              _adjustRecurrenceTiming();
+                            }),
                     ),
-                if (_reminderMinutes == null &&
-                    androidEventReminderSelection(
-                          _provider,
-                          _draft.reminders,
-                        ) ==
-                        null &&
-                    androidEventReminderMinutes(_provider, _draft.reminders) ==
-                        null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(context.l10n.unsupportedReminder),
-                  ),
-              ],
-              if (_draft.conference != null ||
-                  (_provider == BusyProvider.google &&
-                      (_source?.allowedConferenceSolutions.contains(
-                            'hangoutsMeet',
-                          ) ??
-                          false)) ||
-                  (_provider == BusyProvider.microsoft &&
-                      (_source?.allowedConferenceSolutions.contains(
-                            'teamsForBusiness',
-                          ) ??
-                          false)))
-                SwitchListTile(
-                  key: const ValueKey('android-event-create-conference'),
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    _provider == BusyProvider.google
-                        ? context.l10n.addGoogleMeet
-                        : context.l10n.addTeamsMeeting,
-                  ),
-                  subtitle: _draft.conference == null
-                      ? null
-                      : Text(context.l10n.onlineMeetingAdded),
-                  value: _draft.conference != null || _draft.createConference,
-                  onChanged: _canEdit && _draft.conference == null
-                      ? (value) => setState(
-                          () =>
-                              _draft = _draft.copyWith(createConference: value),
-                        )
-                      : null,
+                  ],
                 ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _guests,
-                enabled:
-                    _canEdit &&
-                    _provider != BusyProvider.caldav &&
-                    _draft.canManageAttendees,
-                decoration: InputDecoration(
-                  labelText: context.l10n.guests,
-                  hintText: context.l10n.addGuestEmail,
+                AndroidEditorGroup(
+                  title: context.l10n.startDateTime,
+                  children: [..._eventTimeRows(start: true)],
                 ),
-                keyboardType: TextInputType.emailAddress,
-                onChanged: (value) {
-                  setState(() {});
-                  unawaited(_loadGuestSuggestions(value));
-                },
-              ),
-              for (final suggestion in _guestSuggestions)
-                ListTile(
-                  key: ValueKey('android-guest-contact-${suggestion.email}'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.person_add_alt_outlined),
-                  title: Text(
-                    suggestion.displayName.isEmpty
-                        ? suggestion.email
-                        : suggestion.displayName,
-                  ),
-                  subtitle: suggestion.displayName.isEmpty
-                      ? null
-                      : Text(suggestion.email),
-                  onTap: _canEdit && _draft.canManageAttendees
-                      ? () => _selectGuestSuggestion(suggestion)
-                      : null,
+                AndroidEditorGroup(
+                  title: context.l10n.endDateTime,
+                  children: [..._eventTimeRows(start: false)],
                 ),
-              for (final attendee in _currentAttendees().where(
-                (a) => !a.self && !a.organizer,
-              ))
-                ListTile(
-                  key: ValueKey('android-event-guest-${attendee.email}'),
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(attendee.displayName ?? attendee.email),
-                  subtitle: attendee.displayName == null
-                      ? null
-                      : Text(attendee.email),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                AndroidEditorGroup(
+                  children: [
+                    AndroidEventDescriptionEditor(
+                      key: ValueKey((
+                        'android-event-description',
+                        _draft.sourceId,
+                        _descriptionGeneration,
+                      )),
+                      provider: _provider,
+                      text: _draft.editableDescription,
+                      contentType: _draft.descriptionContentType,
+                      html: _draft.editableDescriptionHtml,
+                      enabled: _canEdit && !_draft.descriptionEditUnsafe,
+                      onChanged: (value) => setState(() {
+                        _description.text = value.text;
+                        _draft = _draft.copyWith(
+                          description: value.text,
+                          descriptionContentType: value.contentType,
+                          descriptionHtml: value.html,
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+                if (_draft.providerRecurringEventId != null)
+                  AndroidEditorGroup(
                     children: [
-                      DropdownButton<bool>(
-                        value:
-                            _guestOptionalOverrides[attendee.email
-                                .toLowerCase()] ??
-                            attendee.optional,
-                        items: [
-                          DropdownMenuItem(
-                            value: false,
-                            child: Text(context.l10n.attendeeRequired),
-                          ),
-                          DropdownMenuItem(
-                            value: true,
-                            child: Text(context.l10n.attendeeOptional),
-                          ),
-                        ],
-                        onChanged: _canEdit && _draft.canManageAttendees
-                            ? (optional) => setState(() {
-                                if (optional == null ||
-                                    optional == attendee.optional) {
-                                  _guestOptionalOverrides.remove(
-                                    attendee.email.toLowerCase(),
-                                  );
-                                } else {
-                                  _guestOptionalOverrides[attendee.email
-                                          .toLowerCase()] =
-                                      optional;
-                                }
-                              })
-                            : null,
-                      ),
-                      IconButton(
-                        tooltip: context.l10n.delete,
-                        onPressed: _canEdit && _draft.canManageAttendees
-                            ? () => setState(() {
-                                _guests.text =
-                                    mergeAndroidEventAttendees(
-                                          widget.draft.attendees,
-                                          _guests.text,
-                                        ).attendees
-                                        .where(
-                                          (a) =>
-                                              !a.self &&
-                                              !a.organizer &&
-                                              a.email.toLowerCase() !=
-                                                  attendee.email.toLowerCase(),
-                                        )
-                                        .map((a) => a.email)
-                                        .join(', ');
-                                _guestOptionalOverrides.remove(
-                                  attendee.email.toLowerCase(),
-                                );
-                                _suggestedGuestNames.remove(
-                                  attendee.email.toLowerCase(),
-                                );
-                              })
-                            : null,
-                        icon: const Icon(Icons.close),
+                      if (_draft.providerRecurringEventId != null) ...[
+                        const SizedBox(height: 12),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.call_split),
+                          title: Text(context.l10n.chooseRecurringEventScope),
+                          subtitle: _draft.recurringMutationScope == null
+                              ? null
+                              : Text(
+                                  _scopeLabel(
+                                    context,
+                                    _draft.recurringMutationScope!,
+                                  ),
+                                ),
+                          onTap: _canEdit ? _selectRecurringScope : null,
+                        ),
+                      ],
+                    ],
+                  ),
+                if (_draft.providerRecurringEventId == null)
+                  AndroidEditorGroup(
+                    children: [
+                      ListTile(
+                        key: const ValueKey('android-event-recurrence'),
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.repeat),
+                        title: Text(context.l10n.repeat),
+                        subtitle: Text(
+                          _recurrenceRule.isSupported
+                              ? _recurrenceRule.repeats
+                                    ? recurrenceRuleSummary(
+                                        context,
+                                        _recurrenceRule,
+                                        timeZone: _draft.startTimeZone,
+                                      )
+                                    : context.l10n.repeatNone
+                              : context.l10n.unsupportedRecurrencePreserved,
+                        ),
+                        enabled: _canEdit,
+                        onTap: _canEdit ? _editRecurrence : null,
                       ),
                     ],
                   ),
+                AndroidEditorGroup(
+                  title: context.l10n.reminder,
+                  children: [
+                    if (_provider == BusyProvider.google)
+                      ..._googleReminderRows()
+                    else if (_provider.isDav)
+                      ..._nextcloudReminderRows()
+                    else ...[
+                      DropdownButtonFormField<int>(
+                        isExpanded: true,
+                        key: ValueKey(
+                          'android-event-reminder-${_draft.sourceId}',
+                        ),
+                        initialValue:
+                            _reminderMinutes ??
+                            androidEventReminderSelection(
+                              _provider,
+                              _draft.reminders,
+                            ),
+                        decoration: InputDecoration(
+                          labelText: context.l10n.reminder,
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: -2,
+                            child: Text(context.l10n.noReminders),
+                          ),
+                          DropdownMenuItem(
+                            value: 0,
+                            child: Text(context.l10n.reminderAtStart),
+                          ),
+                          for (final value in <int>{
+                            5,
+                            10,
+                            30,
+                            60,
+                            1440,
+                            if ((_reminderMinutes ??
+                                    androidEventReminderSelection(
+                                      _provider,
+                                      _draft.reminders,
+                                    ))
+                                case final int selected when selected > 0)
+                              selected,
+                          })
+                            DropdownMenuItem(
+                              value: value,
+                              child: Text(
+                                context.l10n.reminderMinutesBefore(value),
+                              ),
+                            ),
+                        ],
+                        onChanged: !_canEdit
+                            ? null
+                            : (value) =>
+                                  setState(() => _reminderMinutes = value),
+                      ),
+                      if (_reminderMinutes == null)
+                        if (androidEventReminderMinutes(
+                              _provider,
+                              _draft.reminders,
+                            )
+                            case final List<int> minutes)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              minutes.isEmpty
+                                  ? context.l10n.noReminders
+                                  : minutes
+                                        .map(
+                                          (minute) => minute == 0
+                                              ? context.l10n.reminderAtStart
+                                              : context.l10n
+                                                    .reminderMinutesBefore(
+                                                      minute,
+                                                    ),
+                                        )
+                                        .join(', '),
+                            ),
+                          ),
+                      if (_reminderMinutes == null &&
+                          androidEventReminderSelection(
+                                _provider,
+                                _draft.reminders,
+                              ) ==
+                              null &&
+                          androidEventReminderMinutes(
+                                _provider,
+                                _draft.reminders,
+                              ) ==
+                              null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(context.l10n.unsupportedReminder),
+                        ),
+                    ],
+                  ],
                 ),
-              if (_canCheckGuestAvailability) ...[
-                const SizedBox(height: 4),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TextButton.icon(
-                    onPressed: _showGuestAvailability,
-                    icon: const Icon(Icons.event_available_outlined),
-                    label: Text(context.l10n.nextcloudGuestAvailability),
+                if (_canManageGuests || _currentAttendees().isNotEmpty)
+                  AndroidEditorGroup(
+                    title: context.l10n.guests,
+                    children: [..._eventGuestRows()],
                   ),
+                if (_canCheckGuestAvailability) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      onPressed: _showGuestAvailability,
+                      icon: const Icon(Icons.event_available_outlined),
+                      label: Text(context.l10n.nextcloudGuestAvailability),
+                    ),
+                  ),
+                ],
+                AndroidEditorGroup(
+                  title: context.l10n.organizationSection,
+                  expanded: _eventOrganizationPopulated,
+                  key: const ValueKey('android-event-organization'),
+                  children: [
+                    if ((_provider == BusyProvider.google ||
+                            _provider == BusyProvider.microsoft) &&
+                        _draft.isOrganizer != false)
+                      AndroidEditorGroup(
+                        title: context.l10n.meetingSection,
+                        children: [
+                          if (_draft.conference != null ||
+                              (_provider == BusyProvider.google &&
+                                  (_source?.allowedConferenceSolutions.contains(
+                                        'hangoutsMeet',
+                                      ) ??
+                                      false)) ||
+                              (_provider == BusyProvider.microsoft &&
+                                  (_source?.allowedConferenceSolutions.contains(
+                                        'teamsForBusiness',
+                                      ) ??
+                                      false)))
+                            SwitchListTile(
+                              key: const ValueKey(
+                                'android-event-create-conference',
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                _provider == BusyProvider.google
+                                    ? context.l10n.addGoogleMeet
+                                    : context.l10n.addTeamsMeeting,
+                              ),
+                              subtitle: _draft.conference == null
+                                  ? null
+                                  : Text(context.l10n.onlineMeetingAdded),
+                              value:
+                                  _draft.conference != null ||
+                                  _draft.createConference,
+                              onChanged: _canEdit && _draft.conference == null
+                                  ? (value) => setState(
+                                      () => _draft = _draft.copyWith(
+                                        createConference: value,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          if (_provider == BusyProvider.microsoft)
+                            SwitchListTile(
+                              title: Text(context.l10n.requestResponses),
+                              value: _draft.responseRequested ?? true,
+                              onChanged: !_canEdit || !_canManageGuests
+                                  ? null
+                                  : (value) => setState(
+                                      () => _draft = _draft.copyWith(
+                                        responseRequested: value,
+                                      ),
+                                    ),
+                            ),
+                          SwitchListTile(
+                            title: Text(context.l10n.hideGuestList),
+                            value: _draft.hideAttendees ?? false,
+                            onChanged: !_canEdit || !_canManageGuests
+                                ? null
+                                : (value) => setState(
+                                    () => _draft = _draft.copyWith(
+                                      hideAttendees: value,
+                                    ),
+                                  ),
+                          ),
+                          if (_provider == BusyProvider.microsoft)
+                            SwitchListTile(
+                              title: Text(context.l10n.allowNewTimeProposals),
+                              value: _draft.allowNewTimeProposals ?? true,
+                              onChanged: !_canEdit || !_canManageGuests
+                                  ? null
+                                  : (value) => setState(
+                                      () => _draft = _draft.copyWith(
+                                        allowNewTimeProposals: value,
+                                      ),
+                                    ),
+                            ),
+                        ],
+                      ),
+                    if (_provider == BusyProvider.microsoft || _provider.isDav)
+                      AndroidCategoryEditor(
+                        values: _draft.categories,
+                        onChanged: _canEdit ? _setEventCategories : null,
+                      ),
+                    if (_provider == BusyProvider.microsoft && _source != null)
+                      _microsoftCategoryField(_source!),
+                    if (_provider == BusyProvider.microsoft)
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: _draft.importance ?? 'normal',
+                        decoration: InputDecoration(
+                          labelText: context.l10n.importance,
+                        ),
+                        items: [
+                          for (final value in ['low', 'normal', 'high'])
+                            DropdownMenuItem(
+                              value: value,
+                              child: Text(
+                                value == 'low'
+                                    ? context.l10n.importanceLow
+                                    : value == 'high'
+                                    ? context.l10n.importanceHigh
+                                    : context.l10n.importanceNormal,
+                              ),
+                            ),
+                        ],
+                        onChanged: !_canEdit
+                            ? null
+                            : (value) => setState(
+                                () =>
+                                    _draft = _draft.copyWith(importance: value),
+                              ),
+                      ),
+                    if (_provider == BusyProvider.google &&
+                        (_source?.primaryCalendar == true ||
+                            googleStatusEventTypes.contains(_draft.eventType)))
+                      ..._googleStatusRows(),
+                    if (_provider == BusyProvider.google && _source != null)
+                      _googleEventLabelField(_source!),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      key: ValueKey('android-event-show-as-${_provider.name}'),
+                      initialValue:
+                          _eventShowAsValues(_provider).contains(_draft.showAs)
+                          ? _draft.showAs
+                          : _eventShowAsValues(_provider).first,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.availabilityShowAs,
+                      ),
+                      items: [
+                        for (final value in _eventShowAsValues(_provider))
+                          DropdownMenuItem(
+                            value: value,
+                            child: Text(
+                              _eventAvailabilityLabel(context, value),
+                            ),
+                          ),
+                      ],
+                      onChanged:
+                          !_canEdit ||
+                              googleStatusEventTypes.contains(_draft.eventType)
+                          ? null
+                          : (value) => setState(
+                              () => _draft = _draft.copyWith(showAs: value),
+                            ),
+                    ),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      key: ValueKey(
+                        'android-event-visibility-${_provider.name}',
+                      ),
+                      initialValue:
+                          _eventVisibilityValues(_provider)
+                              .contains(_draft.visibilityOrSensitivity)
+                          ? _draft.visibilityOrSensitivity
+                          : _eventVisibilityValues(_provider).first,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.visibility,
+                      ),
+                      items: [
+                        for (final value in _eventVisibilityValues(_provider))
+                          DropdownMenuItem(
+                            value: value,
+                            child: Text(_eventVisibilityLabel(context, value)),
+                          ),
+                      ],
+                      onChanged:
+                          !_canEdit || _draft.eventType == 'workingLocation'
+                          ? null
+                          : (value) => setState(
+                              () => _draft = _draft.copyWith(
+                                visibilityOrSensitivity: value,
+                              ),
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _categories,
-                enabled: _canEdit,
-                decoration: InputDecoration(labelText: context.l10n.categories),
-                onChanged: (_) => setState(() {}),
-              ),
-              if (_provider == BusyProvider.microsoft && _source != null)
-                _microsoftCategoryField(_source!),
-              if (_provider == BusyProvider.google &&
-                  (_source?.primaryCalendar == true ||
-                      googleStatusEventTypes.contains(_draft.eventType)))
-                ..._googleStatusRows(),
-              if (_provider == BusyProvider.google && _source != null)
-                _googleEventLabelField(_source!),
-              if (_canDelete) ...[
-                const SizedBox(height: 24),
-                OutlinedButton.icon(
-                  onPressed: _saving ? null : _delete,
-                  icon: const Icon(Icons.delete_outline),
-                  label: Text(context.l10n.deleteEvent),
+                AndroidEditorGroup(
+                  children: [
+                    if (_canDelete) ...[
+                      const SizedBox(height: 24),
+                      OutlinedButton.icon(
+                        onPressed: _saving ? null : _delete,
+                        icon: const Icon(Icons.delete_outline),
+                        label: Text(
+                          _isNextcloudAttendee
+                              ? context.l10n.nextcloudDeclineAndRemove
+                              : context.l10n.deleteEvent,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
+                const SizedBox(height: 40),
               ],
-              const SizedBox(height: 40),
-            ],
+            ),
           ),
         ),
       ),
@@ -2976,10 +4668,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   List<Widget> _googleReminderRows() {
     final value = _editedGoogleReminders ?? _draft.reminders;
-    final mode = androidGoogleReminderMode(value);
-    final popupRows = androidGooglePopupReminderRows(value);
+    final mode = googleReminderMode(value);
+    final popupRows = googlePopupReminderRows(value);
     return [
       DropdownButtonFormField<int>(
+        isExpanded: true,
         key: ValueKey('android-event-reminder-mode-${_draft.sourceId}-$mode'),
         initialValue: mode,
         decoration: InputDecoration(labelText: context.l10n.reminders),
@@ -2994,9 +4687,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         onChanged: !_canEdit
             ? null
             : (selection) {
-                if (selection == null) return;
+                if (selection == null) {
+                  return;
+                }
                 setState(
-                  () => _editedGoogleReminders = androidSetGoogleReminderMode(
+                  () => _editedGoogleReminders = setGoogleReminderMode(
                     value,
                     selection,
                   ),
@@ -3009,6 +4704,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<int>(
+                  isExpanded: true,
                   key: ValueKey('android-event-popup-${row.index}'),
                   initialValue: row.minutes,
                   decoration: InputDecoration(labelText: context.l10n.reminder),
@@ -3034,10 +4730,12 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                   onChanged: !_canEdit
                       ? null
                       : (minute) {
-                          if (minute == null) return;
+                          if (minute == null) {
+                            return;
+                          }
                           setState(
                             () => _editedGoogleReminders =
-                                androidEditGooglePopupReminder(
+                                editGooglePopupReminder(
                                   value,
                                   overrideIndex: row.index,
                                   minutes: minute,
@@ -3051,8 +4749,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                 onPressed: !_canEdit
                     ? null
                     : () => setState(
-                        () => _editedGoogleReminders =
-                            androidRemoveGooglePopupReminder(
+                        () =>
+                            _editedGoogleReminders = removeGooglePopupReminder(
                               value,
                               overrideIndex: row.index,
                             ),
@@ -3061,22 +4759,21 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               ),
             ],
           ),
-        if (androidGoogleReminderOverrideCount(value) < 5)
+        if (googleReminderOverrideCount(value) < googleReminderLimit)
           TextButton.icon(
             onPressed: !_canEdit
                 ? null
                 : () => setState(
-                    () =>
-                        _editedGoogleReminders = androidEditGooglePopupReminder(
-                          value,
-                          overrideIndex: null,
-                          minutes: 10,
-                        ),
+                    () => _editedGoogleReminders = editGooglePopupReminder(
+                      value,
+                      overrideIndex: null,
+                      minutes: 10,
+                    ),
                   ),
             icon: const Icon(Icons.add),
             label: Text(context.l10n.addReminder),
           ),
-        if (androidGoogleHasUnsupportedReminder(value))
+        if (googleHasUnsupportedReminder(value))
           Text(context.l10n.unsupportedReminder),
       ],
     ];
@@ -3086,7 +4783,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     final rows =
         _editedNextcloudReminders ??
         androidNextcloudEditableReminderRows(_draft.reminders);
-    if (rows == null) return [Text(context.l10n.unsupportedReminder)];
+    if (rows == null) {
+      return [Text(context.l10n.unsupportedReminder)];
+    }
     return [
       Text(context.l10n.reminders),
       if (rows.isEmpty) Text(context.l10n.noReminders),
@@ -3095,6 +4794,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           children: [
             Expanded(
               child: DropdownButtonFormField<int>(
+                isExpanded: true,
                 key: ValueKey('android-event-dav-reminder-$index'),
                 initialValue: rows[index].minutes,
                 decoration: InputDecoration(labelText: context.l10n.reminder),
@@ -3120,7 +4820,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                 onChanged: !_canEdit
                     ? null
                     : (minute) {
-                        if (minute == null) return;
+                        if (minute == null) {
+                          return;
+                        }
                         setState(() {
                           final edited = [...rows];
                           edited[index] = edited[index].copyWith(
@@ -3180,7 +4882,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         onChanged: !_canEdit || _draft.eventId != null
             ? null
             : (value) {
-                if (value == null) return;
+                if (value == null) {
+                  return;
+                }
                 final start = _draft.start;
                 setState(
                   () => _draft = _draft.copyWith(
@@ -3206,7 +4910,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               },
       ),
     ];
-    if (!googleStatusEventTypes.contains(type)) return rows;
+    if (!googleStatusEventTypes.contains(type)) {
+      return rows;
+    }
     final properties = _draft.googleStatusProperties;
     if (type == 'focusTime' || type == 'outOfOffice') {
       const modes = [
@@ -3217,6 +4923,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       final mode = properties['autoDeclineMode']?.toString() ?? modes.first;
       rows.add(
         DropdownButtonFormField<String>(
+          isExpanded: true,
           key: const Key('android-google-auto-decline'),
           initialValue: modes.contains(mode) ? mode : modes.first,
           decoration: InputDecoration(labelText: l10n.googleDeclineInvitations),
@@ -3230,7 +4937,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           onChanged: !_canEdit
               ? null
               : (value) {
-                  if (value == null) return;
+                  if (value == null) {
+                    return;
+                  }
                   setState(
                     () => _draft = _draft.copyWith(
                       googleStatusProperties: {
@@ -3245,6 +4954,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       if (type == 'focusTime') {
         rows.add(
           DropdownButtonFormField<String>(
+            isExpanded: true,
             key: const Key('android-google-chat-status'),
             initialValue: properties['chatStatus'] == 'doNotDisturb'
                 ? 'doNotDisturb'
@@ -3263,7 +4973,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
             onChanged: !_canEdit
                 ? null
                 : (value) {
-                    if (value == null) return;
+                    if (value == null) {
+                      return;
+                    }
                     setState(
                       () => _draft = _draft.copyWith(
                         googleStatusProperties: {
@@ -3295,6 +5007,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     final locationType = properties['type']?.toString() ?? locations.first;
     rows.add(
       DropdownButtonFormField<String>(
+        isExpanded: true,
         key: const Key('android-google-working-location'),
         initialValue: locations.contains(locationType)
             ? locationType
@@ -3310,7 +5023,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         onChanged: !_canEdit
             ? null
             : (value) {
-                if (value == null) return;
+                if (value == null) {
+                  return;
+                }
                 final next = {...properties}
                   ..remove('homeOffice')
                   ..remove('officeLocation')
@@ -3454,7 +5169,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                     source.accountId,
                     cancellation: consent,
                   );
-              if (!mounted || consent.isCancelled) return;
+              if (!mounted || consent.isCancelled) {
+                return;
+              }
               if (mounted) {
                 ref.invalidate(
                   microsoftMasterCategoriesProvider(source.accountId),
@@ -3493,10 +5210,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                       ),
                       radius: 7,
                     ),
-              selected: _categories.text
-                  .split(',')
-                  .map((value) => value.trim())
-                  .contains(category.displayName),
+              selected: _draft.categories.contains(category.displayName),
               onSelected: !_canEdit
                   ? null
                   : (selected) {
@@ -3512,7 +5226,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                       } else {
                         values.remove(category.displayName);
                       }
-                      setState(() => _categories.text = values.join(', '));
+                      _setEventCategories(values);
                     },
             ),
         ],
@@ -3521,8 +5235,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   }
 
   Future<void> _save() async {
+    if (!_recoveryLoaded) return;
     final start = _draft.start;
-    if (_title.text.trim().isEmpty || start == null) return;
+    if (_title.text.trim().isEmpty || start == null) {
+      return;
+    }
     final attendeeEdit = applyAndroidEventAttendeeRoles(
       AndroidEventAttendeeEdit(
         attendees: _currentAttendees(),
@@ -3532,19 +5249,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     );
     // The display separator can also occur inside an existing category.
     // Preserve the original values when this field was not edited.
-    final categories = _categories.text == widget.draft.categories.join(', ')
-        ? widget.draft.categories
-        : _categories.text
-              .split(',')
-              .map((value) => value.trim())
-              .where((value) => value.isNotEmpty)
-              .toList();
+    final categories = _draft.categories;
     var draft = _draft.copyWith(
       title: _title.text.trim(),
       location: _location.text.trim(),
-      description: _description.text == (_initialDescription ?? '')
-          ? null
-          : _description.text.trim(),
+
       attendees: attendeeEdit.attendees,
       attendeesChanged: attendeeEdit.changed,
       categories: categories,
@@ -3566,11 +5275,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     }
     if (_provider.isDav && _editedNextcloudReminders != null) {
       draft = draft.copyWith(
-        reminders: {
-          'davEditableRows': [
-            for (final row in _editedNextcloudReminders!) row.toJson(),
-          ],
-        },
+        reminders: davEventReminderPayload(_editedNextcloudReminders!),
         remindersChanged: true,
       );
     }
@@ -3591,67 +5296,105 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         clearRecurrence: !rule.repeats,
       );
     }
-    if (!draft.canSave) return;
-    if (draft.providerRecurringEventId != null &&
-        draft.recurringMutationScope == null) {
-      final scope = await _selectRecurringScope();
-      if (scope == null) return;
-      draft = draft.copyWith(recurringMutationScope: scope);
+    if (!draft.canSave) {
+      return;
     }
+    if (_saving) return;
     setState(() => _saving = true);
     try {
-      final seriesTiming = await ref
-          .read(calendarRepositoryProvider)
-          .prepareSeriesTimingChange(draft);
-      if (!mounted) return;
-      if (seriesTiming?.requiresConfirmation == true) {
+      if (draft.providerRecurringEventId != null &&
+          draft.recurringMutationScope == null) {
+        final scope = await _selectRecurringScope();
+        if (scope == null) {
+          return;
+        }
+        draft = draft.copyWith(recurringMutationScope: scope);
+      }
+      if (!mounted) {
+        return;
+      }
+      final strategy = _moveStrategy(draft);
+      if (strategy == CalendarEventMoveStrategy.copyThenDelete) {
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: Text(context.l10n.repeat),
+          builder: (context) => AlertDialog(
+            title: Text(context.l10n.copyEventAndDeleteOriginal),
             content: Text(
-              context.l10n.seriesPatternChangeConfirmation(
-                recurrenceRuleSummary(
-                  dialogContext,
-                  seriesTiming!.previewRule(
-                    following:
-                        draft.recurringMutationScope ==
-                        RecurringEventMutationScope.thisAndFuture,
-                    original: true,
-                  ),
-                  timeZone: seriesTiming.timeZone,
-                ),
-                recurrenceRuleSummary(
-                  dialogContext,
-                  seriesTiming.previewRule(
-                    following:
-                        draft.recurringMutationScope ==
-                        RecurringEventMutationScope.thisAndFuture,
-                  ),
-                  timeZone: seriesTiming.timeZone,
-                ),
+              context.l10n.copyEventMoveWarning(
+                '${_originalSource?.authenticatedAccountEmail ?? widget.draft.accountId} · ${_originalSource?.summary}',
+                '${_source?.authenticatedAccountEmail ?? draft.accountId} · ${_source?.summary}',
               ),
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
+                onPressed: () => Navigator.pop(context, false),
                 child: Text(context.l10n.cancel),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text(context.l10n.save),
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(context.l10n.copyAndDelete),
               ),
             ],
           ),
         );
-        if (confirmed != true) {
-          if (mounted) setState(() => _saving = false);
+        if (confirmed != true || !mounted) {
           return;
         }
-        draft = draft.copyWith(seriesTimingApproval: seriesTiming!.signature);
       }
+      if (!mounted) {
+        return;
+      }
+      var guestPolicy = CalendarGuestUpdatePolicy.send;
+      final externalGuests = [
+        ...draft.attendees,
+        ...widget.draft.attendees,
+      ].any((a) => !a.self && !a.organizer);
+      if ((_source?.usesImplicitScheduling == true &&
+              draft.attendees.isNotEmpty) ||
+          (draft.isOrganizer == true && externalGuests)) {
+        final decision = await showAndroidGuestDeliveryDialog(
+          context,
+          provider: _deliveryProvider,
+        );
+        if (decision == null || !mounted) {
+          return;
+        }
+        guestPolicy = decision;
+      }
+      final approved = await approveEventSeriesTiming(
+        repository: () => ref.read(calendarRepositoryProvider),
+        draft: draft,
+        isActive: () => mounted,
+        confirm: (change, following) async =>
+            (await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: Text(context.l10n.repeat),
+                content: Text(
+                  seriesTimingConfirmationMessage(
+                    dialogContext,
+                    change,
+                    following: following,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: Text(context.l10n.cancel),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: Text(context.l10n.save),
+                  ),
+                ],
+              ),
+            )) ==
+            true,
+      );
+      if (approved == null || !mounted) return;
+      draft = approved;
       if ((_reminderMinutes ?? -2) >= 0 ||
-          androidGooglePopupReminderRows(_editedGoogleReminders).isNotEmpty ||
+          googlePopupReminderRows(_editedGoogleReminders).isNotEmpty ||
           (_editedNextcloudReminders?.isNotEmpty ?? false)) {
         final notifications = ref.read(androidNotificationServiceProvider);
         final granted = await notifications.requestNotificationPermission();
@@ -3675,31 +5418,33 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           );
         }
       }
-      if (draft.eventId == null) {
-        await ref.read(calendarRepositoryProvider).createLocalEvent(draft);
-        unawaited(
-          ref
-              .read(appSettingsControllerProvider.notifier)
-              .rememberCalendar(
-                CreationDestination(
-                  accountId: draft.accountId,
-                  id: draft.sourceId,
-                ),
-              ),
-        );
-      } else {
-        await ref.read(calendarRepositoryProvider).updateLocalEvent(draft);
-      }
-      for (final accountId in {draft.accountId, widget.draft.accountId}) {
-        ref
-            .read(
-              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
-            )
-            .request();
-      }
+      final settings = ref.read(appSettingsControllerProvider.notifier);
+      final outcome = await saveEventDraft(
+        repository: ref.read(calendarRepositoryProvider),
+        draft: draft,
+        creationId: _creationId,
+        guestPolicy: guestPolicy,
+        rememberDestination: () => settings.rememberCalendar(
+          CreationDestination(accountId: draft.accountId, id: draft.sourceId),
+        ),
+        requestSync: () {
+          for (final id in {draft.accountId, widget.draft.accountId}) {
+            ref
+                .read(
+                  pendingCalendarMutationSyncRequesterForAccountProvider(id),
+                )
+                .request();
+          }
+        },
+        clearRecovery: () =>
+            _clearRecovery(finalCleanup: true, reportFailure: true),
+      );
       if (mounted) {
-        await _clearRecovery(finalCleanup: true);
-        if (!mounted) return;
+        if (outcome == EventSaveOutcome.followUpPending) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(context.l10n.pendingLocally)));
+        }
         setState(() => _allowPop = true);
         Navigator.pop(context);
       }
@@ -3717,23 +5462,24 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
   bool get _canCheckGuestAvailability {
     final source = _source;
-    if (source == null ||
-        _draft.start == null ||
-        _draft.end == null ||
-        !_draft.end!.isAfter(_draft.start!)) {
+    if (source == null || !_draft.hasValidInterval) {
       return false;
     }
     final hasGuests = mergeAndroidEventAttendees(
       _draft.attendees,
       _guests.text,
     ).attendees.any((attendee) => !attendee.self && !attendee.organizer);
-    if (!hasGuests) return false;
+    if (!hasGuests) {
+      return false;
+    }
     if (source.provider == BusyProvider.google) {
       return true;
     }
@@ -3753,7 +5499,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   Future<void> _showGuestAvailability() async {
     final source = _source;
-    if (source == null || !_canCheckGuestAvailability) return;
+    if (source == null || !_canCheckGuestAvailability) {
+      return;
+    }
     final attendees = mergeAndroidEventAttendees(
       _draft.attendees,
       _guests.text,
@@ -3769,20 +5517,45 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   }
 
   Future<void> _delete() async {
-    var draft = _draft;
+    var draft = widget.draft.copyWith(
+      recurringMutationScope: _draft.recurringMutationScope,
+    );
     if (draft.providerRecurringEventId != null &&
         draft.recurringMutationScope == null) {
-      final scope = await _selectRecurringScope();
-      if (scope == null) return;
+      final detail = draft.originalDetail;
+      final scope = await showAndroidRecurringScope(
+        context,
+        supportsFollowing:
+            draft.isOrganizer != false &&
+            (detail == null
+                ? supportsThisAndFollowingEventMutation(
+                    _originalSource?.provider ?? _provider,
+                  )
+                : eventSupportsThisAndFollowing(detail)),
+      );
+      if (scope == null) {
+        return;
+      }
       draft = draft.copyWith(recurringMutationScope: scope);
     }
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.l10n.deleteEvent),
+        title: Text(
+          (_originalSource?.provider ?? _provider) == BusyProvider.nextcloud &&
+                  draft.isOrganizer == false
+              ? context.l10n.nextcloudDeclineAndRemove
+              : context.l10n.deleteEvent,
+        ),
         content: Text(
-          _source?.usesImplicitScheduling == true && draft.attendees.isNotEmpty
+          (_originalSource?.provider ?? _provider) == BusyProvider.nextcloud &&
+                  draft.isOrganizer == false
+              ? context.l10n.nextcloudDeclineRemovalWarning
+              : _originalSource?.usesImplicitScheduling == true &&
+                    draft.attendees.isNotEmpty
               ? '${draft.title}\n\n${context.l10n.caldavSchedulingWarning}'
               : draft.title,
         ),
@@ -3793,12 +5566,33 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(context.l10n.delete),
+            child: Text(
+              _isNextcloudAttendee
+                  ? context.l10n.nextcloudDeclineAndRemove
+                  : context.l10n.delete,
+            ),
           ),
         ],
       ),
     );
-    if (confirmed != true || _draft.eventId == null) return;
+    if (confirmed != true || _draft.eventId == null || !mounted) {
+      return;
+    }
+    var guestPolicy = CalendarGuestUpdatePolicy.send;
+    if ((_originalSource?.usesImplicitScheduling == true &&
+            draft.attendees.isNotEmpty) ||
+        (draft.isOrganizer == true &&
+            draft.attendees.any((a) => !a.self && !a.organizer))) {
+      final decision = await showAndroidGuestDeliveryDialog(
+        context,
+        provider: _originalSource?.provider ?? _provider,
+        deleting: true,
+      );
+      if (decision == null || !mounted) {
+        return;
+      }
+      guestPolicy = decision;
+    }
     setState(() => _saving = true);
     try {
       await ref
@@ -3806,6 +5600,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           .deleteLocalEvent(
             _draft.eventId!,
             recurringScope: draft.recurringMutationScope,
+            guestUpdatePolicy: guestPolicy,
           );
       ref
           .read(
@@ -3816,7 +5611,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           .request();
       if (mounted) {
         await _clearRecovery(finalCleanup: true);
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
         setState(() => _allowPop = true);
         Navigator.pop(context);
       }
@@ -3825,7 +5622,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _provider == BusyProvider.nextcloud
+              (_originalSource?.provider ?? _provider) == BusyProvider.nextcloud
                   ? localizedNextcloudCollectionError(context.l10n, error)
                   : '$error',
             ),
@@ -3833,8 +5630,30 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
+  }
+
+  bool _scopeAvailable(RecurringEventMutationScope scope) {
+    if (scope == RecurringEventMutationScope.singleOccurrence) {
+      return true;
+    }
+    if (!_moving) {
+      return scope != RecurringEventMutationScope.thisAndFuture ||
+          (_provider != BusyProvider.nextcloud ||
+                  _draft.isOrganizer != false) &&
+              (_draft.originalDetail == null
+                  ? supportsThisAndFollowingEventMutation(_provider)
+                  : eventSupportsThisAndFollowing(_draft.originalDetail!));
+    }
+    if (scope == RecurringEventMutationScope.thisAndFuture) {
+      return false;
+    }
+    return _moveStrategy(_draft.copyWith(recurringMutationScope: scope)) !=
+            CalendarEventMoveStrategy.copyThenDelete ||
+        (_recurrenceRule.isSupported && _recurrenceRule.repeats);
   }
 
   Future<RecurringEventMutationScope?> _selectRecurringScope() async {
@@ -3849,17 +5668,25 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
             children: [
               ListTile(title: Text(context.l10n.chooseRecurringEventScope)),
               for (final value in RecurringEventMutationScope.values)
-                if (value != RecurringEventMutationScope.thisAndFuture ||
-                    supportsThisAndFollowingEventMutation(_provider))
-                  ListTile(
-                    leading: Icon(
-                      _draft.recurringMutationScope == value
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                    ),
-                    title: Text(_scopeLabel(context, value)),
-                    onTap: () => Navigator.pop(context, value),
+                ListTile(
+                  leading: Icon(
+                    _draft.recurringMutationScope == value
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
                   ),
+                  title: Text(_scopeLabel(context, value)),
+                  enabled: _scopeAvailable(value),
+                  subtitle: _scopeAvailable(value)
+                      ? null
+                      : Text(
+                          value == RecurringEventMutationScope.thisAndFuture
+                              ? context.l10n.thisAndFutureMoveUnavailable
+                              : context.l10n.entireSeriesMoveUnavailable,
+                        ),
+                  onTap: !_scopeAvailable(value)
+                      ? null
+                      : () => Navigator.pop(context, value),
+                ),
             ],
           ),
         ),
@@ -3873,9 +5700,13 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
 
   Future<void> _requestClose() async {
     if (!_hasPendingEdits || await _confirmDiscardChanges()) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       await _clearRecovery(finalCleanup: true);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _allowPop = true);
       Navigator.pop(context);
     }
@@ -3904,9 +5735,13 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   Future<void> _restoreRecovery() async {
     try {
       final raw = await ref.read(secureStorageProvider).read(key: _recoveryKey);
-      if (raw == null) return;
+      if (raw == null) {
+        return;
+      }
       final value = jsonDecode(raw);
-      if (value is! Map) return;
+      if (value is! Map) {
+        return;
+      }
       final map = value.cast<String, Object?>();
       final savedAt = DateTime.tryParse(map['savedAt']?.toString() ?? '');
       final version = map['v'];
@@ -3922,6 +5757,15 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           (version != 2 && version != 3) ||
           !identityMatches) {
         await _clearRecovery();
+        return;
+      }
+      final creationId = editingExistingEvent
+          ? null
+          : recoverAndroidCreationId(map['creationId'], _recoveryKey, raw);
+      if (creationId != null &&
+          await CreationReceiptStore(ref.read(databaseProvider))
+              .hasCommitted(CreationKind.event, creationId)) {
+        if (mounted) await _clearRecovery();
         return;
       }
       final start = DateTime.tryParse(map['start']?.toString() ?? '');
@@ -3957,9 +5801,13 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       final recurringScope = RecurringEventMutationScope.values
           .where((value) => value.name == map['recurringMutationScope'])
           .firstOrNull;
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final recover = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -3981,8 +5829,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         await _clearRecovery();
         return;
       }
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
+        _creationId = creationId;
         _title.text = map['title']?.toString() ?? _title.text;
         _location.text = map['location']?.toString() ?? _location.text;
         _description.text = map['description']?.toString() ?? _description.text;
@@ -4004,7 +5855,18 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
             }
           }
         }
-        _categories.text = map['categories']?.toString() ?? _categories.text;
+        final recoveredCategories = map['categories'];
+        final values = recoveredCategories is List
+            ? recoveredCategories.whereType<String>().toList()
+            : recoveredCategories is String
+            ? recoveredCategories
+                  .split(',')
+                  .map((v) => v.trim())
+                  .where((v) => v.isNotEmpty)
+                  .toList()
+            : _draft.categories;
+        _draft = _draft.copyWith(categories: values);
+        _categories.text = values.join(', ');
         _reminderMinutes = map['reminderMinutes'] as int?;
         _editedGoogleReminders = map['googleReminders'] is Map
             ? (map['googleReminders'] as Map).cast<String, Object?>()
@@ -4021,9 +5883,13 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         } else if (recoveredRule == null &&
             frequency != null &&
             frequency != _recurrenceRule.frequency) {
-          _recurrenceRule = androidRuleForFrequency(frequency, start);
+          _recurrenceRule = const RecurrenceRule.none().withFrequency(
+            frequency,
+            start,
+          );
           _recurrenceChanged = true;
         }
+        _descriptionGeneration++;
         _draft = _draft.copyWith(
           accountId: recoveredSource.accountId,
           sourceId: recoveredSource.id,
@@ -4031,6 +5897,14 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           title: _title.text,
           location: _location.text,
           description: _description.text,
+          descriptionContentType: map['descriptionContentType']?.toString(),
+          descriptionHtml: map['descriptionHtml']?.toString(),
+          startTimeZone: map['startTimeZone']?.toString(),
+          endTimeZone: map['endTimeZone']?.toString(),
+          importance: map['importance']?.toString(),
+          responseRequested: map['responseRequested'] as bool?,
+          hideAttendees: map['hideAttendees'] as bool?,
+          allowNewTimeProposals: map['allowNewTimeProposals'] as bool?,
           allDay: map['allDay'] as bool? ?? _draft.allDay,
           start: start,
           end: end,
@@ -4083,7 +5957,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     } on Object {
       // A malformed/locked recovery entry must never block the editor.
     } finally {
-      _recoveryLoaded = true;
+      if (mounted) setState(() => _recoveryLoaded = true);
     }
   }
 
@@ -4098,6 +5972,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       'v': 3,
       'savedAt': DateTime.now().toIso8601String(),
       'eventId': widget.draft.eventId,
+      if (_creationId != null) 'creationId': _creationId,
       'baseTitle': widget.draft.title,
       'baseStart': widget.draft.start?.toIso8601String(),
       'accountId': _draft.accountId,
@@ -4109,10 +5984,18 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       'title': _title.text,
       'location': _location.text,
       'description': _description.text,
+      'descriptionContentType': _draft.descriptionContentType,
+      'descriptionHtml': _draft.editableDescriptionHtml,
+      'startTimeZone': _draft.startTimeZone,
+      'endTimeZone': _draft.endTimeZone,
+      'importance': _draft.importance,
+      'responseRequested': _draft.responseRequested,
+      'hideAttendees': _draft.hideAttendees,
+      'allowNewTimeProposals': _draft.allowNewTimeProposals,
       'guests': _guests.text,
       'guestOptionalOverrides': _guestOptionalOverrides,
       'guestDisplayNames': _suggestedGuestNames,
-      'categories': _categories.text,
+      'categories': _draft.categories,
       'allDay': _draft.allDay,
       'start': _draft.start?.toIso8601String(),
       'end': _draft.end?.toIso8601String(),
@@ -4132,27 +6015,36 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         'recurrenceRule': _recurrenceRule.toJsonString(),
     });
     await _enqueueRecovery(() async {
-      if (_recoveryWritesBlocked) return;
+      if (_recoveryWritesBlocked) {
+        return;
+      }
       await ref
           .read(secureStorageProvider)
           .write(key: _recoveryKey, value: payload);
     });
   }
 
-  Future<void> _clearRecovery({bool finalCleanup = false}) {
+  Future<void> _clearRecovery({
+    bool finalCleanup = false,
+    bool reportFailure = false,
+  }) {
     if (finalCleanup) {
       _recoveryWritesBlocked = true;
       _recoveryTimer?.cancel();
     }
     return _enqueueRecovery(
       () => ref.read(secureStorageProvider).delete(key: _recoveryKey),
+      reportFailure: reportFailure,
     );
   }
 
-  Future<void> _enqueueRecovery(Future<void> Function() operation) {
+  Future<void> _enqueueRecovery(
+    Future<void> Function() operation, {
+    bool reportFailure = false,
+  }) {
     final result = _recoveryIo.then((_) => operation());
     _recoveryIo = result.catchError((_) {});
-    return result.catchError((_) {});
+    return reportFailure ? result : _recoveryIo;
   }
 }
 
@@ -4173,7 +6065,9 @@ AndroidEventAttendeeEdit applyAndroidEventAttendeeRoles(
   AndroidEventAttendeeEdit edit,
   Map<String, bool> optionalByEmail,
 ) {
-  if (optionalByEmail.isEmpty) return edit;
+  if (optionalByEmail.isEmpty) {
+    return edit;
+  }
   final attendees = [
     for (final attendee in edit.attendees)
       if (!attendee.self &&
@@ -4210,8 +6104,10 @@ AndroidEventAttendeeEdit mergeAndroidEventAttendees(
       result.add(attendee);
       continue;
     }
-    final key = attendee.email.trim().toLowerCase();
-    if (requested.containsKey(key) && matched.add(key)) result.add(attendee);
+    final key = eventAttendeeIdentity(attendee.email);
+    if (requested.containsKey(key) && matched.add(key)) {
+      result.add(attendee);
+    }
   }
   for (final entry in requested.entries) {
     if (matched.add(entry.key)) {
@@ -4232,62 +6128,6 @@ String _scopeLabel(BuildContext context, RecurringEventMutationScope scope) =>
       RecurringEventMutationScope.thisAndFuture =>
         context.l10n.thisAndFollowingEvents,
     };
-
-class _DateTimeTile extends StatelessWidget {
-  const _DateTimeTile({
-    required this.label,
-    required this.value,
-    required this.allDay,
-    required this.onChanged,
-  });
-  final String label;
-  final DateTime value;
-  final bool allDay;
-  final ValueChanged<DateTime>? onChanged;
-  @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: const Icon(Icons.schedule),
-    title: Text(label),
-    subtitle: Text(
-      allDay
-          ? DateFormat.yMMMd().format(value)
-          : formatClockDateTime(
-              context,
-              value,
-              DateFormat.yMMMd().format(value),
-            ),
-    ),
-    enabled: onChanged != null,
-    onTap: onChanged == null
-        ? null
-        : () async {
-            final date = await showBusyMaxDatePicker(
-              context: context,
-              initialDate: value,
-              firstDate: DateTime(1970),
-              lastDate: DateTime(2200),
-            );
-            if (date == null || !context.mounted) return;
-            if (allDay) return onChanged!(date);
-            final time = await showTimePicker(
-              context: context,
-              initialTime: TimeOfDay.fromDateTime(value),
-            );
-            if (time != null) {
-              onChanged!(
-                DateTime(
-                  date.year,
-                  date.month,
-                  date.day,
-                  time.hour,
-                  time.minute,
-                ),
-              );
-            }
-          },
-  );
-}
 
 class _Message extends StatelessWidget {
   const _Message({
@@ -4338,25 +6178,14 @@ ScheduleRange _rangeFor(
     anchor,
     firstWeekday: firstWeekday,
   ),
-  ScheduleViewMode.agenda => ScheduleRange(
-    start: DateTime(anchor.year, anchor.month, anchor.day - 30),
-    end: DateTime(anchor.year, anchor.month, anchor.day + 91),
-  ),
+  ScheduleViewMode.agenda => ScheduleRange.days(DateTime.now(), count: 30),
 };
 
-/// The exact civil-date interval rendered by the Android six-week month grid.
+/// Full Month renders only the civil weeks required by that month.
 ScheduleRange androidMonthGridRange(
   DateTime month, {
   required int firstWeekday,
-}) {
-  final first = DateTime(month.year, month.month);
-  final offset = (first.weekday - firstWeekday) % DateTime.daysPerWeek;
-  final start = DateTime(first.year, first.month, first.day - offset);
-  return ScheduleRange(
-    start: start,
-    end: DateTime(start.year, start.month, start.day + 42),
-  );
-}
+}) => ScheduleRange.month(month, firstWeekday: firstWeekday);
 
 /// Covers every leading and trailing date drawn by all twelve year miniatures.
 ScheduleRange androidYearGridRange(DateTime year, {required int firstWeekday}) {
@@ -4368,41 +6197,27 @@ ScheduleRange androidYearGridRange(DateTime year, {required int firstWeekday}) {
     DateTime(year.year, DateTime.december),
     firstWeekday: firstWeekday,
   );
-  return ScheduleRange(start: january.start, end: december.end);
+  return ScheduleRange(
+    start: january.start,
+    end: DateTime(
+      december.start.year,
+      december.start.month,
+      december.start.day + 42,
+    ),
+  );
 }
-
-DateTime _move(DateTime date, ScheduleViewMode mode, int amount) =>
-    switch (mode) {
-      ScheduleViewMode.day || ScheduleViewMode.agenda => DateTime(
-        date.year,
-        date.month,
-        date.day + amount,
-      ),
-      ScheduleViewMode.week => DateTime(
-        date.year,
-        date.month,
-        date.day + 7 * amount,
-      ),
-      ScheduleViewMode.month => DateTime(date.year, date.month + amount, 1),
-      ScheduleViewMode.year => DateTime(date.year + amount, date.month, 1),
-    };
 
 String _periodLabel(
   BuildContext context,
   DateTime date,
   ScheduleViewMode mode,
-) => switch (mode) {
-  ScheduleViewMode.day ||
-  ScheduleViewMode.agenda => DateFormat.yMMMMd().format(date),
-  ScheduleViewMode.week =>
-    '${DateFormat.MMMd().format(ScheduleRange.week(date, firstWeekday: _firstWeekday(context)).start)} – '
-        '${DateFormat.MMMd().format(_previousCivilDay(ScheduleRange.week(date, firstWeekday: _firstWeekday(context)).end))}',
-  ScheduleViewMode.month => DateFormat.yMMMM().format(date),
-  ScheduleViewMode.year => '${date.year}',
-};
-
-DateTime _previousCivilDay(DateTime value) =>
-    DateTime(value.year, value.month, value.day - 1);
+) => localizedScheduleHeading(
+  Localizations.localeOf(context).toLanguageTag(),
+  mode,
+  ScheduleRange.week(date, firstWeekday: _firstWeekday(context)),
+  date,
+  agendaLabel: context.l10n.viewAgenda,
+);
 
 String _modeLabel(BuildContext context, ScheduleViewMode mode) =>
     switch (mode) {
@@ -4412,9 +6227,6 @@ String _modeLabel(BuildContext context, ScheduleViewMode mode) =>
       ScheduleViewMode.year => context.l10n.viewYear,
       ScheduleViewMode.agenda => context.l10n.viewAgenda,
     };
-
-bool _sameDay(DateTime a, DateTime b) =>
-    a.year == b.year && a.month == b.month && a.day == b.day;
 
 int _firstWeekday(BuildContext context) {
   return BusyMaxWeekPreferencesScope.firstWeekdayOf(context);
@@ -4446,7 +6258,9 @@ List<DavEventReminderRow>? androidNextcloudEditableReminderRows(
 ) => davEventEditableReminderRows(value);
 
 bool androidNextcloudHasUnsupportedAlarms(Object? value) {
-  if (value is! Map || value['alarms'] is! List) return false;
+  if (value is! Map || value['alarms'] is! List) {
+    return false;
+  }
   final rows = androidNextcloudEditableReminderRows(value);
   return rows != null && rows.length < (value['alarms'] as List).length;
 }
@@ -4455,18 +6269,28 @@ bool androidNextcloudHasUnsupportedAlarms(Object? value) {
 /// Null means a provider-specific representation that this single-choice
 /// editor must preserve until the user actively replaces it.
 int? androidEventReminderSelection(BusyProvider provider, Object? value) {
-  if (value == null) return provider == BusyProvider.google ? -1 : -2;
-  if (value is! Map) return null;
+  if (value == null) {
+    return provider == BusyProvider.google ? -1 : -2;
+  }
+  if (value is! Map) {
+    return null;
+  }
   if (provider == BusyProvider.microsoft) {
-    if (value['isReminderOn'] == false) return -2;
+    if (value['isReminderOn'] == false) {
+      return -2;
+    }
     return value['reminderMinutesBeforeStart'] is int
         ? value['reminderMinutesBeforeStart'] as int
         : null;
   }
-  if (value['useDefault'] == true) return -1;
+  if (value['useDefault'] == true) {
+    return -1;
+  }
   final overrides = value['overrides'];
   if (overrides is List) {
-    if (overrides.isEmpty) return -2;
+    if (overrides.isEmpty) {
+      return -2;
+    }
     if (overrides.length == 1 && overrides.single is Map) {
       final entry = overrides.single as Map;
       if (entry['method'] == 'popup' && entry['minutes'] is int) {
@@ -4478,13 +6302,25 @@ int? androidEventReminderSelection(BusyProvider provider, Object? value) {
 }
 
 List<int>? androidEventReminderMinutes(BusyProvider provider, Object? value) {
-  if (value is! Map) return null;
+  if (value is! Map) {
+    return null;
+  }
+  if (provider.isDav &&
+      (value.containsKey('davEditableRows') || value.containsKey('alarms'))) {
+    return davEventEditableReminderRows(value)
+        ?.map((row) => row.minutes)
+        .toList();
+  }
   if (provider == BusyProvider.microsoft) {
-    if (value['isReminderOn'] == false) return const [];
+    if (value['isReminderOn'] == false) {
+      return const [];
+    }
     final minutes = value['reminderMinutesBeforeStart'];
     return minutes is int && minutes >= 0 ? [minutes] : null;
   }
-  if (value['useDefault'] == true) return null;
+  if (value['useDefault'] == true) {
+    return null;
+  }
   final overrides = value['overrides'];
   if (overrides is List) {
     final result = <int>[];
@@ -4504,101 +6340,6 @@ List<int>? androidEventReminderMinutes(BusyProvider provider, Object? value) {
           minutes.every((element) => element is int && element >= 0)
       ? minutes.cast<int>()
       : null;
-}
-
-int? androidGoogleReminderMode(Object? value) {
-  if (value == null) return -1;
-  if (value is! Map) return null;
-  if (value['useDefault'] == true) return -1;
-  if (value['useDefault'] != false || value['overrides'] is! List) {
-    return null;
-  }
-  return (value['overrides'] as List).isEmpty ? -2 : -3;
-}
-
-List<({int index, int minutes})> androidGooglePopupReminderRows(Object? value) {
-  if (value is! Map || value['overrides'] is! List) return const [];
-  final overrides = value['overrides'] as List;
-  return [
-    for (var index = 0; index < overrides.length; index++)
-      if (overrides[index] case final Map entry
-          when entry['method'] == 'popup' &&
-              entry['minutes'] is int &&
-              (entry['minutes'] as int) >= 0)
-        (index: index, minutes: entry['minutes'] as int),
-  ];
-}
-
-int androidGoogleReminderOverrideCount(Object? value) =>
-    value is Map && value['overrides'] is List
-    ? (value['overrides'] as List).length
-    : 0;
-
-bool androidGoogleHasUnsupportedReminder(Object? value) {
-  if (value is! Map || value['overrides'] is! List) return false;
-  return androidGooglePopupReminderRows(value).length !=
-      (value['overrides'] as List).length;
-}
-
-Map<String, Object?> androidSetGoogleReminderMode(Object? value, int mode) {
-  if (mode == -1) return const {'useDefault': true};
-  if (mode == -2) return const {'useDefault': false, 'overrides': []};
-  if (mode != -3) throw ArgumentError.value(mode, 'mode');
-  final original = value is Map ? value.cast<String, Object?>() : const {};
-  final existing = original['overrides'];
-  return {
-    ...original,
-    'useDefault': false,
-    'overrides': existing is List && existing.isNotEmpty
-        ? [...existing]
-        : [
-            {'method': 'popup', 'minutes': 10},
-          ],
-  };
-}
-
-Map<String, Object?> androidEditGooglePopupReminder(
-  Object? value, {
-  required int? overrideIndex,
-  required int minutes,
-}) {
-  if (minutes < 0) throw ArgumentError.value(minutes, 'minutes');
-  final original = value is Map ? value.cast<String, Object?>() : const {};
-  final overrides = [...?original['overrides'] as List?];
-  if (overrideIndex == null) {
-    if (overrides.length >= 5) {
-      throw StateError('Google allows at most five event reminders.');
-    }
-    overrides.add({'method': 'popup', 'minutes': minutes});
-  } else {
-    if (overrideIndex < 0 ||
-        overrideIndex >= overrides.length ||
-        overrides[overrideIndex] is! Map ||
-        (overrides[overrideIndex] as Map)['method'] != 'popup') {
-      throw RangeError.index(overrideIndex, overrides);
-    }
-    overrides[overrideIndex] = {
-      ...(overrides[overrideIndex] as Map).cast<String, Object?>(),
-      'minutes': minutes,
-    };
-  }
-  return {...original, 'useDefault': false, 'overrides': overrides};
-}
-
-Map<String, Object?> androidRemoveGooglePopupReminder(
-  Object? value, {
-  required int overrideIndex,
-}) {
-  final original = value is Map ? value.cast<String, Object?>() : const {};
-  final overrides = [...?original['overrides'] as List?];
-  if (overrideIndex < 0 ||
-      overrideIndex >= overrides.length ||
-      overrides[overrideIndex] is! Map ||
-      (overrides[overrideIndex] as Map)['method'] != 'popup') {
-    throw RangeError.index(overrideIndex, overrides);
-  }
-  overrides.removeAt(overrideIndex);
-  return {...original, 'useDefault': false, 'overrides': overrides};
 }
 
 List<String> _eventShowAsValues(BusyProvider provider) =>

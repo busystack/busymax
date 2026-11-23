@@ -1386,10 +1386,45 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refreshAll => '全部刷新';
 
   @override
-  String get listRefreshed => '列表已刷新。';
+  String get refreshAccount => '刷新账号';
 
   @override
-  String get allTasksRefreshed => '所有账户均已刷新。';
+  String get refreshCollection => '刷新集合';
+
+  @override
+  String get syncPartiallyCompleted => '刷新部分完成';
+
+  @override
+  String get syncDeferred => '刷新已推迟';
+
+  @override
+  String get syncPendingChanges => '本地更改待同步';
+
+  @override
+  String get syncFailedLocalChanges => '部分本地更改无法同步';
+
+  @override
+  String get syncQueued => '刷新已排队';
+
+  @override
+  String get syncNotYetRefreshed => '尚未同步';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return '上次刷新 $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => '日程检查状态';
+
+  @override
+  String get scheduleCoveragePending => '正在检查此范围内的日程，或尚未验证。';
+
+  @override
+  String get scheduleCoverageVerified => '已检查此范围内的日程。';
+
+  @override
+  String get listRefreshed => '列表已刷新。';
 
   @override
   String exportedFile(String path) {
@@ -2029,7 +2064,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      '从每个已连接的账号中重新完整加载所有数据。请仅在排查同步问题时使用此功能。';
+      '在支持的情况下，为符合条件的账号重建日历和任务的同步基线，并检查订阅。用于排查同步问题。';
 
   @override
   String get runInBackgroundWhenClosed => '窗口关闭后继续在后台运行';
@@ -2051,9 +2086,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => '需要托盘图标。';
-
-  @override
-  String get syncComplete => '同步完成。';
 
   @override
   String syncFailed(String error) {
@@ -3833,6 +3865,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get attachmentInvalidOrTooLarge => '此附件无效或超过大小限制。';
+
+  @override
+  String get moveEvent => '移动日程';
+
+  @override
+  String get agendaLoadMoreDays => '加载更多日期';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -5212,10 +5250,45 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get refreshAll => '全部刷新';
 
   @override
-  String get listRefreshed => '列表已刷新。';
+  String get refreshAccount => '刷新账号';
 
   @override
-  String get allTasksRefreshed => '所有账户均已刷新。';
+  String get refreshCollection => '刷新集合';
+
+  @override
+  String get syncPartiallyCompleted => '刷新部分完成';
+
+  @override
+  String get syncDeferred => '刷新已推迟';
+
+  @override
+  String get syncPendingChanges => '本地更改待同步';
+
+  @override
+  String get syncFailedLocalChanges => '部分本地更改无法同步';
+
+  @override
+  String get syncQueued => '刷新已排队';
+
+  @override
+  String get syncNotYetRefreshed => '尚未同步';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return '上次刷新 $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => '日程检查状态';
+
+  @override
+  String get scheduleCoveragePending => '正在检查此范围内的日程，或尚未验证。';
+
+  @override
+  String get scheduleCoverageVerified => '已检查此范围内的日程。';
+
+  @override
+  String get listRefreshed => '列表已刷新。';
 
   @override
   String exportedFile(String path) {
@@ -5855,7 +5928,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get forceFullResyncDescription =>
-      '从每个已连接的账号中重新完整加载所有数据。请仅在排查同步问题时使用此功能。';
+      '在支持的情况下，为符合条件的账号重建日历和任务的同步基线，并检查订阅。用于排查同步问题。';
 
   @override
   String get runInBackgroundWhenClosed => '窗口关闭后继续在后台运行';
@@ -5877,9 +5950,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get requiresTrayIcon => '需要托盘图标。';
-
-  @override
-  String get syncComplete => '同步完成。';
 
   @override
   String syncFailed(String error) {
@@ -7659,6 +7729,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get attachmentInvalidOrTooLarge => '此附件无效或超过大小限制。';
+
+  @override
+  String get moveEvent => '移动日程';
+
+  @override
+  String get agendaLoadMoreDays => '加载更多日期';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -9038,10 +9114,45 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get refreshAll => '全部重新整理';
 
   @override
-  String get listRefreshed => '清單已重新整理。';
+  String get refreshAccount => '重新整理帳號';
 
   @override
-  String get allTasksRefreshed => '所有帳戶都已重新整理。';
+  String get refreshCollection => '重新整理集合';
+
+  @override
+  String get syncPartiallyCompleted => '重新整理已部分完成';
+
+  @override
+  String get syncDeferred => '重新整理已延後';
+
+  @override
+  String get syncPendingChanges => '本機變更等待同步';
+
+  @override
+  String get syncFailedLocalChanges => '部分本機變更無法同步';
+
+  @override
+  String get syncQueued => '等待重新整理';
+
+  @override
+  String get syncNotYetRefreshed => '尚未同步';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return '上次重新整理 $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => '行程檢查狀態';
+
+  @override
+  String get scheduleCoveragePending => '正在檢查此範圍內的行程，或尚未驗證。';
+
+  @override
+  String get scheduleCoverageVerified => '已檢查此範圍內的行程。';
+
+  @override
+  String get listRefreshed => '清單已重新整理。';
 
   @override
   String exportedFile(String path) {
@@ -9682,7 +9793,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get forceFullResyncDescription =>
-      '從每個已連結的帳號完整重新載入所有資料。僅在疑難排解同步問題時使用此功能。';
+      '在支援的情況下，為符合資格的帳號重建行事曆及工作的同步基準，並檢查訂閱。請用於排解同步問題。';
 
   @override
   String get runInBackgroundWhenClosed => '視窗關閉後繼續在背景執行';
@@ -9704,9 +9815,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get requiresTrayIcon => '需要系統匣圖示。';
-
-  @override
-  String get syncComplete => '同步完成。';
 
   @override
   String syncFailed(String error) {
@@ -11486,4 +11594,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get attachmentInvalidOrTooLarge => '此附件無效或超過大小限制。';
+
+  @override
+  String get moveEvent => '移動行程';
+
+  @override
+  String get agendaLoadMoreDays => '載入更多日期';
 }

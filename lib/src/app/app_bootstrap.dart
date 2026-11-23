@@ -6,6 +6,8 @@ import '../features/notifications/operational_notification_coordinator.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../features/sync/domain_sync_schedule.dart';
 import '../features/sync/account_sync_activity.dart';
+import '../features/sync/sync_request.dart';
+import '../features/sync/account_synchronization_service.dart';
 import '../dav/storage/dav_collection_creation_notices.dart';
 import '../dav/mutation/dav_collection_creation_failure.dart';
 import '../core/auth/authorization_persistence.dart';
@@ -57,7 +59,7 @@ import '../dav/nextcloud/nextcloud_federation_service.dart';
 import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/data/microsoft_shared_calendar_service.dart';
-import '../features/schedule/presentation/attachment_upload_coordinator.dart';
+import '../features/schedule/application/attachment_upload_coordinator.dart';
 import '../features/sync/cloud_calendar_range_coverage_service.dart';
 import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';
@@ -1290,6 +1292,9 @@ final syncEngineForAccountFactoryProvider =
           apiClient: apiClient,
           accountId: accountId,
           fullRefreshOnly: provider == BusyProvider.microsoft,
+          trackCollection: (id, work) => ref
+              .read(accountSyncActivityProvider.notifier)
+              .resource([taskListSyncScope(accountId, id)], work),
           onTaskListIdReplaced: (oldId, newId) async {
             final oldKey = ScheduleTaskListKey(
               accountId: accountId,
@@ -1307,6 +1312,7 @@ final syncEngineForAccountFactoryProvider =
                 entry.key: entry.value == oldKey ? newKey : entry.value,
               oldKey: newKey,
             });
+            ref.invalidate(scheduleTaskListsForAccountProvider(accountId));
             ref.invalidate(scheduleTaskListsProvider);
             await ref
                 .read(appSettingsControllerProvider.notifier)
@@ -1352,6 +1358,16 @@ final calendarSyncEngineForAccountFactoryProvider =
           database: ref.read(databaseProvider),
           client: client,
           accountId: accountId,
+          trackCollection: (id, work) => ref
+              .read(accountSyncActivityProvider.notifier)
+              .resource([calendarSyncScope(accountId, id)], work),
+          trackRangeCollection: (id, work) => ref
+              .read(accountSyncActivityProvider.notifier)
+              .resource(
+                [calendarSyncScope(accountId, id)],
+                work,
+                resolveFailure: false,
+              ),
           onCalendarSourceIdReplaced: (oldId, newId) => ref
               .read(appSettingsControllerProvider.notifier)
               .replaceSidebarId(
@@ -1416,16 +1432,21 @@ final calendarMonthRetrieverProvider = Provider<CalendarMonthRetriever>((ref) {
   final engineForAccount = ref.watch(
     calendarSyncEngineForAccountFactoryProvider,
   );
-  return (accountId, provider, month, {required sourceIds}) => gate.run(
-    accountId,
-    () => coordinator.run(accountId, () async {
-      await connectivity.requireNetwork();
-      await engineForAccount(
-        accountId,
-        provider,
-      ).retrieveMonth(month, sourceIds: sourceIds);
-    }),
-  );
+  final authorization = ref.watch(authorizationPersistenceProvider);
+  return (accountId, provider, month, {required sourceIds}) async {
+    final generation = await authorization.generation(accountId);
+    await gate.run(
+      accountId,
+      () => coordinator.run(accountId, () async {
+        if (generation != await authorization.generation(accountId)) return;
+        await connectivity.requireNetwork();
+        await engineForAccount(
+          accountId,
+          provider,
+        ).retrieveMonth(month, sourceIds: sourceIds);
+      }),
+    );
+  };
 });
 
 final accountSyncActivityProvider = ChangeNotifierProvider<AccountSyncActivity>(
@@ -1537,119 +1558,75 @@ final calendarVisibilityOperationProvider =
     });
 
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
-  final accountsRepository = ref.watch(accountsRepositoryProvider);
-  final connectivity = ref.watch(networkConnectivityMonitorProvider);
-  final syncCoordinator = ref.watch(accountSyncCoordinatorProvider);
-  final activity = ref.watch(accountSyncActivityProvider.notifier);
-
-  Future<BusyProvider> providerForAccount(String accountId) async {
-    final account = await accountsRepository.accountById(accountId);
-    if (account == null) {
-      throw StateError('Account $accountId is unavailable.');
-    }
-    return account.provider;
-  }
-
-  final routing = RoutingAccountSyncOperations(
-    providerForAccount: providerForAccount,
-    syncDav: (accountId, {required full}) => activity.run(
-      accountId,
-      'dav',
-      () => syncCoordinator.trackTaskImport(accountId, () async {
-        final result = await ref
-            .read(davAccountSyncEngineFactoryProvider)(accountId)
-            .synchronize(full: full);
-        // Pull success and collection-administration outcomes are independent.
-        // Rehydrate terminal diagnostics too: a later sync/restart must not
-        // silently clear a rejection that is no longer in the recovery queue.
-        activity.setCollectionCreationFailures(
-          accountId,
-          await ref
-              .read(davCollectionCreationNoticesProvider)
-              .load(
-                accountId,
-                currentErrors: result.collectionCreationFailures,
-              ),
-        );
-        if (await providerForAccount(accountId) == BusyProvider.nextcloud) {
-          // Piggyback on this refresh without extending DAV sync completion.
-          // The service coalesces overlapping checks and retains its cache.
-          unawaited(
-            Future<void>.sync(
-              () => ref
-                  .read(nextcloudFederationServiceProvider(accountId))
-                  .discoverPending(force: full),
-            ).catchError((Object error, StackTrace stack) {
-              // Optional discovery retains its last known count on failure.
-            }),
-          );
-        }
-      }),
-    ),
-    syncWebCal: (accountId, {required full}) => ref
-        .read(webCalSubscriptionServiceProvider)
-        .refreshAccount(accountId, force: full),
-    syncTasksRest: (accountId, {required full}) {
-      var pulled = false;
-      return activity.run(accountId, 'tasks', () async {
-        final provider = await providerForAccount(accountId);
-        final engine = ref.read(syncEngineForAccountFactoryProvider)(
-          accountId,
-          provider,
-        );
-        await DomainSyncPolicy(ref.read(databaseProvider)).run(
-          accountId,
-          SyncDomain.tasks,
-          full: full,
-          deferred: engine.dispatchPendingWrites,
-          maintainCached: engine.maintainCachedReminders,
-          pull: () => syncCoordinator.trackTaskImport(accountId, () async {
-            if (full) {
-              await engine.fullSync();
-            } else {
-              await engine.incrementalSync();
-            }
-            pulled = true;
-          }, changedOnFailure: () => engine.remoteImportWroteData),
-        );
-      }, clearFailureOnSuccess: () => pulled);
-    },
-    syncCalendarRest: (accountId, {required full}) {
-      var pulled = false;
-      return activity.run(accountId, 'calendar', () async {
-        final provider = await providerForAccount(accountId);
-        final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
-          accountId,
-          provider,
-        );
-        await DomainSyncPolicy(ref.read(databaseProvider)).run(
-          accountId,
-          SyncDomain.calendar,
-          full: full,
-          deferred: engine.dispatchPendingWrites,
-          maintainCached: engine.maintainCachedReminders,
-          pull: () async {
-            if (full) {
-              await engine.fullSync();
-            } else {
-              await engine.incrementalSync();
-            }
-            pulled = true;
-          },
-        );
-      }, clearFailureOnSuccess: () => pulled);
-    },
-  );
-  return CrossEngineCoordinatedAccountSyncOperations(
+  return AccountSynchronizationService(
+    accounts: ref.watch(accountsRepositoryProvider),
+    database: ref.watch(databaseProvider),
+    requireNetwork: ref
+        .watch(networkConnectivityMonitorProvider)
+        .requireNetwork,
+    coordinator: ref.watch(accountSyncCoordinatorProvider),
     gate: ref.watch(crossEngineAccountGateProvider),
-    inner: CoordinatedAccountSyncOperations(
-      coordinator: syncCoordinator,
-      inner: ConnectivityAwareAccountSyncOperations(
-        inner: routing,
-        requireNetwork: connectivity.requireNetwork,
-      ),
-    ),
-  );
+    activity: ref.watch(accountSyncActivityProvider.notifier),
+    authorization: ref.watch(authorizationPersistenceProvider),
+    webCalService: () => ref.read(webCalSubscriptionServiceProvider),
+    davEngine: (id) => ref.read(davAccountSyncEngineFactoryProvider)(id),
+    tasksEngine: (id, provider) =>
+        ref.read(syncEngineForAccountFactoryProvider)(id, provider),
+    calendarEngine: (id, provider) =>
+        ref.read(calendarSyncEngineForAccountFactoryProvider)(id, provider),
+    loadDavCreationNotices: (id, errors) => ref
+        .read(davCollectionCreationNoticesProvider)
+        .load(id, currentErrors: errors),
+    discoverFederation: (id, full) async {
+      await ref
+          .read(nextcloudFederationServiceProvider(id))
+          .discoverPending(force: full);
+    },
+    onManualFailure: (id, error) async {
+      await _markAccountReconnectRequiredForSyncError(ref, id, error);
+      await ref
+          .read(operationalNotificationReporterProvider)
+          .notifySyncFailure(error, accountId: id);
+    },
+    clearAccountFailure: (id) => ref
+        .read(operationalNotificationCoordinatorProvider)
+        .clearAccountSyncFailure(id),
+  ).operations;
+});
+
+typedef ManualSyncRunner = Future<SyncOutcome> Function(
+  SyncScope scope, {
+  SyncStrategy strategy,
+});
+
+final manualSyncRunnerProvider = Provider<ManualSyncRunner>((ref) {
+  return (scope, {strategy = SyncStrategy.ordinary}) async {
+    final operations = ref.read(accountSyncOperationsProvider);
+    final request = (
+      scope: scope,
+      origin: SyncTrigger.manual,
+      strategy: strategy,
+    );
+    if (operations is ScopedAccountSyncOperations) {
+      return operations.execute(request);
+    }
+    // Legacy injected adapters can serve account and domain commands.
+    switch (scope.kind) {
+      case SyncScopeKind.all:
+        await ref.read(allAccountsSyncRunnerProvider)();
+      case SyncScopeKind.account:
+        await withSyncTrigger(
+          SyncTrigger.manual,
+          () => operations.syncAccount(
+            scope.accountId!,
+            full: strategy == SyncStrategy.fullRecovery,
+          ),
+        );
+      default:
+        return SyncOutcome(request, SyncDisposition.disabled);
+    }
+    return SyncOutcome(request, SyncDisposition.deferred);
+  };
 });
 
 typedef SignedInSyncRunner = Future<void> Function(
@@ -1829,16 +1806,21 @@ final scheduleDataRevisionProvider = StreamProvider<int>((ref) async* {
   }
 });
 
+final scheduleTaskListsForAccountProvider = FutureProvider.autoDispose
+    .family<List<TaskListEntity>, String>((ref, accountId) {
+      ref.watch(scheduleDataRevisionProvider);
+      return ref
+          .watch(taskListsRepositoryForAccountProvider(accountId))
+          .listTaskLists();
+    });
+
 final scheduleTaskListsProvider = FutureProvider<List<TaskListEntity>>((
   ref,
 ) async {
-  ref.watch(scheduleDataRevisionProvider);
   final accounts = await ref.watch(accountsStreamProvider.future);
   final groups = await Future.wait([
     for (final account in accounts.where((account) => account.isTaskCapable))
-      ref
-          .watch(taskListsRepositoryForAccountProvider(account.id))
-          .listTaskLists(),
+      ref.watch(scheduleTaskListsForAccountProvider(account.id).future),
   ]);
   return [for (final group in groups) ...group];
 });
@@ -2220,7 +2202,22 @@ final trayPresentationServiceProvider =
         settings: () => ref.read(appSettingsControllerProvider),
         connectivity: () =>
             ref.read(networkConnectivityMonitorProvider).availability,
-        synchronizationRunning: () => ref.read(syncSchedulerProvider).isRunning,
+        synchronizationRunning: () =>
+            ref.read(accountSyncActivityProvider).anyRunning,
+        accountHasSyncIssues: (id) =>
+            ref.read(accountSyncActivityProvider).accountNeedsAttention(id),
+        accountRefreshTimes: () async {
+          final database = ref.read(databaseProvider);
+          final rows = await (database.select(
+            database.domainSyncSchedules,
+          )..where((row) => row.domain.equals(accountRefreshHistoryKey))).get();
+          return {
+            for (final row in rows)
+              if (DateTime.tryParse(row.lastSuccessfulPullUtc ?? '')
+                  case final time?)
+                row.accountId: time,
+          };
+        },
       );
     });
 
@@ -2268,9 +2265,8 @@ Future<void> _runAccountSyncIfEligible(
       .generation(accountId);
   try {
     await synchronize(ref.read(accountSyncOperationsProvider));
-    await ref
-        .read(operationalNotificationCoordinatorProvider)
-        .clearAccountSyncFailure(accountId);
+  } on AuthorizationScopedFailure {
+    rethrow;
   } on Object catch (error) {
     throw AuthorizationScopedFailure(
       accountId: accountId,

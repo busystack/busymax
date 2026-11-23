@@ -251,6 +251,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     private lateinit var eventChannel: EventChannel
     private var activity: Activity? = null
     private var eventSink: EventChannel.EventSink? = null
+    private var syncScopes: List<List<String?>> = emptyList()
     private val main by lazy { Handler(Looper.getMainLooper()) }
     private val executor = Executors.newCachedThreadPool()
     private var pendingInteractive: PendingInteractive? = null
@@ -316,13 +317,29 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         detached = true
         EngineOwnedAccountGateRegistry.releaseOwned(engineId)
         activePlugins.remove(this)
+        syncScopes = emptyList()
+        broadcastSyncActivity()
         channel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
         settingsReceiverLifecycle.detach()
         executor.shutdown()
     }
 
-    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) { eventSink = events }
+    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+        eventSink = events
+        sendSyncActivity()
+    }
+
+    private fun externalSyncActivity(): List<List<String?>> =
+        activePlugins.filter { it !== this }.flatMap { it.syncScopes }
+
+    private fun sendSyncActivity() {
+        eventSink?.success(mapOf("kind" to "syncActivity", "scopes" to externalSyncActivity()))
+    }
+
+    private fun broadcastSyncActivity() {
+        activePlugins.forEach { it.sendSyncActivity() }
+    }
     override fun onCancel(arguments: Any?) { eventSink = null }
     override fun onAttachedToActivity(binding: ActivityPluginBinding) = attachActivity(binding)
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) = attachActivity(binding)
@@ -434,8 +451,25 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             "releaseAccountGate" -> releaseAccountGate(call, result)
             "releaseOwnedAccountGates" -> {
                 EngineOwnedAccountGateRegistry.releaseOwned(engineId)
+                if (syncScopes.isNotEmpty()) {
+                    syncScopes = emptyList()
+                    broadcastSyncActivity()
+                }
                 result.success(null)
             }
+            "publishSyncActivity" -> {
+                val next = (call.arguments as? List<*>)?.mapNotNull { value ->
+                    val scope = value as? List<*> ?: return@mapNotNull null
+                    if (scope.size != 3 || scope[0] !is String) return@mapNotNull null
+                    scope.map { it as? String }
+                }.orEmpty()
+                if (syncScopes != next) {
+                    syncScopes = next
+                    broadcastSyncActivity()
+                }
+                result.success(null)
+            }
+            "externalSyncActivity" -> result.success(externalSyncActivity())
             "notifyDataChanged" -> {
                 activePlugins.forEach { plugin ->
                     plugin.eventSink?.success(mapOf("kind" to "dataChanged"))

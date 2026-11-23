@@ -115,6 +115,8 @@ void main() {
               );
               await settle(tester);
             } else if (isAndroid) {
+              await tester.ensureVisible(find.text('Local title').first);
+              await tester.pump();
               await tester.tap(find.text('Local title').first);
               await settle(tester);
             }

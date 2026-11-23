@@ -1,3 +1,6 @@
+import 'scoped_pending_replay.dart';
+import 'sync_request.dart';
+
 import 'dart:convert';
 import 'dart:math';
 
@@ -44,15 +47,37 @@ class PendingOpsReplayer {
   final Random _random;
   final DateTime Function() _nowUtc;
 
-  Future<int> replayDueOps() {
+  Future<int> replayDueOps({
+    String? taskListId,
+    Future<void> Function(PendingOp, Future<void> Function())? trackOperation,
+  }) {
     return serializePendingOpsReplay(
       database: _database,
       accountId: _accountId,
-      replay: _replayDueOps,
+      replay: () => _replayDueOps(taskListId, trackOperation),
     );
   }
 
-  Future<int> _replayDueOps() async {
+  Future<int> _replayDueOps(
+    String? taskListId,
+    Future<void> Function(PendingOp, Future<void> Function())? trackOperation,
+  ) async {
+    final allowed = taskListId == null
+        ? null
+        : await scopedReplayIds(
+            _database,
+            _accountId,
+            (op) =>
+                (op.entityType == 'task_list' &&
+                    (op.taskListId == taskListId ||
+                        op.localTempId == taskListId)) ||
+                taskOperationTouchesList(op, taskListId),
+            prerequisites: (op) =>
+                switch (pendingReplayPayload(op)[taskBarrierOperationIdsKey]) {
+                  final List values => values.whereType<String>(),
+                  _ => const [],
+                },
+          );
     final policy = DomainSyncPolicy(_database, nowUtc: _nowUtc);
     await policy.checkCooldown(_accountId, SyncDomain.tasks);
     final ops = await _database.pendingOpsDao.pendingOpsForReplay(
@@ -66,6 +91,7 @@ class PendingOpsReplayer {
     while (madeProgress) {
       madeProgress = false;
       for (final originalOp in ops) {
+        if (allowed != null && !allowed.contains(originalOp.id)) continue;
         await policy.checkCooldown(_accountId, SyncDomain.tasks);
         if (handledIds.contains(originalOp.id)) continue;
         final op = await _readOp(originalOp.id);
@@ -103,8 +129,16 @@ class PendingOpsReplayer {
         madeProgress = true;
 
         try {
-          await _replay(op);
-          await _database.pendingOpsDao.deleteOp(op.id);
+          Future<void> apply() async {
+            await _replay(op);
+            await _database.pendingOpsDao.deleteOp(op.id);
+          }
+
+          if (trackOperation == null) {
+            await apply();
+          } else {
+            await trackOperation(op, apply);
+          }
           applied += 1;
         } on RequestNotDispatchedException catch (error) {
           if (_isReconcilableWrite(op) && op.state != 'in_progress') {
@@ -167,6 +201,9 @@ class PendingOpsReplayer {
       }
     }
 
+    if (allowed != null && await hasScopedPendingReplay(_database, allowed)) {
+      throw const ScopedSyncDeferred();
+    }
     return applied;
   }
 
@@ -289,11 +326,27 @@ class PendingOpsReplayer {
               ),
             );
       }
-      await _database.customStatement(
-        'UPDATE tasks SET task_list_id = ? WHERE account_id = ? '
-        'AND task_list_id = ?',
-        [dto.id, _accountId, tempId],
-      );
+      if (tempId != dto.id) {
+        final tasks = _database.tasks;
+        final inTemporaryList =
+            tasks.accountId.equals(_accountId) &
+            tasks.taskListId.equals(tempId);
+        final pendingTasks = await (_database.select(
+          tasks,
+        )..where((_) => inTemporaryList)).get();
+        await _database.batch((batch) {
+          for (final task in pendingTasks) {
+            batch.update(
+              tasks,
+              TasksCompanion(
+                taskListId: Value(dto.id),
+                providerMetadataJson: Value(taskMetadataAfterListMove(task)),
+              ),
+              where: (row) => inTemporaryList & row.id.equals(task.id),
+            );
+          }
+        });
+      }
       await _replacePendingReference(
         tempId,
         dto.id,

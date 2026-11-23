@@ -1,3 +1,6 @@
+import 'package:busymax/src/features/sync/sync_request.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+
 import 'dart:async';
 
 import 'package:busymax/src/dav/mutation/dav_collection_administration.dart';
@@ -26,7 +29,7 @@ import 'package:busymax/src/features/notifications/notification_schedule_service
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -53,6 +56,85 @@ void main() {
     await database.close();
     await applicationDirectory?.delete(recursive: true);
     applicationDirectory = null;
+  });
+
+  test('one DAV projection pulls its mixed physical collection during complete discovery', () async {
+    await _seedDestination(database);
+    final paths = <String>[];
+    var discoveryInventories = 0;
+    final started = Completer<void>();
+    final release = Completer<void>();
+    final client = MockClient((request) async {
+      if (request.method == 'OPTIONS') {
+        return http.Response('', 200, headers: {'dav': 'calendar-access'});
+      }
+      if (request.method == 'PROPFIND') {
+        if (request.body.contains('<d:current-user-principal/>')) {
+          return _discoveryMultistatus(_currentPrincipalResponse);
+        }
+        if (request.body.contains('<c:calendar-home-set/>')) {
+          return _discoveryMultistatus(_principalPropertiesResponse);
+        }
+        discoveryInventories++;
+        return _discoveryMultistatus(_twoCollectionInventoryResponse);
+      }
+      if (request.method == 'REPORT') {
+        paths.add(request.url.path);
+        if (!started.isCompleted) started.complete();
+        await release.future;
+        return http.Response(_syncResponse(token: 'urn:mixed:once'), 207);
+      }
+      throw StateError('Unexpected synthetic DAV request');
+    });
+    final monitor = NetworkConnectivityMonitor.withoutPlatformObservation();
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        secretStoreProvider.overrideWithValue(secrets),
+        davAccountHttpClientProvider('account').overrideWithValue(client),
+        networkConnectivityMonitorProvider.overrideWithValue(monitor),
+        notificationReconcilerProvider.overrideWithValue(
+          CallbackNotificationReconciler(() async {}),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      if (!release.isCompleted) release.complete();
+      container.dispose();
+      await monitor.dispose();
+      client.close();
+    });
+    final calendar = calendarSyncScope('account', 'dav-calendar-collection');
+    final taskList = taskListSyncScope('account', 'dav-task-list-collection');
+    final refresh = container.read(manualSyncRunnerProvider)(
+      calendar,
+      strategy: SyncStrategy.fullRecovery,
+    );
+    await started.future.timeout(const Duration(seconds: 3));
+    final activity = container.read(accountSyncActivityProvider);
+    expect(activity.executing(calendar), isTrue);
+    expect(activity.executing(taskList), isTrue);
+    release.complete();
+    final result = await refresh;
+    expect(result.disposition, SyncDisposition.completed);
+    expect(result.affected, containsAll([calendar, taskList]));
+    expect(activity.anyRunning, isFalse);
+    expect(paths, [_collectionHref]);
+    expect(discoveryInventories, 1);
+    final collections = await database.select(database.davCollections).get();
+    expect(
+      collections.singleWhere((row) => row.id == 'destination').serverMissing,
+      isFalse,
+    );
+    expect(
+      collections.singleWhere((row) => row.id == 'destination').syncToken,
+      isNull,
+    );
+    expect(
+      collections.singleWhere((row) => row.id == 'collection').syncToken,
+      'urn:mixed:once',
+    );
+    expect(await database.select(database.domainSyncSchedules).get(), isEmpty);
   });
 
   test('optional federation cannot hold ordinary DAV completion or its busy indicator', () async {
@@ -125,6 +207,308 @@ void main() {
         .timeout(const Duration(seconds: 5));
     expect(optionalCalls, 1); // The stalled check is shared across refreshes.
   });
+
+  test(
+    'DAV downloads with a delayed write retain the previous account completion',
+    () async {
+      final pendingId =
+          await DavPendingOperationQueue(
+            database: database,
+            idFactory: () => 'delayed-task',
+            nowUtc: () => _now,
+          ).enqueueCreate(
+            accountId: 'account',
+            collectionId: 'collection',
+            object: DavNewObject(
+              uid: 'delayed-task@example.test',
+              initialMemberName: 'delayed-task.ics',
+              rawIcs: _taskWithParent(
+                'delayed-task@example.test',
+                'Queued task',
+              ),
+              componentType: 'VTODO',
+            ),
+          );
+      await (database.update(
+        database.pendingOps,
+      )..where((row) => row.id.equals(pendingId))).write(
+        const PendingOpsCompanion(
+          state: Value('retry'),
+          nextAttemptAtUtc: Value('2100-01-01T00:00:00.000Z'),
+        ),
+      );
+      const previous = '2026-08-08T12:00:00.000Z';
+      await database
+          .into(database.domainSyncSchedules)
+          .insert(
+            DomainSyncSchedulesCompanion.insert(
+              accountId: 'account',
+              domain: accountRefreshHistoryKey,
+              lastSuccessfulPullUtc: const Value(previous),
+            ),
+          );
+      var checks = 0;
+      final client = MockClient((request) async {
+        switch (request.method) {
+          case 'OPTIONS':
+            return http.Response('', 200, headers: {'dav': 'calendar-access'});
+          case 'PROPFIND':
+            if (request.body.contains('<d:current-user-principal/>')) {
+              return _discoveryMultistatus(_currentPrincipalResponse);
+            }
+            if (request.body.contains('<c:calendar-home-set/>')) {
+              return _discoveryMultistatus(_principalPropertiesResponse);
+            }
+            return _discoveryMultistatus(_singleCollectionInventoryResponse);
+          case 'REPORT':
+            return http.Response(
+              _syncResponse(token: 'urn:checked:${++checks}'),
+              207,
+            );
+          default:
+            throw StateError('Unexpected synthetic DAV request');
+        }
+      });
+      final container = _domainTestContainer(database, secrets, client);
+      addTearDown(container.dispose);
+      addTearDown(client.close);
+      final runner = container.read(manualSyncRunnerProvider);
+      final scope = accountSyncScope('account');
+      final result = await runner(scope);
+      expect(result.disposition, SyncDisposition.partial);
+      expect(result.error, isNull);
+      expect(
+        result.affected,
+        contains(taskListSyncScope('account', 'dav-task-list-collection')),
+      );
+      expect(checks, 1);
+      expect(await database.pendingOpsDao.getOp(pendingId), isNotNull);
+      expect(
+        (await database.select(database.domainSyncSchedules).getSingle())
+            .lastSuccessfulPullUtc,
+        previous,
+      );
+      final activity = container.read(accountSyncActivityProvider);
+      expect(activity.anyRunning, isFalse);
+      expect(activity.accountNeedsAttention('account'), isTrue);
+      expect(activity.accountHasFailure('account'), isFalse);
+    },
+  );
+
+  for (final domain in SyncDomain.values) {
+    test(
+      'DAV ${domain.name} domain pulls only its projections and the mixed collection',
+      () async {
+        await _seedDestination(database);
+        await database
+            .into(database.syncCursors)
+            .insert(
+              SyncCursorsCompanion.insert(
+                id: 'dav-sync-destination',
+                accountId: 'account',
+                provider: 'nextcloud',
+                transport: 'caldav',
+                syncScopeKind: 'collection',
+                davCollectionId: const Value('destination'),
+                cursorKind: 'sync_token',
+                cursorValue: 'urn:previous',
+              ),
+            );
+        final objects = DavObjectRepository(database: database);
+        final siblingCursor = await objects.cursor('destination');
+        final component = domain == SyncDomain.calendar ? 'VEVENT' : 'VTODO';
+        final other = domain == SyncDomain.calendar ? 'VTODO' : 'VEVENT';
+        const sameDomainPath = '/cloud/remote.php/dav/calendars/alex/another/';
+        final responseStart = _twoCollectionInventoryResponse.indexOf(
+          '<d:response><d:href>$_destinationCollectionHref',
+        );
+        final inventoryStart = _twoCollectionInventoryResponse.substring(
+          0,
+          responseStart,
+        );
+        final closing = _twoCollectionInventoryResponse.indexOf(
+          '</d:multistatus>',
+        );
+        final response = _twoCollectionInventoryResponse.substring(
+          responseStart,
+          closing,
+        );
+        final inventory =
+            '$inventoryStart'
+            '${response.replaceFirst('<c:comp name="$component"/>', '')}'
+            '${response.replaceFirst(_destinationCollectionHref, sameDomainPath).replaceFirst('<c:comp name="$other"/>', '')}'
+            '</d:multistatus>';
+        var discoveries = 0;
+        final pulls = <String>[];
+        final client = MockClient((request) async {
+          switch (request.method) {
+            case 'OPTIONS':
+              return http.Response(
+                '',
+                200,
+                headers: {'dav': 'calendar-access'},
+              );
+            case 'PROPFIND':
+              if (request.body.contains('<d:current-user-principal/>')) {
+                return _discoveryMultistatus(_currentPrincipalResponse);
+              }
+              if (request.body.contains('<c:calendar-home-set/>')) {
+                return _discoveryMultistatus(_principalPropertiesResponse);
+              }
+              discoveries++;
+              return _discoveryMultistatus(inventory);
+            case 'REPORT':
+              expect(request.body, contains('sync-collection'));
+              pulls.add(request.url.path);
+              return http.Response(_syncResponse(token: 'urn:refreshed'), 207);
+            default:
+              throw StateError('Unexpected synthetic DAV request');
+          }
+        });
+        final container = _domainTestContainer(database, secrets, client);
+        addTearDown(container.dispose);
+        addTearDown(client.close);
+        final operations = container.read(accountSyncOperationsProvider);
+        if (domain == SyncDomain.calendar) {
+          await operations.syncCalendar('account', full: true);
+        } else {
+          await operations.syncTasks('account', full: true);
+        }
+
+        expect(pulls, unorderedEquals([_collectionHref, sameDomainPath]));
+        expect(discoveries, 1);
+        final collections = {
+          for (final row
+              in await database.select(database.davCollections).get())
+            row.hrefKey: row,
+        };
+        expect(collections[_collectionHref]?.syncToken, 'urn:refreshed');
+        expect(collections[sameDomainPath]?.syncToken, 'urn:refreshed');
+        expect(await objects.cursor('destination'), siblingCursor);
+        expect(siblingCursor?.cursorValue, 'urn:previous');
+        expect(collections[_destinationCollectionHref]?.serverMissing, isFalse);
+        expect(
+          await database.select(database.domainSyncSchedules).get(),
+          isEmpty,
+        );
+      },
+    );
+
+    test(
+      'DAV ${domain.name} mutation dispatch replays only that domain in a mixed collection',
+      () async {
+        var sequence = 0;
+        final queue = DavPendingOperationQueue(
+          database: database,
+          idFactory: () => 'mutation-${++sequence}',
+          nowUtc: () => _now,
+        );
+        final event = await queue.enqueueCreate(
+          accountId: 'account',
+          collectionId: 'collection',
+          object: DavNewObject(
+            uid: 'event@example.test',
+            initialMemberName: 'event.ics',
+            rawIcs: _event('New event'),
+            componentType: 'VEVENT',
+          ),
+        );
+        final task = await queue.enqueueCreate(
+          accountId: 'account',
+          collectionId: 'collection',
+          object: DavNewObject(
+            uid: 'task@example.test',
+            initialMemberName: 'task.ics',
+            rawIcs: _taskWithParent('task@example.test', 'New task'),
+            componentType: 'VTODO',
+          ),
+        );
+        final calendar = domain == SyncDomain.calendar;
+        final selected = calendar ? event : task;
+        final unrelated = calendar ? task : event;
+        final untouched = await database.pendingOpsDao.getOp(unrelated);
+        final puts = <String, String>{};
+        final pulls = <String>[];
+        final client = MockClient((request) async {
+          switch (request.method) {
+            case 'OPTIONS':
+              return http.Response(
+                '',
+                200,
+                headers: {'dav': 'calendar-access'},
+              );
+            case 'PROPFIND':
+              if (request.body.contains('<d:current-user-principal/>')) {
+                return _discoveryMultistatus(_currentPrincipalResponse);
+              }
+              if (request.body.contains('<c:calendar-home-set/>')) {
+                return _discoveryMultistatus(_principalPropertiesResponse);
+              }
+              return _discoveryMultistatus(_singleCollectionInventoryResponse);
+            case 'PUT':
+              puts[request.url.path] = request.body;
+              return http.Response('', 201, headers: {'etag': '"created"'});
+            case 'GET':
+              return http.Response(
+                puts[request.url.path]!,
+                200,
+                headers: {'etag': '"created"'},
+              );
+            case 'REPORT':
+              if (request.body.contains('calendar-multiget')) {
+                final member = puts.entries.single;
+                return http.Response(
+                  _multigetMemberResponse(
+                    href: member.key,
+                    body: member.value,
+                    etag: '"created"',
+                  ),
+                  207,
+                );
+              }
+              expect(
+                puts,
+                hasLength(1),
+                reason: 'Dispatch must precede readback',
+              );
+              pulls.add(request.url.path);
+              return http.Response(
+                _syncMemberResponse(
+                  token: 'urn:readback',
+                  href: puts.keys.single,
+                  etag: '"created"',
+                ),
+                207,
+              );
+            default:
+              throw StateError('Unexpected synthetic DAV request');
+          }
+        });
+        final container = _domainTestContainer(database, secrets, client);
+        addTearDown(container.dispose);
+        addTearDown(client.close);
+        final operations = container.read(accountSyncOperationsProvider);
+        await withSyncTrigger(
+          SyncTrigger.localMutation,
+          () => calendar
+              ? operations.syncCalendar('account', full: false)
+              : operations.syncTasks('account', full: false),
+        );
+        expect(
+          puts.values.single,
+          contains(calendar ? 'BEGIN:VEVENT' : 'BEGIN:VTODO'),
+        );
+        expect(pulls, [_collectionHref]);
+        expect(await database.pendingOpsDao.getOp(selected), isNull);
+        expect(await database.pendingOpsDao.getOp(unrelated), untouched);
+        expect(
+          await database.select(database.domainSyncSchedules).get(),
+          isEmpty,
+        );
+        expect(container.read(accountSyncActivityProvider).anyRunning, isFalse);
+      },
+    );
+  }
 
   for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud]) {
     for (final status in [403, 401]) {
@@ -2295,6 +2679,26 @@ final class _ConflictSyncServer {
     fail('Unexpected ${request.method} ${request.url}');
   }
 }
+
+ProviderContainer _domainTestContainer(
+  AppDatabase database,
+  InMemorySecretStore secrets,
+  http.Client client,
+) => ProviderContainer(
+  overrides: [
+    databaseProvider.overrideWithValue(database),
+    secretStoreProvider.overrideWithValue(secrets),
+    davAccountHttpClientProvider('account').overrideWithValue(client),
+    networkConnectivityMonitorProvider.overrideWith((ref) {
+      final monitor = NetworkConnectivityMonitor.withoutPlatformObservation();
+      ref.onDispose(monitor.dispose);
+      return monitor;
+    }),
+    notificationReconcilerProvider.overrideWithValue(
+      CallbackNotificationReconciler(() async {}),
+    ),
+  ],
+);
 
 Future<void> _seed(AppDatabase database, InMemorySecretStore secrets) async {
   const now = '2026-08-08T12:00:00.000Z';

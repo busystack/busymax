@@ -1,5 +1,3 @@
-import '../../dav/http/dav_http_transport.dart';
-
 import 'dart:async';
 
 import '../../l10n/nextcloud_collection_error_description.dart';
@@ -16,8 +14,10 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_collection_controller.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_collection_service.dart';
-import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_trash_service.dart';
+
+import '../../dav/nextcloud/nextcloud_trash_session.dart';
+
 import 'package:busymax/src/dav/xml/dav_xml.dart';
 
 Future<void> showWindowsNextcloudCollectionDialog(
@@ -423,97 +423,23 @@ class _WindowsNextcloudTrashDialog extends ConsumerStatefulWidget {
 
 class _WindowsNextcloudTrashState
     extends ConsumerState<_WindowsNextcloudTrashDialog> {
-  final _loadCancellation = DavCancellationToken();
-  @override
-  void dispose() {
-    _loadCancellation.cancel();
-    super.dispose();
-  }
+  late final _session = NextcloudTrashSession(
+    ref.read(nextcloudTrashServiceProvider(widget.accountId)),
+  );
 
-  NextcloudTrashListing? listing;
-  bool busy = false, failed = false, refreshPending = false;
-  Object? error;
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    _session.addListener(_onSessionChanged);
+    unawaited(_session.load());
   }
 
-  int _listingEpoch = 0;
-  final _loadingDetails = <Uri>{};
+  void _onSessionChanged() => setState(() {});
 
-  Future<void> _details(
-    NextcloudTrashItem item, {
-    bool automatic = false,
-  }) async {
-    if (!_loadingDetails.add(item.href)) return;
-    final epoch = _listingEpoch;
-    setState(() {});
-    try {
-      final detailed = await ref
-          .read(nextcloudTrashServiceProvider(widget.accountId))
-          .details(item, cancellationToken: _loadCancellation);
-      if (mounted && _listingEpoch == epoch) {
-        setState(
-          () => listing = NextcloudTrashListing(
-            List.unmodifiable(
-              listing!.items.map(
-                (row) => row.href == item.href ? detailed : row,
-              ),
-            ),
-            listing!.retentionSeconds,
-          ),
-        );
-      }
-    } on Object catch (caught) {
-      if (!automatic && mounted && _listingEpoch == epoch) {
-        setState(() {
-          failed = true;
-          error = caught;
-        });
-      }
-    } finally {
-      _loadingDetails.remove(item.href);
-      if (mounted) setState(() {});
-    }
-  }
-
-  Future<void> _load() async {
-    final epoch = ++_listingEpoch;
-    setState(() {
-      busy = true;
-      failed = false;
-    });
-    try {
-      final result = await ref
-          .read(nextcloudTrashServiceProvider(widget.accountId))
-          .list(cancellationToken: _loadCancellation);
-      if (mounted && _listingEpoch == epoch) {
-        setState(() {
-          listing = result;
-          refreshPending = false;
-        });
-      }
-    } on Object catch (caught) {
-      if (mounted && _listingEpoch == epoch) {
-        setState(() {
-          failed = true;
-          error = caught;
-        });
-      }
-    }
-    if (mounted && _listingEpoch == epoch) {
-      setState(() => busy = false);
-      // Metadata is visible before these optional, bounded identity previews.
-      if (failed) return;
-      final previews =
-          listing?.items.where((item) => item.canPreview).take(5).toList() ??
-          const <NextcloudTrashItem>[];
-      for (final item in previews) {
-        if (!mounted || _listingEpoch != epoch || busy) break;
-        await _details(item, automatic: true);
-      }
-    }
+  @override
+  void dispose() {
+    _session.dispose();
+    super.dispose();
   }
 
   Future<void> _mutate(NextcloudTrashItem item, bool permanent) async {
@@ -546,30 +472,8 @@ class _WindowsNextcloudTrashState
         ) ??
         false;
     if (!confirmed || !mounted) return;
-    setState(() {
-      busy = true;
-      failed = false;
-    });
-    try {
-      final service = ref.read(nextcloudTrashServiceProvider(widget.accountId));
-      final result = permanent
-          ? await service.permanentlyDelete(item)
-          : await service.restore(item);
-      if (!mounted) return;
-      setState(
-        () =>
-            refreshPending = result == NextcloudMutationOutcome.refreshPending,
-      );
-      if (!refreshPending) await _load();
-    } on Object catch (caught) {
-      if (mounted) {
-        setState(() {
-          failed = true;
-          error = caught;
-        });
-      }
-    }
-    if (mounted) setState(() => busy = false);
+    if (!mounted) return;
+    await _session.mutate(item, permanent: permanent);
   }
 
   @override
@@ -581,30 +485,34 @@ class _WindowsNextcloudTrashState
         width: 620,
         height: math.min(460.0, MediaQuery.sizeOf(context).height * .6),
         child: ListView.builder(
-          itemCount: (listing?.items.length ?? 0) + 1,
+          itemCount: (_session.listing?.items.length ?? 0) + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (busy) Center(child: const ProgressRing()),
-                  if (failed)
-                    Text(localizedNextcloudCollectionError(l10n, error)),
-                  if (refreshPending) Text(l10n.nextcloudRefreshPending),
-                  if (listing?.retentionSeconds != null)
+                  if (_session.busy) Center(child: const ProgressRing()),
+                  if (_session.error != null)
                     Text(
-                      listing!.retentionSeconds == 0
+                      localizedNextcloudCollectionError(l10n, _session.error),
+                    ),
+                  if (_session.refreshPending)
+                    Text(l10n.nextcloudRefreshPending),
+                  if (_session.listing?.retentionSeconds != null)
+                    Text(
+                      _session.listing!.retentionSeconds == 0
                           ? l10n.nextcloudTrashDisabled
                           : l10n.nextcloudTrashRetention(
-                              (listing!.retentionSeconds! / 86400).ceil(),
+                              (_session.listing!.retentionSeconds! / 86400)
+                                  .ceil(),
                             ),
                     ),
-                  if (listing?.items.isEmpty == true)
+                  if (_session.listing?.items.isEmpty == true)
                     Text(l10n.nextcloudTrashEmpty),
                 ],
               );
             }
-            final item = listing!.items[index - 1];
+            final item = _session.listing!.items[index - 1];
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
@@ -630,10 +538,12 @@ class _WindowsNextcloudTrashState
                             'nextcloud-trash-details',
                             item.href.toString(),
                           )),
-                          onPressed: busy || _loadingDetails.contains(item.href)
+                          onPressed:
+                              _session.busy ||
+                                  _session.loadingDetails(item.href)
                               ? null
-                              : () => _details(item),
-                          child: _loadingDetails.contains(item.href)
+                              : () => _session.details(item),
+                          child: _session.loadingDetails(item.href)
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
@@ -646,7 +556,7 @@ class _WindowsNextcloudTrashState
                           'nextcloud-trash-restore',
                           item.href.toString(),
                         )),
-                        onPressed: busy || refreshPending || !item.canRestore
+                        onPressed: !_session.canMutate || !item.canRestore
                             ? null
                             : () => _mutate(item, false),
                         child: Text(l10n.nextcloudRestore),
@@ -657,7 +567,7 @@ class _WindowsNextcloudTrashState
                           item.href.toString(),
                         )),
                         onPressed:
-                            busy || refreshPending || !item.canPermanentlyDelete
+                            !_session.canMutate || !item.canPermanentlyDelete
                             ? null
                             : () => _mutate(item, true),
                         child: Text(l10n.nextcloudPermanentDelete),
@@ -671,9 +581,12 @@ class _WindowsNextcloudTrashState
         ),
       ),
       actions: [
-        Button(onPressed: busy ? null : _load, child: Text(l10n.refresh)),
+        Button(
+          onPressed: _session.busy ? null : _session.load,
+          child: Text(l10n.refresh),
+        ),
         FilledButton(
-          onPressed: busy ? null : () => Navigator.pop(context),
+          onPressed: _session.busy ? null : () => Navigator.pop(context),
           child: Text(l10n.close),
         ),
       ],

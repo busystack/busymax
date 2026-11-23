@@ -576,6 +576,58 @@ void main() {
     },
   );
 
+  testWidgets('Android trash retries synchronization after a committed delete', (
+    tester,
+  ) async {
+    final fixture = NextcloudAdminFixture()..failRefresh = true;
+    await tester.runAsync(fixture.seed);
+    addTearDown(fixture.close);
+    await _pumpTrash(tester, fixture, platform: 'Android');
+    final href =
+        '${NextcloudAdminFixture.origin}${NextcloudAdminFixture.bin}objects/41.ics';
+    final menu = find.byKey(ValueKey(('nextcloud-trash-menu', href)));
+    await tester.tap(menu);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Permanently delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Permanently delete'));
+    await _settle(tester);
+
+    expect(
+      fixture.requests.where((request) => request.method == 'DELETE'),
+      hasLength(1),
+    );
+    expect(find.textContaining('Refresh is pending'), findsOneWidget);
+    await tester.tap(menu, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text('Permanently delete'), findsNothing);
+    expect(fixture.refreshes, 1);
+    final refresh = tester
+        .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+        .onRefresh;
+
+    unawaited(refresh());
+    await _settle(tester);
+    expect(fixture.refreshes, 2);
+    expect(find.textContaining('Refresh is pending'), findsOneWidget);
+    expect(find.byKey(ValueKey(('nextcloud-trash-menu', href))), findsNothing);
+    expect(
+      fixture.requests.where((r) => r.method == 'DELETE' || r.method == 'MOVE'),
+      hasLength(1),
+    );
+
+    fixture.failRefresh = false;
+    unawaited(refresh());
+    await _settle(tester);
+    expect(fixture.refreshes, 3);
+    expect(find.textContaining('Refresh is pending'), findsNothing);
+    expect(
+      fixture.requests.where((r) => r.method == 'DELETE' || r.method == 'MOVE'),
+      hasLength(1),
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('trash uses shared rows and confirms permanent deletion', (
     tester,
   ) async {

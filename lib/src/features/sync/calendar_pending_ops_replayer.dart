@@ -1,3 +1,6 @@
+import 'scoped_pending_replay.dart';
+import 'sync_request.dart';
+
 import 'dart:convert';
 
 import '../maps/data/location_resolution_repository.dart';
@@ -69,15 +72,41 @@ class CalendarPendingOpsReplayer {
   final Random _random;
   final CalendarRepository _repository;
 
-  Future<int> replayDueOps() {
+  Future<int> replayDueOps({
+    String? sourceId,
+    String? providerCalendarId,
+    Future<void> Function(PendingOp, Future<void> Function())? trackOperation,
+  }) {
     return serializePendingOpsReplay(
       database: _database,
       accountId: _accountId,
-      replay: _replayDueOps,
+      replay: () => _replayDueOps(sourceId, providerCalendarId, trackOperation),
     );
   }
 
-  Future<int> _replayDueOps() async {
+  Future<int> _replayDueOps(
+    String? sourceId,
+    String? providerCalendarId,
+    Future<void> Function(PendingOp, Future<void> Function())? trackOperation,
+  ) async {
+    final allowed = sourceId == null
+        ? null
+        : await scopedReplayIds(
+            _database,
+            _accountId,
+            (op) =>
+                _isCalendarOp(op) &&
+                (op.calendarSourceId == sourceId ||
+                    (providerCalendarId != null &&
+                        (op.providerCalendarId == providerCalendarId ||
+                            pendingReplayPayload(op)['destinationCalendarId'] ==
+                                providerCalendarId))),
+            followsSelectedCopy: (op) =>
+                pendingReplayPayload(
+                  op,
+                )[calendarEventCopyConfirmationRequiredKey] ==
+                true,
+          );
     final policy = DomainSyncPolicy(_database, nowUtc: _nowUtc);
     await policy.checkCooldown(_accountId, SyncDomain.calendar);
     final dueOps = await _database.pendingOpsDao.pendingOpsForReplay(
@@ -91,6 +120,7 @@ class CalendarPendingOpsReplayer {
     var applied = 0;
 
     for (final originalOp in ops) {
+      if (allowed != null && !allowed.contains(originalOp.id)) continue;
       await policy.checkCooldown(_accountId, SyncDomain.calendar);
       var op = await _readOp(originalOp.id);
       if (op == null || !_isCalendarOp(op)) {
@@ -122,8 +152,17 @@ class CalendarPendingOpsReplayer {
       }
 
       try {
-        await _replay(op);
-        await _acknowledge(op);
+        final current = op;
+        Future<void> apply() async {
+          await _replay(current);
+          await _acknowledge(current);
+        }
+
+        if (trackOperation == null) {
+          await apply();
+        } else {
+          await trackOperation(current, apply);
+        }
         applied += 1;
       } on RequestNotDispatchedException catch (error) {
         await _scheduleRetry(
@@ -213,6 +252,9 @@ class CalendarPendingOpsReplayer {
       }
     }
 
+    if (allowed != null && await hasScopedPendingReplay(_database, allowed)) {
+      throw const ScopedSyncDeferred();
+    }
     return applied;
   }
 

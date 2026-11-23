@@ -27,7 +27,8 @@ class AllAccountsSyncScheduler {
   final _runningChanges = StreamController<bool>.broadcast(sync: true);
   Timer? _timer;
   bool _running = false;
-  bool _runAgain = false;
+  Future<void>? _activeRun;
+  Completer<void>? _continuation;
 
   Duration get interval => _interval;
   bool get isRunning => _running;
@@ -50,7 +51,6 @@ class AllAccountsSyncScheduler {
   void stop() {
     _timer?.cancel();
     _timer = null;
-    _runAgain = false;
   }
 
   Future<void> dispose() async {
@@ -58,30 +58,43 @@ class AllAccountsSyncScheduler {
     await _runningChanges.close();
   }
 
-  Future<void> runNow() async {
-    if (_running) {
-      _runAgain = true;
-      return;
+  Future<void> runNow() {
+    if (_activeRun != null) {
+      return (_continuation ??= Completer<void>()).future;
     }
+    final completion = Completer<void>();
+    _activeRun = completion.future;
     _running = true;
     if (!_runningChanges.isClosed) _runningChanges.add(true);
-    try {
-      do {
-        _runAgain = false;
-        if (!await _canSync()) {
-          return;
+    unawaited(_drain(completion));
+    return completion.future;
+  }
+
+  Future<void> _drain(Completer<void> completion) async {
+    var pass = completion;
+    while (true) {
+      try {
+        if (await _canSync()) {
+          await runAllSyncEligibleAccountSync(
+            listSyncEligibleAccounts: _listSyncEligibleAccounts,
+            syncAccount: _syncAccount,
+            onSyncFailure: _onSyncFailure,
+            onAccountSyncFailure: _onAccountSyncFailure,
+          );
         }
-        await runAllSyncEligibleAccountSync(
-          listSyncEligibleAccounts: _listSyncEligibleAccounts,
-          syncAccount: _syncAccount,
-          onSyncFailure: _onSyncFailure,
-          onAccountSyncFailure: _onAccountSyncFailure,
-        );
-      } while (_runAgain);
-    } finally {
-      _running = false;
-      if (!_runningChanges.isClosed) _runningChanges.add(false);
+        pass.complete();
+      } on Object catch (error, stack) {
+        pass.completeError(error, stack);
+      }
+      final next = _continuation;
+      _continuation = null;
+      if (next == null) break;
+      pass = next;
+      _activeRun = pass.future;
     }
+    _activeRun = null;
+    _running = false;
+    if (!_runningChanges.isClosed) _runningChanges.add(false);
   }
 }
 
@@ -95,24 +108,30 @@ Future<void> runAllSyncEligibleAccountSync({
   bool rethrowFirstFailure = false,
 }) async {
   final accounts = await listSyncEligibleAccounts();
-  Object? firstFailure;
-  StackTrace? firstFailureStackTrace;
-  for (final account in accounts) {
-    try {
-      await syncAccount(account.id);
-    } on Object catch (error, stackTrace) {
-      firstFailure ??= error;
-      firstFailureStackTrace ??= stackTrace;
+  final failures = await Future.wait(
+    accounts.map((account) async {
       try {
-        await onAccountSyncFailure?.call(account.id, error);
-      } on Object {
-        // Preserve the original failure for centralized notification policy
-        // and continue synchronizing the remaining accounts.
+        await syncAccount(account.id);
+        return null;
+      } on Object catch (error, stackTrace) {
+        try {
+          await onAccountSyncFailure?.call(account.id, error);
+        } on Object {
+          // Keep the original failure and allow other accounts to synchronize.
+        }
+        try {
+          await onSyncFailure(error);
+        } on Object {
+          // A notification failure must not discard the synchronization result.
+        }
+        return (error, stackTrace);
       }
-      await onSyncFailure(error);
-    }
-  }
-  if (rethrowFirstFailure && firstFailure != null) {
-    Error.throwWithStackTrace(firstFailure, firstFailureStackTrace!);
+    }),
+  );
+  if ((rethrowFirstFailure, failures.nonNulls.firstOrNull) case (
+    true,
+    (final error, final stack),
+  )) {
+    Error.throwWithStackTrace(error, stack);
   }
 }

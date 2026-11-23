@@ -146,7 +146,7 @@ void main() {
           await tester.ensureVisible(recurrence);
           await tester.tap(recurrence);
           await tester.pumpAndSettle();
-          await _choose<RecurrenceFrequency>(
+          await _choose<RecurrenceFrequency?>(
             tester,
             'Repeat',
             RecurrenceFrequency.daily,

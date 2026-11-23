@@ -78,3 +78,12 @@ String localizedNextcloudCollectionError(
   DavException() => l10n.operationFailed,
   _ => l10n.operationFailed,
 };
+
+String? localizedCollectionRefreshPending(
+  AppLocalizations l10n,
+  Object error,
+) => switch (error) {
+  DavRefreshPending() => l10n.davRefreshPending,
+  NextcloudRefreshPending() => l10n.nextcloudRefreshPending,
+  _ => null,
+};

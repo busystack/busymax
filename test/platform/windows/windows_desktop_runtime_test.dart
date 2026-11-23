@@ -8,7 +8,11 @@ import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/features/tray/domain/tray_presentation.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
-import 'package:busymax/src/features/sync/all_accounts_sync_scheduler.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
+import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
+import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/platform/windows/windows_tray_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -16,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/memory_settings_store.dart';
+import '../../support/rest_sync_fixture.dart';
 
 void main() {
   testWidgets(
@@ -222,37 +227,67 @@ void main() {
   testWidgets('tray sync continues after an account failure and refreshes', (
     tester,
   ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    await tester.runAsync(() async {
+      for (final id in ['a', 'b']) {
+        await RestSyncFixture.insertAccount(database, _account(id));
+      }
+    });
     final synced = <String>[];
-    final failures = <Object>[];
     final failure = StateError('first account failed');
-    final scheduler = AllAccountsSyncScheduler(
-      listSyncEligibleAccounts: () async => [_account('a'), _account('b')],
-      syncAccount: (accountId) async {
-        synced.add(accountId);
-        if (accountId == 'a') throw failure;
-      },
-      onSyncFailure: (error) async => failures.add(error),
-      interval: Duration.zero,
-    );
-    addTearDown(scheduler.dispose);
     final tray = _Tray();
+    late RestSyncFixture fixture;
+    late int refreshesAtSyncCompletion;
     await _pumpRuntime(
       tester,
       _Window(),
       tray,
-      syncScheduler: scheduler,
-      interactiveRunner: () async =>
-          throw StateError('interactive runner used'),
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        accountSyncOperationsProvider.overrideWith((ref) {
+          fixture = RestSyncFixture(
+            database: database,
+            accounts: ref.read(accountsRepositoryProvider),
+            coordinator: ref.read(accountSyncCoordinatorProvider),
+            activity: ref.read(accountSyncActivityProvider),
+            pullTasks: (id, full) async {
+              expect(full, isFalse);
+              synced.add(id);
+              if (id == 'a') throw failure;
+            },
+            pullCalendar: (_, _) async {},
+          );
+          return RequestAccountSyncOperations((request) async {
+            final outcome = await fixture.operations.execute(request);
+            refreshesAtSyncCompletion = tray.refreshes;
+            return outcome;
+          });
+        }),
+      ],
     );
-    final beforeRefresh = tray.refreshes;
 
-    await tester
-        .state<WindowsDesktopRuntimeState>(find.byType(WindowsDesktopRuntime))
-        .handleTrayCommand(WindowsTrayCommand.synchronize);
+    final runtime = tester.state<WindowsDesktopRuntimeState>(
+      find.byType(WindowsDesktopRuntime),
+    );
+    await tester.runAsync(
+      () => runtime.handleTrayCommand(WindowsTrayCommand.synchronize),
+    );
 
-    expect(synced, ['a', 'b']);
-    expect(failures, [same(failure)]);
-    expect(tray.refreshes, beforeRefresh + 1);
+    expect(fixture.requests, [
+      (
+        scope: allSyncScope,
+        origin: SyncTrigger.manual,
+        strategy: SyncStrategy.ordinary,
+      ),
+    ]);
+    expect(fixture.failures.keys, ['a'], reason: '${fixture.failures}');
+    expect(synced, unorderedEquals(['a', 'b']));
+    final partial = resolveEffectiveSyncFailure(
+      fixture.failures['a']!,
+    ) as PartialAccountSyncException;
+    expect(partial.failures['tasks'], same(failure));
+    expect(tray.refreshes, refreshesAtSyncCompletion + 1);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
@@ -264,8 +299,7 @@ Future<ProviderContainer> _pumpRuntime(
   _Tray tray, {
   bool minimized = false,
   bool showTray = true,
-  AllAccountsSyncScheduler? syncScheduler,
-  Future<void> Function()? interactiveRunner,
+  List<Override> overrides = const [],
 }) async {
   final settings = AppSettings.defaults().copyWith(
     showTrayIcon: showTray,
@@ -277,10 +311,7 @@ Future<ProviderContainer> _pumpRuntime(
         MemorySettingsStore(settings.toJson()),
       ),
       desktopWindowServiceProvider.overrideWithValue(window),
-      if (syncScheduler != null)
-        syncSchedulerProvider.overrideWithValue(syncScheduler),
-      if (interactiveRunner != null)
-        allAccountsSyncRunnerProvider.overrideWithValue(interactiveRunner),
+      ...overrides,
     ],
   );
   addTearDown(container.dispose);

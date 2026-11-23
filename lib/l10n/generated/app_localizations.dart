@@ -2544,17 +2544,83 @@ abstract class AppLocalizations {
   /// **'Refresh all'**
   String get refreshAll;
 
+  /// No description provided for @refreshAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh account'**
+  String get refreshAccount;
+
+  /// No description provided for @refreshCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh collection'**
+  String get refreshCollection;
+
+  /// No description provided for @syncPartiallyCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh partially completed'**
+  String get syncPartiallyCompleted;
+
+  /// No description provided for @syncDeferred.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh deferred'**
+  String get syncDeferred;
+
+  /// No description provided for @syncPendingChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Local changes pending'**
+  String get syncPendingChanges;
+
+  /// No description provided for @syncFailedLocalChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Some local changes could not sync'**
+  String get syncFailedLocalChanges;
+
+  /// No description provided for @syncQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh queued'**
+  String get syncQueued;
+
+  /// No description provided for @syncNotYetRefreshed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not synced yet'**
+  String get syncNotYetRefreshed;
+
+  /// No description provided for @syncLastRefreshed.
+  ///
+  /// In en, this message translates to:
+  /// **'Last refreshed {date}'**
+  String syncLastRefreshed(String date);
+
+  /// No description provided for @scheduleCoverageStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Event coverage'**
+  String get scheduleCoverageStatus;
+
+  /// No description provided for @scheduleCoveragePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Events in this range are being checked or have yet to be verified.'**
+  String get scheduleCoveragePending;
+
+  /// No description provided for @scheduleCoverageVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'Events in this range have been checked.'**
+  String get scheduleCoverageVerified;
+
   /// No description provided for @listRefreshed.
   ///
   /// In en, this message translates to:
   /// **'List refreshed.'**
   String get listRefreshed;
-
-  /// No description provided for @allTasksRefreshed.
-  ///
-  /// In en, this message translates to:
-  /// **'All accounts refreshed.'**
-  String get allTasksRefreshed;
 
   /// No description provided for @exportedFile.
   ///
@@ -3597,7 +3663,7 @@ abstract class AppLocalizations {
   /// Explanation shown above the force-full-resync troubleshooting action in Diagnostics.
   ///
   /// In en, this message translates to:
-  /// **'Completely reload data from every connected account. Use this only to troubleshoot synchronization problems.'**
+  /// **'Rebuild Calendar and Tasks baselines where supported for eligible accounts, and check subscriptions. Use this to troubleshoot synchronization.'**
   String get forceFullResyncDescription;
 
   /// No description provided for @runInBackgroundWhenClosed.
@@ -3641,12 +3707,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Requires the tray icon.'**
   String get requiresTrayIcon;
-
-  /// No description provided for @syncComplete.
-  ///
-  /// In en, this message translates to:
-  /// **'Sync complete.'**
-  String get syncComplete;
 
   /// No description provided for @syncFailed.
   ///
@@ -6703,6 +6763,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This attachment is invalid or exceeds the size limit.'**
   String get attachmentInvalidOrTooLarge;
+
+  /// No description provided for @moveEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Move event'**
+  String get moveEvent;
+
+  /// No description provided for @agendaLoadMoreDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more days'**
+  String get agendaLoadMoreDays;
 }
 
 class _AppLocalizationsDelegate

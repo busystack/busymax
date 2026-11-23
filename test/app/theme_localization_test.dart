@@ -22,7 +22,9 @@ import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
-import 'package:busymax/src/features/sync/all_accounts_sync_scheduler.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/features/tray/domain/tray_presentation.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
@@ -2110,17 +2112,11 @@ void main() {
     final database = AppDatabase.memoryForTests();
     addTearDown(database.close);
     final windowService = _RecordingWindowService();
-    var syncEnumerations = 0;
-    final syncScheduler = AllAccountsSyncScheduler(
-      listSyncEligibleAccounts: () async {
-        syncEnumerations += 1;
-        return const [];
-      },
-      syncAccount: (_) async {},
-      onSyncFailure: (_) async {},
-      interval: Duration.zero,
-    );
-    addTearDown(syncScheduler.dispose);
+    final requests = <SyncRequest>[];
+    final operations = RequestAccountSyncOperations((request) async {
+      requests.add(request);
+      return SyncOutcome(request, SyncDisposition.completed);
+    });
     late _RecordingTrayService trayService;
 
     await tester.pumpWidget(
@@ -2130,7 +2126,7 @@ void main() {
           databaseProvider.overrideWithValue(database),
           localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
           linuxWindowServiceProvider.overrideWithValue(windowService),
-          syncSchedulerProvider.overrideWithValue(syncScheduler),
+          accountSyncOperationsProvider.overrideWithValue(operations),
         ],
         child: BusyMaxApp(
           trayServiceFactory: (configuration) =>
@@ -2193,7 +2189,13 @@ void main() {
 
     final showsBeforeSync = windowService.showWindowCalls;
     await trayService.configuration.actions.synchronize();
-    expect(syncEnumerations, 1);
+    expect(requests, [
+      (
+        scope: allSyncScope,
+        origin: SyncTrigger.manual,
+        strategy: SyncStrategy.ordinary,
+      ),
+    ]);
     expect(windowService.showWindowCalls, showsBeforeSync);
 
     await trayService.configuration.actions.quitBusyMax();

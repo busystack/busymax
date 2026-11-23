@@ -1038,14 +1038,6 @@ final class DavObjectRepository {
           updatedAtUtc: Value(completed.toIso8601String()),
         ),
       );
-      await (_database.update(
-        _database.accounts,
-      )..where((row) => row.id.equals(commit.accountId))).write(
-        AccountsCompanion(
-          lastSuccessfulSyncAtUtc: Value(completed.toIso8601String()),
-          updatedAtUtc: Value(completed.toIso8601String()),
-        ),
-      );
       return {...changedObjectIds, ...deletedObjectIds};
     });
   }

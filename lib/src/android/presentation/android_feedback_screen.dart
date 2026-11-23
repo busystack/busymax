@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../features/feedback/data/feedback_api_client.dart';
 import '../../features/feedback/data/feedback_submission.dart';
+import '../../features/feedback/data/feedback_draft_session.dart';
 import '../../l10n/l10n.dart';
 
 class AndroidFeedbackScreen extends ConsumerStatefulWidget {
@@ -23,19 +23,18 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
   final _message = TextEditingController();
   final _email = TextEditingController();
   FeedbackCategory? _category;
-  bool _technical = false;
-  bool _submitting = false;
   bool _validate = false;
   String? _status;
   bool _statusError = false;
-  String _submissionId = const Uuid().v4();
 
   bool get _dirty =>
       _category != null ||
       _subject.text.trim().isNotEmpty ||
       _message.text.trim().isNotEmpty ||
       _email.text.trim().isNotEmpty ||
-      _technical;
+      _session.includeTechnicalDetails;
+
+  late final _session = FeedbackDraftSession();
 
   @override
   void dispose() {
@@ -47,9 +46,9 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
 
   @override
   Widget build(BuildContext context) => PopScope<void>(
-    canPop: !_dirty && !_submitting,
+    canPop: !_dirty && !_session.submitting,
     onPopInvokedWithResult: (didPop, _) async {
-      if (didPop || _submitting) return;
+      if (didPop || _session.submitting) return;
       final discard = await _confirmDiscard();
       if (!mounted || !discard) return;
       Navigator.pop(this.context);
@@ -59,7 +58,7 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
         title: Text(context.l10n.sendFeedback),
         actions: [
           TextButton(
-            onPressed: _submitting ? null : _submit,
+            onPressed: _session.submitting ? null : _submit,
             child: Text(context.l10n.feedbackSubmit),
           ),
         ],
@@ -83,7 +82,7 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
                   child: Text(_categoryLabel(context, value)),
                 ),
             ],
-            onChanged: _submitting
+            onChanged: _session.submitting
                 ? null
                 : (value) => setState(() {
                     _category = value;
@@ -94,7 +93,7 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
           TextField(
             key: const ValueKey('android-feedback-subject'),
             controller: _subject,
-            enabled: !_submitting,
+            enabled: !_session.submitting,
             decoration: InputDecoration(
               labelText: context.l10n.feedbackSubject,
               errorText:
@@ -108,7 +107,7 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
           TextField(
             key: const ValueKey('android-feedback-message'),
             controller: _message,
-            enabled: !_submitting,
+            enabled: !_session.submitting,
             minLines: 5,
             maxLines: 10,
             decoration: InputDecoration(
@@ -124,7 +123,7 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
           const SizedBox(height: 12),
           TextField(
             controller: _email,
-            enabled: !_submitting,
+            enabled: !_session.submitting,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
               labelText: context.l10n.feedbackReplyEmail,
@@ -139,17 +138,17 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
           const SizedBox(height: 8),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            value: _technical,
+            value: _session.includeTechnicalDetails,
             title: Text(context.l10n.feedbackIncludeTechnicalDetails),
             subtitle: Text(context.l10n.feedbackTechnicalDetailsDisclosure),
-            onChanged: _submitting
+            onChanged: _session.submitting
                 ? null
                 : (value) => setState(() {
-                    _technical = value;
+                    _session.includeTechnicalDetails = value;
                     _changed();
                   }),
           ),
-          if (_submitting) const LinearProgressIndicator(),
+          if (_session.submitting) const LinearProgressIndicator(),
           if (_status case final value?)
             Semantics(
               liveRegion: true,
@@ -171,12 +170,13 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
   );
 
   void _changed() {
-    if (_statusError) _submissionId = const Uuid().v4();
+    _session.edited();
     _status = null;
     _statusError = false;
   }
 
   Future<void> _submit() async {
+    if (_session.submitting) return;
     final category = _category;
     final valid =
         FeedbackValidation.categoryIsValid(category) &&
@@ -186,14 +186,14 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
     setState(() => _validate = true);
     if (!valid || category == null) return;
     final locale = Localizations.localeOf(context).toLanguageTag();
-    setState(() => _submitting = true);
+    setState(() => _session.submitting = true);
     try {
       final package = await PackageInfo.fromPlatform();
       final receipt = await ref
           .read(feedbackSubmissionServiceProvider)
           .submit(
             FeedbackSubmission(
-              submissionId: _submissionId,
+              submissionId: _session.beginAttempt(),
               appVersion: package.version.trim().isEmpty
                   ? 'unknown'
                   : package.version,
@@ -205,7 +205,7 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
               message: _message.text,
               replyEmail: _email.text,
               platform: Platform.operatingSystem,
-              technicalDetails: _technical
+              technicalDetails: _session.includeTechnicalDetails
                   ? FeedbackTechnicalDetails(
                       osVersion: Platform.operatingSystemVersion,
                       locale: locale,
@@ -219,11 +219,10 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
       _email.clear();
       setState(() {
         _category = null;
-        _technical = false;
         _validate = false;
         _status = context.l10n.feedbackSuccess(receipt.id);
         _statusError = false;
-        _submissionId = const Uuid().v4();
+        _session.reset();
       });
     } on Object catch (error) {
       if (!mounted) return;
@@ -239,7 +238,7 @@ class _AndroidFeedbackScreenState extends ConsumerState<AndroidFeedbackScreen> {
         _statusError = true;
       });
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (mounted) setState(() => _session.submitting = false);
     }
   }
 

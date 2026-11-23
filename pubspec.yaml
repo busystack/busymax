@@ -1,7 +1,7 @@
 name: busymax
 description: BusyMax calendar and task manager.
 publish_to: 'none'
-version: 0.4.0
+version: 0.4.1
 
 environment:
   sdk: ^3.13.4
@@ -58,6 +58,7 @@ dependencies:
     path: packages/busymax_android_platform
 
 dev_dependencies:
+  analyzer: ^14.4.0
   flutter_test:
     sdk: flutter
   integration_test:

@@ -28,6 +28,8 @@ final class BusyMaxTrayPresentationService {
     required AppSettings Function() settings,
     required NetworkAvailability Function() connectivity,
     required bool Function() synchronizationRunning,
+    Future<Map<String, DateTime>> Function()? accountRefreshTimes,
+    bool Function(String)? accountHasSyncIssues,
     DateTime Function()? now,
   }) : _accountsRepository = accountsRepository,
        _calendarRepository = calendarRepository,
@@ -37,6 +39,8 @@ final class BusyMaxTrayPresentationService {
        _settings = settings,
        _connectivity = connectivity,
        _synchronizationRunning = synchronizationRunning,
+       _accountRefreshTimes = accountRefreshTimes,
+       _accountHasSyncIssues = accountHasSyncIssues,
        _now = now ?? DateTime.now;
 
   final AccountsRepository _accountsRepository;
@@ -47,6 +51,8 @@ final class BusyMaxTrayPresentationService {
   final AppSettings Function() _settings;
   final NetworkAvailability Function() _connectivity;
   final bool Function() _synchronizationRunning;
+  final Future<Map<String, DateTime>> Function()? _accountRefreshTimes;
+  final bool Function(String)? _accountHasSyncIssues;
   final DateTime Function() _now;
 
   Future<BusyMaxTrayPresentation> load() async {
@@ -100,6 +106,12 @@ final class BusyMaxTrayPresentationService {
       settings: settings,
       connectivity: _connectivity(),
       synchronizationRunning: _synchronizationRunning(),
+      accountRefreshTimes: await _accountRefreshTimes?.call() ?? const {},
+      hasSyncIssues: accounts.any(
+        (account) =>
+            account.needsReconnect ||
+            (_accountHasSyncIssues?.call(account.id) ?? false),
+      ),
       now: now,
     );
   }
@@ -114,6 +126,8 @@ BusyMaxTrayPresentation projectBusyMaxTrayPresentation({
   required AppSettings settings,
   required NetworkAvailability connectivity,
   required bool synchronizationRunning,
+  Map<String, DateTime> accountRefreshTimes = const {},
+  bool hasSyncIssues = false,
   required DateTime now,
 }) {
   final visibility = ScheduleSourceVisibility.fromSources(
@@ -166,7 +180,7 @@ BusyMaxTrayPresentation projectBusyMaxTrayPresentation({
   var hasSyncEligibleAccount = false;
   for (final account in syncEligible) {
     hasSyncEligibleAccount = true;
-    final synchronizedAt = account.lastSuccessfulSyncAtUtc;
+    final synchronizedAt = accountRefreshTimes[account.id];
     if (synchronizedAt == null) {
       allAccountsHaveSynchronized = false;
       continue;
@@ -179,6 +193,7 @@ BusyMaxTrayPresentation projectBusyMaxTrayPresentation({
   return BusyMaxTrayPresentation(
     connectivity: connectivity,
     synchronizationRunning: synchronizationRunning,
+    hasSyncIssues: hasSyncIssues,
     lastSuccessfulSynchronizationUtc: allAccountsHaveSynchronized
         ? oldestSuccessfulSync
         : null,

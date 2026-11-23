@@ -1,6 +1,6 @@
-import 'dart:io';
+import '../../l10n/ical_import_report_description.dart';
 
-import '../../providers/busy_provider.dart';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -10,6 +10,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../ical/ical_import_service.dart';
+import '../../ical/ical_import_session.dart';
 import '../../ical/ical_ingestion.dart';
 
 Future<void> showWindowsIcsImportFlow(
@@ -46,16 +47,7 @@ Future<void> showWindowsIcsImportFlow(
       ),
     );
     if (selection == null || !context.mounted) return;
-    final report = await service.importPreview(
-      preview: preview,
-      destination: selection.destination,
-      nativeDuplicates: selection.duplicatePolicy,
-      allowScheduling: selection.allowScheduling,
-      normalizeNativeSchedulingMethod: const {
-        BusyProvider.nextcloud,
-        BusyProvider.caldav,
-      }.contains(selection.destination.provider),
-    );
+    final report = await service.importSelection(preview, selection);
     if (!context.mounted) return;
     await showDialog<void>(
       context: context,
@@ -103,26 +95,13 @@ class _WindowsIcsPreviewDialog extends StatefulWidget {
 }
 
 class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
-  CalendarSourceEntity? _destination;
-  bool _newCopies = false;
-  bool _allowScheduling = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _destination = widget.destinations.firstOrNull;
-  }
+  late final _session = IcalImportSession(widget.preview, widget.destinations);
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final native = const {
-      BusyProvider.nextcloud,
-      BusyProvider.caldav,
-    }.contains(_destination?.provider);
-    final schedulingConsentRequired =
-        _destination?.provider == BusyProvider.caldav &&
-        widget.preview.nativePreview.hasAttendees;
+    final native = _session.native;
+    final schedulingConsentRequired = _session.schedulingConsentRequired;
     final omitted = native
         ? <String>[]
         : (widget.preview.fieldsThatWillBeOmitted.toList()..sort());
@@ -149,9 +128,9 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
                   width: constraints.maxWidth - 36,
                   child: Text(l10n.nextcloudImportCopies),
                 ),
-                checked: _newCopies,
+                checked: _session.newCopies,
                 onChanged: (value) =>
-                    setState(() => _newCopies = value == true),
+                    setState(() => _session.newCopies = value == true),
               ),
             ),
           ],
@@ -163,9 +142,9 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
                   width: constraints.maxWidth - 36,
                   child: Text(l10n.caldavImportSchedulingWarning),
                 ),
-                checked: _allowScheduling,
+                checked: _session.allowScheduling,
                 onChanged: (value) =>
-                    setState(() => _allowScheduling = value == true),
+                    setState(() => _session.allowScheduling = value == true),
               ),
             ),
           if (widget.preview.invalidEventCount > 0)
@@ -183,14 +162,13 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
               label: l10n.importDestinationCalendar,
               child: ComboBox<CalendarSourceEntity>(
                 isExpanded: true,
-                value: _destination,
+                value: _session.destination,
                 items: [
                   for (final source in widget.destinations)
                     ComboBoxItem(value: source, child: Text(source.summary)),
                 ],
                 onChanged: (value) => setState(() {
-                  _destination = value;
-                  _allowScheduling = false;
+                  _session.destination = value;
                 }),
               ),
             ),
@@ -202,18 +180,9 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
           child: Text(l10n.cancel),
         ),
         FilledButton(
-          onPressed:
-              _destination == null ||
-                  (schedulingConsentRequired && !_allowScheduling)
+          onPressed: _session.selection == null
               ? null
-              : () => Navigator.pop(
-                  context,
-                  IcalImportSelection(
-                    _destination!,
-                    newCopies: _newCopies,
-                    allowScheduling: _allowScheduling,
-                  ),
-                ),
+              : () => Navigator.of(context).pop(_session.selection),
           child: Text(l10n.importIcsConfirm),
         ),
       ],
@@ -229,21 +198,9 @@ class _WindowsIcsReportDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final omitted = report.fieldsIntentionallyOmitted.toList()..sort();
     return ContentDialog(
       title: Text(l10n.importIcsComplete),
-      content: Text(
-        [
-          l10n.importQueued(report.queued),
-          if (report.followUpPending) l10n.nextcloudImportFollowUp,
-          l10n.importDuplicatesSkipped(report.duplicatesSkipped),
-          l10n.importUnsupportedSets(report.unsupportedRecurrenceSets.length),
-          for (final item in report.unsupportedRecurrenceSets)
-            '${item.uid}: ${item.reason}',
-          l10n.importInvalidEvents(report.invalidEvents),
-          if (omitted.isNotEmpty) l10n.importFieldsOmitted(omitted.join(', ')),
-        ].join('\n'),
-      ),
+      content: Text(localizedIcalImportReport(l10n, report)),
       actions: [
         FilledButton(
           onPressed: () => Navigator.pop(context),

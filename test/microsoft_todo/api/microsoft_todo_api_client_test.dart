@@ -7,7 +7,7 @@ import 'package:http/testing.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_error.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
-import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
+import 'package:busymax/src/features/schedule/application/attachment_upload_coordinator.dart';
 
 void main() {
   for (final refreshFails in [false, true]) {

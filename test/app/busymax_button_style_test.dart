@@ -514,13 +514,6 @@ void main() {
     // a month-overflow command, and a time-period selector. Any new raw
     // feature-level constructor must be reviewed against the action roles.
     expect(rawFeatureButtons, {
-      'lib/src/features/schedule/presentation/mini_calendar.dart': [
-        'TextButton',
-        'TextButton',
-      ],
-      'lib/src/features/schedule/presentation/schedule_month_view.dart': [
-        'TextButton',
-      ],
       'lib/src/features/tasks/presentation/desktop_date_time_fields.dart': [
         'TextButton',
       ],

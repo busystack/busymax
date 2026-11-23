@@ -16,6 +16,8 @@ enum SyncTrigger { manual, foreground, background, localMutation }
 
 enum SyncDomain { tasks, calendar }
 
+enum DomainSyncDisposition { pulled, skipped, deferred }
+
 const _triggerZone = #busymaxSyncTrigger;
 SyncTrigger get currentSyncTrigger =>
     Zone.current[_triggerZone] as SyncTrigger? ?? SyncTrigger.manual;
@@ -95,13 +97,14 @@ final class DomainSyncPolicy {
     }
   }
 
-  Future<void> run(
+  Future<DomainSyncDisposition> run(
     String id,
     SyncDomain domain, {
     required Future<void> Function() pull,
     required Future<void> Function() deferred,
     Future<void> Function()? maintainCached,
     bool full = false,
+    bool completeDomain = true,
   }) async {
     final account = await (database.select(
       database.accounts,
@@ -110,7 +113,7 @@ final class DomainSyncPolicy {
         (domain == SyncDomain.tasks
             ? !account.tasksEnabled
             : !account.calendarsEnabled)) {
-      return;
+      return DomainSyncDisposition.skipped;
     }
     final query = database.select(database.domainSyncSchedules)
       ..where((r) => r.accountId.equals(id) & r.domain.equals(domain.name));
@@ -127,7 +130,7 @@ final class DomainSyncPolicy {
     final trigger = currentSyncTrigger;
     if (trigger == SyncTrigger.localMutation && !full) {
       await _dispatch(id, domain, deferred);
-      return;
+      return DomainSyncDisposition.deferred;
     }
     final due =
         full ||
@@ -140,12 +143,13 @@ final class DomainSyncPolicy {
             : next == null || !next.isAfter(now));
     if (!due) {
       await _dispatch(id, domain, deferred);
-      return;
+      return DomainSyncDisposition.deferred;
     }
     try {
       await pull();
       // A stale success must not erase a cooldown established during the pull.
       await checkCooldown(id, domain);
+      if (!completeDomain) return DomainSyncDisposition.pulled;
       final completed = nowUtc();
       final interval = domain == SyncDomain.tasks
           ? tasksPassiveInterval
@@ -174,6 +178,7 @@ final class DomainSyncPolicy {
         updates: {database.domainSyncSchedules},
       );
       await checkCooldown(id, domain);
+      return DomainSyncDisposition.pulled;
     } on Object catch (error) {
       await recordFailureCooldown(id, domain, error);
       rethrow;

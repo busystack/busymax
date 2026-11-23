@@ -14,9 +14,9 @@ import '../../../providers/busy_provider.dart';
 import '../../../schedule/event_attachment_link.dart';
 import '../../../schedule/schedule_item.dart';
 import 'attachment_download.dart';
-import 'google_event_attachment_reference.dart';
+import '../application/event_attachment_operations.dart';
 import 'schedule_event_details_format.dart';
-import 'attachment_upload_coordinator.dart';
+import '../application/attachment_upload_coordinator.dart';
 
 Future<void> showLinuxEventAttachmentsDialog(
   BuildContext context,
@@ -270,7 +270,7 @@ class _LinuxEventAttachmentsDialogState
     setState(() => _saving = true);
     try {
       final size = await file.length();
-      if (size > 150 * 1024 * 1024) {
+      if (size > maximumEventAttachmentBytes) {
         throw StateError('Event file exceeds 150 MB.');
       }
       await ref
@@ -378,37 +378,21 @@ class _LinuxEventAttachmentsDialogState
     String? addFileUrl,
     String? removeFileUrl,
   }) async {
+    if (_saving) return;
     setState(() => _saving = true);
     try {
-      final List<EventAttachmentLink> links;
-      var cacheUpdated = true;
-      if (widget.item.provider == BusyProvider.google) {
-        final changed = await changeGoogleEventAttachmentReference(
-          item: widget.item,
-          client: ref.read(
-            googleCalendarApiClientForAccountProvider(widget.item.accountId),
-          ),
-          repository: ref.read(calendarRepositoryProvider),
-          addFileUrl: addFileUrl,
-          removeFileUrl: removeFileUrl,
-        );
-        links = changed.links;
-        cacheUpdated = changed.cacheUpdated;
-      } else {
-        final detail = await ref
-            .read(calendarRepositoryProvider)
-            .changeNextcloudUriAttachmentReference(
-              accountId: widget.item.accountId,
-              eventId: widget.item.id,
-              addUrl: addFileUrl,
-              removeUrl: removeFileUrl,
-            );
-        links = eventAttachmentLinks(detail?.attachments);
-        cacheUpdated = detail != null;
-      }
+      final result = await changeEventAttachmentReference(
+        item: widget.item,
+        googleClient: () => ref.read(
+          googleCalendarApiClientForAccountProvider(widget.item.accountId),
+        ),
+        repository: ref.read(calendarRepositoryProvider),
+        addUrl: addFileUrl,
+        removeUrl: removeFileUrl,
+      );
       if (!mounted) return;
-      setState(() => _referenceLinks = links);
-      if (!cacheUpdated) {
+      setState(() => _referenceLinks = result.links);
+      if (!result.cacheUpdated) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(context.l10n.refreshFailed(context.l10n.attachments)),
@@ -432,34 +416,24 @@ class _LinuxEventAttachmentsDialogState
       confirmLabel: context.l10n.delete,
       destructive: true,
     );
-    if (!confirmed || !mounted) return;
+    if (!confirmed || !mounted || _saving) return;
     setState(() => _saving = true);
     try {
-      await ref
-          .read(
-            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
-          )
-          .deleteEventAttachment(
-            calendarId: widget.item.providerCalendarId,
-            eventId: eventId,
-            attachmentId: attachment.id,
-          );
-      ref
-          .read(attachmentUploadCoordinatorProvider)
-          .attachmentRemoved(
-            AttachmentUploadCoordinator.eventKey(
-              widget.item.accountId,
-              widget.item.providerCalendarId,
-              eventId,
-            ),
-            attachment.id,
-          );
-      _refresh();
+      await deleteEventAttachment(
+        item: widget.item,
+        attachment: attachment,
+        client: ref.read(
+          microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+        ),
+        uploads: ref.read(attachmentUploadCoordinatorProvider),
+      );
     } on Object catch (error) {
-      _refresh();
       _error(error);
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        _refresh();
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -482,16 +456,15 @@ class _LinuxEventAttachmentsDialogState
     if (eventId == null) return;
     setState(() => _saving = true);
     try {
-      final bytes = await ref
-          .read(
-            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
-          )
-          .downloadEventAttachment(
-            calendarId: widget.item.providerCalendarId,
-            eventId: eventId,
-            attachment: attachment,
-          );
-      await saveAttachmentOnDesktop(name: attachment.name, bytes: bytes);
+      final download = await downloadEventAttachment(
+        item: widget.item,
+        attachment: attachment,
+        client: ref.read(
+          microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+        ),
+      );
+      if (!mounted) return;
+      await saveAttachmentOnDesktop(name: download.name, bytes: download.bytes);
     } on Object catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

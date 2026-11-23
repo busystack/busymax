@@ -1,3 +1,8 @@
+import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:busymax/src/features/sync/sync_request.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -365,6 +370,100 @@ END:VEVENT
     },
   );
 
+  test('manual subscription source, account and all requests check before due time', () async {
+    final uri = Uri.parse('https://calendar.example.test/feed');
+    transport.responses.add(
+      _response(uri: uri, etag: '"one"', body: _oneEvent),
+    );
+    await service.addSubscription(subscriptionUrl: uri.toString());
+    final subscription = await database
+        .select(database.webCalSubscriptions)
+        .getSingle();
+    final monitor = NetworkConnectivityMonitor.withoutPlatformObservation();
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        networkConnectivityMonitorProvider.overrideWithValue(monitor),
+        webCalSubscriptionServiceProvider.overrideWithValue(service),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await monitor.dispose();
+    });
+    final runner = container.read(manualSyncRunnerProvider);
+    final source = calendarSyncScope(
+      subscription.accountId,
+      subscription.calendarSourceId,
+    );
+    for (final scope in [
+      source,
+      accountSyncScope(subscription.accountId),
+      allSyncScope,
+    ]) {
+      transport.responses.add(
+        WebCalHttpResponse(
+          statusCode: 304,
+          finalUri: uri,
+          body: null,
+          etag: '"one"',
+          lastModified: null,
+          contentType: null,
+          conditionalRequestSent: true,
+        ),
+      );
+      final result = await runner(scope);
+      expect(result.disposition, SyncDisposition.completed);
+      expect(result.affected, contains(source));
+      expect(transport.requests.last.validators.etag, '"one"');
+      if (scope == source) {
+        expect(
+          await database.select(database.domainSyncSchedules).get(),
+          isEmpty,
+        );
+      }
+    }
+    expect(transport.requests, hasLength(4));
+    expect(
+      (await database.select(database.domainSyncSchedules).getSingle()).domain,
+      accountRefreshHistoryKey,
+    );
+  });
+
+  test(
+    'checked outcome distinguishes due time, credentials and missing targets',
+    () async {
+      final uri = Uri.parse('https://calendar.example.test/feed');
+      transport.responses.add(_response(uri: uri, body: _oneEvent));
+      await service.addSubscription(subscriptionUrl: uri.toString());
+      final before = await database
+          .select(database.webCalSubscriptions)
+          .getSingle();
+      expect(
+        await service.checkSubscription('subscription-1', manual: false),
+        SyncDisposition.deferred,
+      );
+      expect(
+        await service.checkSubscription('deleted', manual: true),
+        SyncDisposition.missing,
+      );
+      await secrets.deleteCredential(before.accountId);
+      now = now.add(const Duration(minutes: 1));
+      expect(
+        await service.checkSubscription('subscription-1', manual: true),
+        SyncDisposition.failed,
+      );
+      final after = await database
+          .select(database.webCalSubscriptions)
+          .getSingle();
+      expect(after.lastFailureCode, 'WebCalSecretUnavailable');
+      expect(after.lastSuccessfulSyncAtUtc, before.lastSuccessfulSyncAtUtc);
+      expect(after.lastCheckedAtUtc, isNot(before.lastCheckedAtUtc));
+      expect(transport.requests, hasLength(1));
+      expect(await database.select(database.calendarEvents).get(), isNotEmpty);
+    },
+  );
+
   test('conditional 304 is accepted only for the bound target', () async {
     final origin = Uri.parse('https://calendar.example.test/feed');
     final target = Uri.parse('https://cdn.example.test/current.ics');
@@ -384,7 +483,10 @@ END:VEVENT
       ),
     );
 
-    await service.refreshSubscription('subscription-1', force: true);
+    expect(
+      await service.checkSubscription('subscription-1', manual: true),
+      SyncDisposition.completed,
+    );
 
     expect(transport.requests.last.uri, origin);
     expect(transport.requests.last.validatorTarget, target);

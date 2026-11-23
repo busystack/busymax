@@ -7,7 +7,7 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/presentation/linux_cloud_availability_dialog.dart';
 import 'package:busymax/src/features/calendar/presentation/event_description_editor.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
@@ -43,6 +43,54 @@ const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  testWidgets(
+    'a failed persistence attempt leaves the event editor and draft open',
+    (tester) async {
+      var attempts = 0;
+      final draft = EventEditorDraft.newEvent(
+        accountId: 'account',
+        sourceId: 'source',
+        providerCalendarId: 'cal-1',
+        start: DateTime(2026, 11, 17, 9),
+        end: DateTime(2026, 11, 17, 10),
+      );
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showBusyMaxEventEditorDialog(
+                  context,
+                  initialDraft: draft,
+                  sources: _sources,
+                  accounts: const [],
+                  submit: (edited, _) async {
+                    expect(edited.title, 'Retained title');
+                    if (++attempts == 1) throw StateError('write unavailable');
+                  },
+                ),
+                child: const Text('Open event editor'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open event editor'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Retained title');
+      await tester.pump();
+      await tester.tap(_headerButtonFinder('Save'));
+      await tester.pumpAndSettle();
+      expect(attempts, 1);
+      expect(find.byType(EventEditor), findsOneWidget);
+      expect(find.text('Retained title'), findsOneWidget);
+      await tester.tap(_headerButtonFinder('Save'));
+      await tester.pumpAndSettle();
+      expect(attempts, 2);
+      expect(find.byType(EventEditor), findsNothing);
+    },
+  );
+
   testWidgets(
     'ordinary monthly series edit shows the exact proposal and requires confirmation',
     (tester) async {
@@ -1301,10 +1349,10 @@ void main() {
     final dialog = find.byType(RecurrenceEditorDialog);
     expect(dialog, findsOneWidget);
     tester
-        .widget<BusyMaxComboRow<RecurrenceFrequency>>(
+        .widget<BusyMaxComboRow<RecurrenceFrequency?>>(
           find.descendant(
             of: dialog,
-            matching: find.byType(BusyMaxComboRow<RecurrenceFrequency>),
+            matching: find.byType(BusyMaxComboRow<RecurrenceFrequency?>),
           ),
         )
         .onSelected(RecurrenceFrequency.weekly);

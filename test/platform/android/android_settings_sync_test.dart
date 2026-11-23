@@ -1,3 +1,11 @@
+import 'package:busymax/src/features/sync/sync_request.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+
+import 'dart:async';
+
+import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_sources.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
@@ -14,6 +22,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,6 +32,11 @@ import '../../support/memory_settings_store.dart';
 import '../../test_localized_app.dart';
 
 void main() {
+  testWidgets(
+    'Android overview and detail retain verified history after a partial refresh',
+    verifyAndroidAccountRefreshStatus,
+  );
+
   testWidgets(
     'Android settings delete explains partial deletion and retains the collection',
     (tester) async {
@@ -49,6 +63,7 @@ void main() {
         provider: BusyProvider.caldav,
         sources: [source],
         calendarRepository: repository,
+        workspaceSources: true,
       );
       addTearDown(harness.dispose);
       final row = find.widgetWithText(ListTile, 'Surviving collection');
@@ -57,7 +72,9 @@ void main() {
         400,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(row);
+      await tester.tap(
+        find.descendant(of: row, matching: find.byTooltip('Options')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ListTile, 'Delete'));
       await tester.pumpAndSettle();
@@ -86,6 +103,7 @@ void main() {
           provider: provider,
           authority: 'https://cloud.example.test/',
           taskCapabilities: caps,
+          workspaceSources: true,
           lists: const [
             TaskListEntity(
               accountId: 'google:g',
@@ -105,7 +123,9 @@ void main() {
           400,
           scrollable: find.byType(Scrollable).first,
         );
-        await tester.tap(row);
+        await tester.tap(
+          find.descendant(of: row, matching: find.byTooltip('Options')),
+        );
         await tester.pumpAndSettle();
         expect(find.widgetWithText(ListTile, 'Export'), findsOneWidget);
         expect(
@@ -124,6 +144,7 @@ void main() {
           tester,
           provider: provider,
           authority: 'https://cloud.example.test/',
+          workspaceSources: true,
           sources: [
             CalendarSourceEntity(
               id: 'calendar',
@@ -146,7 +167,9 @@ void main() {
           400,
           scrollable: find.byType(Scrollable).first,
         );
-        await tester.tap(row);
+        await tester.tap(
+          find.descendant(of: row, matching: find.byTooltip('Options')),
+        );
         await tester.pumpAndSettle();
         expect(find.widgetWithText(ListTile, 'Export'), findsOneWidget);
         expect(
@@ -190,12 +213,14 @@ void main() {
           tester,
           provider: provider,
           authority: 'https://192.168.1.20/',
-          signedInSyncRunner: (id, _) async => syncs.add(id),
+          manualSyncRunner: (request) async =>
+              syncs.add(request.scope.accountId!),
         );
         addTearDown(harness.dispose);
         Future<void> sync() async {
-          await _openAccountMenu(tester);
-          await tester.tap(_popupEntry('sync'));
+          await tester.tap(
+            find.byKey(const ValueKey('account-recovery-google:g')),
+          );
           await tester.pumpAndSettle();
         }
 
@@ -245,29 +270,35 @@ void main() {
       const platform = MethodChannel('io.busystack.busymax/android');
       var granted = false, syncs = 0;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-            platform,
-            (call) async =>
-                call.method == 'hasLocalNetworkAccess' ||
-                    call.method == 'requestLocalNetworkAccess'
-                ? granted
-                : null,
-          );
+          .setMockMethodCallHandler(platform, (call) async {
+            if (call.method == 'requiresLocalNetworkAccess') {
+              return (call.arguments as Map)['host'] == '192.168.1.20';
+            }
+            if (call.method == 'hasLocalNetworkAccess' ||
+                call.method == 'requestLocalNetworkAccess') {
+              return granted;
+            }
+            return null;
+          });
       addTearDown(
         () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(platform, null),
       );
       final syncedAccounts = <String>[];
+      final strategies = <SyncStrategy>[];
       final harness = await _pumpAndroidSettings(
         tester,
+        category: AndroidSettingsCategory.accounts,
+        openAccount: false,
         provider: BusyProvider.caldav,
         authority: 'https://192.168.1.20/',
-        signedInSyncRunner: (id, full) async {
-          expectSync(full, isFalse);
-          syncedAccounts.add(id);
-        },
-        allAccountsSyncRunner: () async {
-          syncs++;
+        manualSyncRunner: (request) async {
+          strategies.add(request.strategy);
+          if (request.scope == allSyncScope) {
+            syncs++;
+          } else {
+            syncedAccounts.add(request.scope.accountId!);
+          }
         },
       );
       addTearDown(harness.dispose);
@@ -284,14 +315,14 @@ void main() {
         );
       }
       await tester.pumpAndSettle();
-      final action = find.widgetWithText(ListTile, 'Sync');
+      final action = find.widgetWithText(ListTile, 'Refresh all');
       await tester.scrollUntilVisible(
         action,
         500,
         scrollable: find.byType(Scrollable).first,
       );
       tester.widget<ListTile>(action).onTap!();
-      // Sync all remains busy while the permission recovery dialog is open.
+      // Permission recovery remains available for the blocked account.
       for (
         var i = 0;
         i < 10 && find.byType(AlertDialog).evaluate().isEmpty;
@@ -301,18 +332,23 @@ void main() {
       }
       expect(find.byType(AlertDialog), findsOneWidget);
       expect(syncs, 0);
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel').last);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Cancel'),
+        ),
+      );
       await tester.pumpAndSettle();
-      expect(syncedAccounts, [
-        'google:public',
-        'microsoft:public',
-        'dav:public',
-      ]);
+      expect(
+        syncedAccounts,
+        unorderedEquals(['google:public', 'microsoft:public', 'dav:public']),
+      );
       expect(syncs, 0);
       granted = true;
       tester.widget<ListTile>(action).onTap!();
       await tester.pumpAndSettle();
       expect(syncs, 1);
+      expect(strategies, everyElement(SyncStrategy.ordinary));
     },
   );
 
@@ -358,7 +394,10 @@ void main() {
         () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(platform, null),
       );
-      final harness = await _pumpAndroidSettings(tester);
+      final harness = await _pumpAndroidSettings(
+        tester,
+        category: AndroidSettingsCategory.notifications,
+      );
       addTearDown(harness.dispose);
       harness.container
           .read(androidNotificationServiceProvider)
@@ -415,13 +454,11 @@ void main() {
     final calls = <String>[];
     final harness = await _pumpAndroidSettings(
       tester,
-      signedInSyncRunner: (accountId, initial) async => calls.add(accountId),
+      manualSyncRunner: (request) async => calls.add(request.scope.accountId!),
     );
     addTearDown(harness.dispose);
 
-    await _openAccountMenu(tester);
-    expect(_popupValues(tester), contains('sync'));
-    await tester.tap(_popupEntry('sync'));
+    await tester.tap(find.byKey(const ValueKey('account-recovery-google:g')));
     await tester.pumpAndSettle();
 
     expect(calls, ['google:g']);
@@ -434,7 +471,7 @@ void main() {
     final harness = await _pumpAndroidSettings(
       tester,
       reconnectRequired: true,
-      signedInSyncRunner: (accountId, initial) async => calls.add(accountId),
+      manualSyncRunner: (request) async => calls.add(request.scope.accountId!),
     );
     addTearDown(harness.dispose);
 
@@ -444,10 +481,18 @@ void main() {
     );
     expect(find.textContaining('reauth_required'), findsNothing);
 
-    await _openAccountMenu(tester);
-
-    expect(_popupValues(tester), isNot(contains('sync')));
-    expect(_popupValues(tester), contains('reconnect'));
+    expect(
+      tester
+          .widget<ListTile>(
+            find.byKey(const ValueKey('account-recovery-google:g')),
+          )
+          .title,
+      isA<Text>().having(
+        (t) => t.data,
+        'recovery label',
+        'Reconnect this account',
+      ),
+    );
     expect(calls, isEmpty);
   });
 
@@ -457,14 +502,17 @@ void main() {
     final calls = <String>[];
     final harness = await _pumpAndroidSettings(
       tester,
-      signedInSyncRunner: (accountId, initial) async => calls.add(accountId),
+      manualSyncRunner: (request) async => calls.add(request.scope.accountId!),
     );
     addTearDown(harness.dispose);
 
-    await _openAccountMenu(tester);
-    expect(_popupEntry('sync'), findsOneWidget);
+    final action = tester
+        .widget<ListTile>(
+          find.byKey(const ValueKey('account-recovery-google:g')),
+        )
+        .onTap!;
     await harness.accounts.markReconnectRequired('google:g');
-    await tester.tap(_popupEntry('sync'));
+    action();
     await tester.pumpAndSettle();
 
     expect(calls, isEmpty);
@@ -489,22 +537,46 @@ void main() {
       );
       final harness = await _pumpAndroidSettings(
         tester,
-        signedInSyncRunner: (accountId, initial) async => throw failure,
+        manualSyncRunner: (request) async => throw failure,
       );
       addTearDown(harness.dispose);
 
-      await _openAccountMenu(tester);
-      await tester.tap(_popupEntry('sync'));
+      await tester.tap(find.byKey(const ValueKey('account-recovery-google:g')));
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Sync failed: This account needs to be reconnected.'),
+        find.text(
+          'Your Google account needs to be reconnected to resume calendar and task synchronization.',
+        ),
         findsOneWidget,
       );
       expect(find.textContaining('KnownUnsentRequestException'), findsNothing);
       expect(find.textContaining('OAuthRefreshException'), findsNothing);
       expect(find.textContaining('provider description'), findsNothing);
       expect(find.textContaining('android-test-secret'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Force full resync explicitly requests every eligible account in full',
+    (tester) async {
+      final calls = <SyncRequest>[];
+      final harness = await _pumpAndroidSettings(
+        tester,
+        category: AndroidSettingsCategory.diagnostics,
+        manualSyncRunner: (request) async => calls.add(request),
+      );
+      addTearDown(harness.dispose);
+      final action = find.widgetWithText(ListTile, 'Force full resync');
+      await tester.scrollUntilVisible(
+        action,
+        400,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(calls.single.scope, allSyncScope);
+      expect(calls.single.strategy, SyncStrategy.fullRecovery);
     },
   );
 
@@ -522,10 +594,12 @@ void main() {
     );
     final harness = await _pumpAndroidSettings(
       tester,
-      allAccountsSyncRunner: () async => throw failure,
+      category: AndroidSettingsCategory.accounts,
+      openAccount: false,
+      manualSyncRunner: (request) async => throw failure,
     );
     addTearDown(harness.dispose);
-    final syncAll = find.widgetWithText(ListTile, 'Sync');
+    final syncAll = find.widgetWithText(ListTile, 'Refresh all');
     await tester.scrollUntilVisible(
       syncAll,
       500,
@@ -537,18 +611,161 @@ void main() {
     await tester.tap(syncAll);
     await tester.pumpAndSettle();
 
+    // The shared failure is inspectable through the same command.
+    await tester.tap(syncAll);
+    await tester.pumpAndSettle();
     expect(
-      find.text('Sync failed: This account needs to be reconnected.'),
+      find.text(AppLocalizationsEn().accountReconnectRequired),
       findsOneWidget,
     );
+    expect(find.text('Retry'), findsOneWidget);
     expect(find.textContaining('KnownUnsentRequestException'), findsNothing);
     expect(find.textContaining('InternalOAuthException'), findsNothing);
     expect(find.textContaining('sync-all-secret'), findsNothing);
   });
 }
 
+Future<void> verifyAndroidAccountRefreshStatus(
+  WidgetTester tester, {
+  bool useDeviceViewport = false,
+}) async {
+  final harness = await _pumpAndroidSettings(
+    tester,
+    openAccount: false,
+    useDeviceViewport: useDeviceViewport,
+  );
+  addTearDown(harness.dispose);
+  final l10n = AppLocalizationsEn();
+  const id = 'google:g';
+  final activity = harness.container.read(accountSyncActivityProvider);
+  final request = (
+    scope: accountSyncScope(id),
+    origin: SyncTrigger.manual,
+    strategy: SyncStrategy.ordinary,
+  );
+  Future<void> record(SyncOutcome outcome) async {
+    await activity.request(request, (start) => start(() async => outcome));
+    await tester.pumpAndSettle();
+  }
+
+  final entry = find.byKey(const ValueKey('account-entry-google:g'));
+  await tester.scrollUntilVisible(
+    entry,
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+  expect(find.textContaining(l10n.syncNotYetRefreshed), findsOneWidget);
+  final database = harness.database;
+  await database
+      .into(database.domainSyncSchedules)
+      .insert(
+        DomainSyncSchedulesCompanion.insert(
+          accountId: id,
+          domain: accountRefreshHistoryKey,
+          lastSuccessfulPullUtc: const Value('2026-06-01T12:00:00.000Z'),
+        ),
+      );
+  await tester.pumpAndSettle();
+  final verified = find.textContaining('Last refreshed');
+  expect(verified, findsOneWidget);
+  final verifiedLabel = tester.widget<Text>(verified).data!;
+  final verifiedText = verifiedLabel.substring(
+    verifiedLabel.indexOf('Last refreshed'),
+  );
+
+  await database
+      .into(database.pendingOps)
+      .insert(
+        PendingOpsCompanion.insert(
+          id: 'queued-task',
+          accountId: id,
+          entityType: 'task',
+          operation: 'update',
+          requestJson: '{}',
+          createdAtUtc: '2026-06-02T12:00:00.000Z',
+          updatedAtUtc: '2026-06-02T12:00:00.000Z',
+        ),
+      );
+  final calendar = (
+    kind: SyncScopeKind.calendar,
+    accountId: id,
+    resourceId: null,
+  );
+  final tasks = (kind: SyncScopeKind.tasks, accountId: id, resourceId: null);
+  await record(
+    SyncOutcome(
+      request,
+      SyncDisposition.partial,
+      children: [
+        SyncOutcome((
+          scope: calendar,
+          origin: request.origin,
+          strategy: request.strategy,
+        ), SyncDisposition.completed),
+        SyncOutcome((
+          scope: tasks,
+          origin: request.origin,
+          strategy: request.strategy,
+        ), SyncDisposition.deferred),
+      ],
+    ),
+  );
+  expect(activity.accountNeedsAttention(id), isTrue);
+  expect(activity.accountHasFailure(id), isFalse);
+  final partial = find.textContaining(l10n.syncPartiallyCompleted);
+  expect(partial, findsOneWidget);
+  expect(tester.widget<Text>(partial).data, contains(verifiedText));
+  expect(tester.widget<Text>(partial).data, contains(l10n.syncPendingChanges));
+
+  await tester.tap(entry);
+  await tester.pumpAndSettle();
+  expect(partial, findsOneWidget);
+  expect(tester.widget<Text>(partial).data, contains(verifiedText));
+  expect(tester.widget<Text>(partial).data, contains(l10n.syncPendingChanges));
+
+  await record(
+    SyncOutcome(
+      request,
+      SyncDisposition.deferred,
+      error: DomainCooldownException(
+        SyncDomain.tasks,
+        DateTime.utc(2026, 6, 2),
+      ),
+    ),
+  );
+  expect(activity.accountHasFailure(id), isFalse);
+  expect(find.textContaining(l10n.syncDeferred), findsOneWidget);
+  expect(find.textContaining(l10n.syncPendingChanges), findsOneWidget);
+  expect(verified, findsOneWidget);
+
+  await record(
+    SyncOutcome(request, SyncDisposition.failed, error: StateError('broken')),
+  );
+  expect(activity.accountHasFailure(id), isTrue);
+  expect(find.textContaining(l10n.accountSyncProblem), findsOneWidget);
+  expect(verified, findsOneWidget);
+
+  final release = Completer<SyncOutcome>();
+  final refresh = activity.request(
+    request,
+    (start) => start(() => release.future),
+  );
+  await tester.pump();
+  expect(find.textContaining(l10n.traySyncing), findsOneWidget);
+  await database.delete(database.pendingOps).go();
+  release.complete(SyncOutcome(request, SyncDisposition.completed));
+  await refresh;
+  await tester.pumpAndSettle();
+  expect(find.textContaining(l10n.syncPendingChanges), findsNothing);
+  expect(find.textContaining(l10n.accountSyncProblem), findsNothing);
+  expect(find.byType(SnackBar), findsNothing);
+  expect(verified, findsOneWidget);
+}
+
 Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   WidgetTester tester, {
+  AndroidSettingsCategory category = AndroidSettingsCategory.accounts,
   BusyProvider provider = BusyProvider.google,
   String? authority,
   CalendarCollectionCreator? creator,
@@ -557,13 +774,19 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   List<TaskListEntity> lists = const [],
   TaskCollectionCapabilities? taskCapabilities,
   bool reconnectRequired = false,
+  bool workspaceSources = false,
+  bool openAccount = true,
   SignedInSyncRunner? signedInSyncRunner,
+  Future<void> Function(SyncRequest)? manualSyncRunner,
   AllAccountsSyncRunner? allAccountsSyncRunner,
+  bool useDeviceViewport = false,
 }) async {
-  tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(1000, 1800);
-  addTearDown(tester.view.resetDevicePixelRatio);
-  addTearDown(tester.view.resetPhysicalSize);
+  if (!useDeviceViewport) {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 1800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+  }
   final database = AppDatabase.memoryForTests();
   final accounts = AccountsRepository(database: database);
   await accounts.upsertSignedInAccount(
@@ -580,12 +803,26 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   }
   final container = ProviderContainer(
     overrides: [
+      networkAvailabilityProvider.overrideWith(
+        (ref) => Stream.value(NetworkAvailability.unknown),
+      ),
+      networkConnectivityMonitorProvider.overrideWith((ref) {
+        final monitor = NetworkConnectivityMonitor.withoutPlatformObservation();
+        ref.onDispose(() => unawaited(monitor.dispose()));
+        return monitor;
+      }),
       if (calendarRepository != null)
         calendarRepositoryProvider.overrideWithValue(calendarRepository),
       if (creator != null)
         calendarCollectionCreationServiceProvider.overrideWithValue(creator),
       buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
       databaseProvider.overrideWithValue(database),
+      if (workspaceSources) ...[
+        sidebarCalendarSourcesProvider.overrideWith(
+          (ref, id) => Stream.value(sources),
+        ),
+        sidebarTaskListsProvider.overrideWith((ref, id) => Stream.value(lists)),
+      ],
       initialAppSettingsProvider.overrideWithValue(AppSettings.defaults()),
       localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
       calendarSourcesStreamProvider.overrideWith(
@@ -598,6 +835,33 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
         ),
       webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
+      if (manualSyncRunner != null)
+        manualSyncRunnerProvider.overrideWith(
+          (ref) => (scope, {strategy = SyncStrategy.ordinary}) {
+            final request = (
+              scope: scope,
+              origin: SyncTrigger.manual,
+              strategy: strategy,
+            );
+            return ref
+                .read(accountSyncActivityProvider.notifier)
+                .request(
+                  request,
+                  (start) => start(() async {
+                    try {
+                      await manualSyncRunner(request);
+                      return SyncOutcome(request, SyncDisposition.completed);
+                    } on Object catch (error) {
+                      return SyncOutcome(
+                        request,
+                        SyncDisposition.failed,
+                        error: error,
+                      );
+                    }
+                  }),
+                );
+          },
+        ),
       signedInSyncRunnerProvider.overrideWithValue(
         signedInSyncRunner ?? (accountId, initial) async {},
       ),
@@ -618,26 +882,22 @@ Future<_AndroidSettingsHarness> _pumpAndroidSettings(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: localizedTestApp(child: const AndroidSettingsScreen()),
+      child: localizedTestApp(
+        child: workspaceSources
+            ? const AndroidScheduleScreen()
+            : AndroidSettingsScreen(category: category),
+      ),
     ),
   );
   await tester.pumpAndSettle();
+  if (openAccount &&
+      !workspaceSources &&
+      category == AndroidSettingsCategory.accounts) {
+    await tester.tap(find.byKey(const ValueKey('account-entry-google:g')));
+    await tester.pumpAndSettle();
+  }
   return _AndroidSettingsHarness(tester, container, database, accounts);
 }
-
-Future<void> _openAccountMenu(WidgetTester tester) async {
-  await tester.tap(find.byType(PopupMenuButton<String>).first);
-  await tester.pumpAndSettle();
-}
-
-List<String?> _popupValues(WidgetTester tester) => tester
-    .widgetList<PopupMenuItem<String>>(find.byType(PopupMenuItem<String>))
-    .map((item) => item.value)
-    .toList();
-
-Finder _popupEntry(String value) => find.byWidgetPredicate(
-  (widget) => widget is PopupMenuItem<String> && widget.value == value,
-);
 
 final class _AndroidSettingsHarness {
   const _AndroidSettingsHarness(

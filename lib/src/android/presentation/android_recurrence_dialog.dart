@@ -1,15 +1,17 @@
+import '../../features/recurrence/domain/recurrence_ordinal_choices.dart';
+import '../../l10n/localized_formatters.dart';
+import 'android_date_picker.dart';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
+import '../../features/recurrence/domain/recurrence_editing.dart';
 import '../../l10n/l10n.dart';
 
-enum _RecurrenceEnd { never, date, count }
-
 /// Material editor for the same provider-safe recurrence subset used on desktop.
-/// Unsupported source rules are shown as such and remain untouched until the
-/// user deliberately selects a new frequency.
+/// Unsupported source rules remain visible and locked.
 Future<RecurrenceRule?> showAndroidRecurrenceDialog(
   BuildContext context, {
   required RecurrenceRule initial,
@@ -18,13 +20,9 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
   required String? timeZone,
   required RecurrenceRuleLimits limits,
   required String providerLabel,
+  bool floating = false,
 }) {
   var rule = initial;
-  var end = rule.count != null
-      ? _RecurrenceEnd.count
-      : rule.untilRaw != null
-      ? _RecurrenceEnd.date
-      : _RecurrenceEnd.never;
   var until = DateTime.tryParse(rule.untilDateFor(timeZone: timeZone) ?? '');
   var intervalInputValid = true;
   var countInputValid = true;
@@ -33,11 +31,12 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) {
         final l10n = context.l10n;
+        final end = rule.endMode;
         final valid =
             rule.isSupported &&
             limits.supports(rule) &&
             intervalInputValid &&
-            countInputValid;
+            (end != RecurrenceEnd.count || countInputValid);
         return AlertDialog(
           title: Text(l10n.repeat),
           content: SizedBox(
@@ -76,13 +75,12 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                         ),
                     ],
                     onChanged: (frequency) {
-                      if (frequency == null) return;
+                      if (frequency == null ||
+                          (rule.isSupported && frequency == rule.frequency)) {
+                        return;
+                      }
                       setState(() {
-                        if (rule.isSupported && frequency == rule.frequency) {
-                          return;
-                        }
-                        rule = androidRuleForFrequency(frequency, baseDate);
-                        end = _RecurrenceEnd.never;
+                        rule = rule.withFrequency(frequency, baseDate);
                         intervalInputValid = true;
                         countInputValid = true;
                       });
@@ -100,7 +98,8 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                       onChanged: (text) {
                         final value = int.tryParse(text);
                         setState(() {
-                          intervalInputValid = value != null && value > 0;
+                          intervalInputValid =
+                              value != null && value > 0 && value <= 366;
                           if (intervalInputValid) {
                             rule = rule.copyWith(interval: value);
                           }
@@ -144,54 +143,193 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                         ],
                       ),
                     ],
+                    if (rule.frequency == RecurrenceFrequency.monthly ||
+                        rule.frequency == RecurrenceFrequency.yearly) ...[
+                      const SizedBox(height: 12),
+                      Text(l10n.repeatDayOfMonth),
+                      Wrap(
+                        spacing: 4,
+                        children: [
+                          for (var day = 1; day <= 31; day++)
+                            FilterChip(
+                              label: Text('$day'),
+                              selected: rule.byMonthDay.contains(day),
+                              onSelected: rule.bySetPosition != null
+                                  ? null
+                                  : (selected) => setState(() {
+                                      final days = limits.allowMultipleMonthDays
+                                          ? [...rule.byMonthDay]
+                                          : <int>[];
+                                      if (selected ||
+                                          !limits.allowMultipleMonthDays) {
+                                        days.add(day);
+                                      } else if (days.length > 1) {
+                                        days.remove(day);
+                                      }
+                                      days.sort();
+                                      rule = rule.copyWith(
+                                        byMonthDay: days,
+                                        byDay: const [],
+                                        bySetPosition: null,
+                                      );
+                                    }),
+                            ),
+                        ],
+                      ),
+                      DropdownButtonFormField<int>(
+                        isExpanded: true,
+                        key: ValueKey('ordinal-${rule.bySetPosition}'),
+                        initialValue: rule.bySetPosition ?? 0,
+                        decoration: InputDecoration(
+                          labelText: l10n.repeatOrdinal,
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 0,
+                            child: Text(l10n.repeatSpecificDays),
+                          ),
+                          for (final position in [1, 2, 3, 4, 5, -2, -1])
+                            if (limits.ordinalPositions.contains(position))
+                              DropdownMenuItem(
+                                value: position,
+                                child: Text(switch (position) {
+                                  1 => l10n.repeatFirst,
+                                  2 => l10n.repeatSecond,
+                                  3 => l10n.repeatThird,
+                                  4 => l10n.repeatFourth,
+                                  5 => l10n.repeatFifth,
+                                  -2 => l10n.repeatSecondToLast,
+                                  _ => l10n.repeatLast,
+                                }),
+                              ),
+                        ],
+                        onChanged: (position) => setState(() {
+                          rule = position == 0
+                              ? rule.copyWith(
+                                  bySetPosition: null,
+                                  byDay: const [],
+                                  byMonthDay: [baseDate.day],
+                                )
+                              : rule.copyWith(
+                                  bySetPosition: position,
+                                  byDay: rule.byDay.isEmpty
+                                      ? [rfcWeekdays[baseDate.weekday - 1]]
+                                      : rule.byDay,
+                                  byMonthDay: const [],
+                                  byMonth: rule.byMonth.length > 1
+                                      ? [rule.byMonth.first]
+                                      : rule.byMonth,
+                                );
+                        }),
+                      ),
+                      if (rule.bySetPosition != null)
+                        DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          key: ValueKey(
+                            'ordinal-days-${recurrenceOrdinalChoiceKey(rule.byDay)}',
+                          ),
+                          initialValue: recurrenceOrdinalChoiceKey(rule.byDay),
+                          decoration: InputDecoration(labelText: l10n.repeatOn),
+                          items: [
+                            for (final choice in recurrenceOrdinalChoices)
+                              DropdownMenuItem(
+                                value: choice.key,
+                                child: Text(switch (choice.key) {
+                                  'day' => l10n.repeatAnyDay,
+                                  'weekday' => l10n.repeatWeekday,
+                                  'weekend' => l10n.repeatWeekendDay,
+                                  _ => localizedWeekdayLabel(
+                                    Localizations.localeOf(context)
+                                        .toLanguageTag(),
+                                    DateTime(
+                                      2024,
+                                      1,
+                                      rfcWeekdays.indexOf(choice.key) + 1,
+                                    ),
+                                    abbreviated: false,
+                                  ),
+                                }),
+                              ),
+                          ],
+                          onChanged: (key) => setState(
+                            () => rule = rule.copyWith(
+                              byDay: recurrenceOrdinalChoices
+                                  .firstWhere((choice) => choice.key == key)
+                                  .days,
+                            ),
+                          ),
+                        ),
+                    ],
+                    if (rule.frequency == RecurrenceFrequency.yearly) ...[
+                      const SizedBox(height: 12),
+                      Text(l10n.repeatMonths),
+                      Wrap(
+                        spacing: 4,
+                        children: [
+                          for (var month = 1; month <= 12; month++)
+                            FilterChip(
+                              label: Text(
+                                DateFormat.MMM().format(DateTime(2024, month)),
+                              ),
+                              selected: rule.byMonth.contains(month),
+                              onSelected: (selected) => setState(() {
+                                final months =
+                                    limits.allowMultipleMonths &&
+                                        rule.bySetPosition == null
+                                    ? [...rule.byMonth]
+                                    : <int>[];
+                                if (selected || months.isEmpty) {
+                                  months.add(month);
+                                } else if (months.length > 1) {
+                                  months.remove(month);
+                                }
+                                months.sort();
+                                rule = rule.copyWith(byMonth: months);
+                              }),
+                            ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<_RecurrenceEnd>(
+                    DropdownButtonFormField<RecurrenceEnd>(
+                      key: const ValueKey('android-recurrence-end'),
                       isExpanded: true,
                       initialValue: end,
                       decoration: InputDecoration(labelText: l10n.repeatEnd),
                       items: [
                         DropdownMenuItem(
-                          value: _RecurrenceEnd.never,
+                          value: RecurrenceEnd.never,
                           child: Text(l10n.repeatNever),
                         ),
                         DropdownMenuItem(
-                          value: _RecurrenceEnd.date,
+                          value: RecurrenceEnd.until,
                           child: Text(l10n.repeatUntil),
                         ),
                         DropdownMenuItem(
-                          value: _RecurrenceEnd.count,
+                          value: RecurrenceEnd.count,
                           child: Text(l10n.repeatAfter),
                         ),
                       ],
                       onChanged: (selection) {
-                        if (selection == null) return;
+                        if (selection == null) {
+                          return;
+                        }
                         setState(() {
-                          end = selection;
                           countInputValid = true;
-                          rule = switch (selection) {
-                            _RecurrenceEnd.never => rule.copyWith(
-                              count: null,
-                              untilRaw: null,
-                            ),
-                            _RecurrenceEnd.date =>
-                              rule
-                                  .copyWith(count: null)
-                                  .withUntilDate(
-                                    _dateValue(until ?? baseDate),
-                                    allDay: allDay,
-                                    baseDate: baseDate,
-                                    timeZone: timeZone,
-                                  ),
-                            _RecurrenceEnd.count => rule.copyWith(
-                              count: rule.count ?? 10,
-                              untilRaw: null,
-                            ),
-                          };
+                          rule = rule.withEndMode(
+                            selection,
+                            baseDate: baseDate,
+                            allDay: allDay,
+                            timeZone: timeZone,
+                            floating: floating,
+                            defaultUntil: _dateValue(until ?? baseDate),
+                          );
                         });
                       },
                     ),
-                    if (end == _RecurrenceEnd.date)
+                    if (end == RecurrenceEnd.until)
                       TextButton.icon(
+                        key: const ValueKey('android-recurrence-until'),
                         icon: const Icon(Icons.calendar_today_outlined),
                         label: Text(
                           DateFormat.yMd(
@@ -199,7 +337,7 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                           ).format(until ?? baseDate),
                         ),
                         onPressed: () async {
-                          final date = await showDatePicker(
+                          final date = await showBusyMaxDatePicker(
                             context: context,
                             initialDate: (until ?? baseDate).isBefore(baseDate)
                                 ? baseDate
@@ -207,19 +345,22 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                             firstDate: baseDate,
                             lastDate: DateTime(9999, 12, 31),
                           );
-                          if (date == null) return;
+                          if (date == null) {
+                            return;
+                          }
                           setState(() {
                             until = date;
                             rule = rule.withUntilDate(
                               _dateValue(date),
                               allDay: allDay,
+                              floating: floating,
                               baseDate: baseDate,
                               timeZone: timeZone,
                             );
                           });
                         },
                       ),
-                    if (end == _RecurrenceEnd.count)
+                    if (end == RecurrenceEnd.count)
                       TextFormField(
                         key: ValueKey(
                           'android-recurrence-count-${rule.frequency}',
@@ -232,7 +373,8 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                         onChanged: (text) {
                           final value = int.tryParse(text);
                           setState(() {
-                            countInputValid = value != null && value > 0;
+                            countInputValid =
+                                value != null && value > 0 && value <= 3500;
                             if (countInputValid) {
                               rule = rule.copyWith(count: value);
                             }
@@ -268,22 +410,6 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
     ),
   );
 }
-
-RecurrenceRule androidRuleForFrequency(
-  RecurrenceFrequency frequency,
-  DateTime base,
-) => const RecurrenceRule.none().copyWith(
-  frequency: frequency,
-  byDay: frequency == RecurrenceFrequency.weekly
-      ? [rfcWeekdays[base.weekday - 1]]
-      : const [],
-  byMonthDay:
-      frequency == RecurrenceFrequency.monthly ||
-          frequency == RecurrenceFrequency.yearly
-      ? [base.day]
-      : const [],
-  byMonth: frequency == RecurrenceFrequency.yearly ? [base.month] : const [],
-);
 
 String _dateValue(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';

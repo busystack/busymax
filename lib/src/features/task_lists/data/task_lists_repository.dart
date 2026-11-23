@@ -1,3 +1,5 @@
+import '../../../providers/busy_provider.dart';
+
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -192,7 +194,7 @@ class TaskListsRepository {
       return;
     }
     await _database.transaction(() async {
-      final current = await _baselineRow(id);
+      final current = await _requireMutableList(id);
       await _updateLocalList(
         id,
         TaskListsCompanion(
@@ -205,8 +207,8 @@ class TaskListsRepository {
         operation: 'patch_task_list',
         taskListId: id,
         request: {'title': title},
-        baselineUpdatedUtc: current?.updatedUtc,
-        baselineRawJson: current?.rawJson,
+        baselineUpdatedUtc: current.updatedUtc,
+        baselineRawJson: current.rawJson,
         createdAtUtc: now,
       );
     });
@@ -263,7 +265,7 @@ class TaskListsRepository {
       return;
     }
     await _database.transaction(() async {
-      final current = await _baselineRow(id);
+      final current = await _requireMutableList(id);
       final childTaskBaselines = await _childTaskConflictBaselines(id);
       final taskOperations = await (_database.select(
         _database.pendingOps,
@@ -286,8 +288,8 @@ class TaskListsRepository {
               if (taskOperationTouchesList(operation, id)) operation.id,
           ],
         },
-        baselineUpdatedUtc: current?.updatedUtc,
-        baselineRawJson: current?.rawJson,
+        baselineUpdatedUtc: current.updatedUtc,
+        baselineRawJson: current.rawJson,
         createdAtUtc: now,
       );
     });
@@ -399,6 +401,21 @@ class TaskListsRepository {
           _database.taskLists,
         )..where((row) => row.accountId.equals(_accountId) & row.id.equals(id)))
         .getSingleOrNull();
+  }
+
+  Future<TaskList> _requireMutableList(String id) async {
+    final list = await _baselineRow(id);
+    if (list == null || list.pendingDelete || list.serverMissing) {
+      throw StateError('The task list is unavailable.');
+    }
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(_accountId))).getSingle();
+    if (account.provider == BusyProvider.microsoft.storageValue &&
+        !TaskListEntity.fromRow(list).canRenameOrDeleteForMicrosoft) {
+      throw UnsupportedError('The task list cannot be renamed or removed.');
+    }
+    return list;
   }
 
   Future<Map<String, Object?>> _childTaskConflictBaselines(

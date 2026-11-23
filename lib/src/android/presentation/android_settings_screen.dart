@@ -1,7 +1,23 @@
+import '../../features/settings/presentation/account_sync_status.dart';
+import '../../features/settings/presentation/account_settings_feedback.dart';
+import '../../features/sync/sync_request.dart';
+import 'android_sync_feedback.dart';
+import '../../features/sync/sync_activity_icon.dart';
+import '../../l10n/ical_import_report_description.dart';
+import '../../schedule/schedule_task_list_actions.dart';
+import '../../features/auth/application/account_connection.dart';
+import '../../features/auth/application/account_removal.dart';
+import '../../webcal/webcal_uri.dart';
+import '../../schedule/schedule_creation_destinations.dart';
+import '../../schedule/schedule_projection.dart';
+import '../../features/schedule/presentation/schedule_event_details_format.dart';
+import '../../calendar_providers/calendar_mutation.dart';
+import '../../schedule/schedule_provider_links.dart';
+import 'android_nextcloud_collection_screen.dart';
+import '../../l10n/time_format_scope.dart';
 export '../android_local_network_access.dart'
     show isAndroidLocalNetworkHost, requiresAndroidLocalNetworkAccess;
 import '../android_local_network_access.dart';
-import '../../features/sync/all_accounts_sync_scheduler.dart';
 import 'android_nextcloud_certificate_dialog.dart';
 import '../../ui/common/nextcloud_certificate_review.dart';
 import 'android_contacts_settings.dart';
@@ -24,17 +40,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_colors.dart';
-import '../../core/auth/oauth_models.dart';
 import '../../dav/dav_errors.dart';
 import '../../dav/auth/caldav_material_dialog.dart';
 import '../../dav/http/dav_http_transport.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
+import '../../dav/nextcloud/nextcloud_collection_controller.dart';
 import '../../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
+import '../../dav/nextcloud/nextcloud_trash_session.dart';
 import '../../dav/nextcloud/nextcloud_federation_controller.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../features/accounts/data/accounts_repository.dart';
@@ -47,24 +63,154 @@ import '../../features/sync/sync_auth_error.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
 import '../../ical/ical_import_service.dart';
+import '../../ical/ical_import_session.dart';
 import '../../ical/ical_ingestion.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/week_preferences_scope.dart';
 import '../../providers/busy_provider.dart';
 import '../../webcal/webcal_subscription_service.dart';
-import '../android_background.dart';
 import '../android_notifications.dart';
 import 'android_diagnostics_screen.dart';
-import 'android_feedback_screen.dart';
 import 'android_nextcloud_scheduling_screen.dart';
+
+part 'android_source_actions.dart';
+
+enum AndroidSettingsCategory {
+  system,
+  accounts,
+  schedule,
+  notifications,
+  privacy,
+  diagnostics,
+}
+
+String androidSettingsCategoryLabel(
+  BuildContext context,
+  AndroidSettingsCategory category,
+) => switch (category) {
+  AndroidSettingsCategory.system => context.l10n.settingsSystem,
+  AndroidSettingsCategory.accounts => context.l10n.accounts,
+  AndroidSettingsCategory.schedule => context.l10n.scheduleSection,
+  AndroidSettingsCategory.notifications => context.l10n.notifications,
+  AndroidSettingsCategory.privacy => context.l10n.privacy,
+  AndroidSettingsCategory.diagnostics => context.l10n.diagnostics,
+};
+
+class _AndroidSettingsCategories extends StatelessWidget {
+  const _AndroidSettingsCategories({
+    required this.category,
+    required this.sections,
+    required this.onOpen,
+  });
+  final AndroidSettingsCategory category;
+  final Map<AndroidSettingsCategory, List<Widget>> sections;
+  final ValueChanged<AndroidSettingsCategory> onOpen;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final content = ListView(
+        key: PageStorageKey(category),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 48),
+        children: sections[category] ?? const [],
+      );
+      if (constraints.maxWidth >= 760) {
+        return Row(
+          children: [
+            SizedBox(
+              width: 220,
+              child: ListView(
+                children: [
+                  for (final value in AndroidSettingsCategory.values)
+                    ListTile(
+                      selected: value == category,
+                      title: Text(androidSettingsCategoryLabel(context, value)),
+                      onTap: () => onOpen(value),
+                    ),
+                ],
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: content),
+          ],
+        );
+      }
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: DropdownButtonFormField<AndroidSettingsCategory>(
+              key: ValueKey('android-settings-category-${category.name}'),
+              isExpanded: true,
+              initialValue: category,
+              decoration: InputDecoration(labelText: context.l10n.settings),
+              items: [
+                for (final value in AndroidSettingsCategory.values)
+                  DropdownMenuItem(
+                    value: value,
+                    child: Text(androidSettingsCategoryLabel(context, value)),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  onOpen(value);
+                }
+              },
+            ),
+          ),
+          Expanded(child: content),
+        ],
+      );
+    },
+  );
+}
+
+Future<void> refreshAndroidAccounts(
+  BuildContext context,
+  WidgetRef ref, {
+  SyncStrategy strategy = SyncStrategy.ordinary,
+}) async {
+  final runner = ref.read(manualSyncRunnerProvider);
+  final activity = ref.read(accountSyncActivityProvider.notifier);
+  if (activity.busy(allSyncScope)) return;
+  final accounts = await ref
+      .read(accountsRepositoryProvider)
+      .listSyncEligibleAccounts();
+  final allowed = <AccountEntity>[];
+  for (final account in accounts) {
+    if (!context.mounted) return;
+    if (!account.provider.isDav ||
+        await ensureAndroidLocalNetworkAccess(context, account.authority)) {
+      allowed.add(account);
+    }
+  }
+  if (!context.mounted) return;
+  if (allowed.length == accounts.length) {
+    if (strategy == SyncStrategy.ordinary) {
+      await refreshFromAndroid(context, ref, allSyncScope);
+    } else {
+      await runner(allSyncScope, strategy: strategy);
+    }
+  } else if (allowed.isNotEmpty && !activity.busy(allSyncScope)) {
+    await activity.resource(
+      [allSyncScope],
+      () => Future.wait([
+        for (final account in allowed)
+          runner(accountSyncScope(account.id), strategy: strategy),
+      ]),
+      resolveFailure: false,
+    );
+  }
+}
 
 class AndroidSettingsScreen extends ConsumerStatefulWidget {
   const AndroidSettingsScreen({
     super.key,
+    this.category,
     this.notificationAccountId,
     this.notificationConflicts = false,
   });
+  final AndroidSettingsCategory? category;
   final String? notificationAccountId;
   final bool notificationConflicts;
 
@@ -74,6 +220,11 @@ class AndroidSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
+  late AndroidSettingsCategory _selectedCategory =
+      widget.category ??
+      (widget.notificationConflicts
+          ? AndroidSettingsCategory.diagnostics
+          : AndroidSettingsCategory.system);
   @override
   void dispose() {
     _authorizationCancellation?.cancel();
@@ -81,7 +232,6 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     super.dispose();
   }
 
-  bool _syncing = false;
   BusyProvider? _connecting;
   AuthorizationCancellation? _authorizationCancellation;
   AuthorizationCancellation? _sharedConsentCancellation;
@@ -89,805 +239,1198 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final accounts =
-        ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
-    final sources =
-        ref.watch(calendarSourcesStreamProvider).valueOrNull ?? const [];
-    final lists = ref.watch(scheduleTaskListsProvider).valueOrNull ?? const [];
+    final allAccounts = ref.watch(accountManagementStreamProvider);
+    final accounts = (allAccounts.valueOrNull ?? const <AccountEntity>[])
+        .where(
+          (account) =>
+              widget.notificationAccountId == null ||
+              account.id == widget.notificationAccountId,
+        )
+        .toList();
+    final sourceState = ref.watch(calendarSourcesStreamProvider);
+    final listState = ref.watch(scheduleTaskListsProvider);
+    final sources = (sourceState.valueOrNull ?? const <CalendarSourceEntity>[])
+        .where(
+          (source) =>
+              widget.notificationAccountId == null ||
+              source.accountId == widget.notificationAccountId,
+        )
+        .toList();
+    final lists = (listState.valueOrNull ?? const <TaskListEntity>[])
+        .where(
+          (list) =>
+              widget.notificationAccountId == null ||
+              list.accountId == widget.notificationAccountId,
+        )
+        .toList();
     final subscriptions =
         ref.watch(webCalSubscriptionsProvider).valueOrNull ?? const [];
     final conflicts =
         ref.watch(davConflictsStreamProvider).valueOrNull ?? const [];
     final settings = ref.watch(appSettingsControllerProvider);
 
+    final category = _selectedCategory;
     return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.settings)),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
+      appBar: AppBar(
+        title: Text(
+          widget.notificationAccountId != null
+              ? accounts.firstOrNull?.displayLabel ?? context.l10n.accounts
+              : context.l10n.settings,
+        ),
+      ),
+      body: Column(
         children: [
-          if (widget.notificationConflicts)
-            _Section(
-              title: context.l10n.syncConflicts,
-              children: [
-                for (final conflict in conflicts.where(
-                  (conflict) =>
-                      widget.notificationAccountId == null ||
-                      conflict.accountId == widget.notificationAccountId,
-                ))
-                  ListTile(
-                    leading: const Icon(Icons.warning_amber),
-                    title: Text(conflict.itemTitle),
-                    subtitle: Text(
-                      '${conflict.accountLabel} · ${conflict.collectionName}',
-                    ),
-                    onTap: () => unawaited(_resolveConflict(conflict)),
+          if (ref.watch(appSettingsPersistenceFailedProvider))
+            MaterialBanner(
+              content: Text(context.l10n.settingsSaveFailed),
+              actions: [
+                TextButton(
+                  onPressed: () => unawaited(
+                    ref
+                        .read(appSettingsControllerProvider.notifier)
+                        .retrySave(),
                   ),
-                ListTile(
-                  title: Text(context.l10n.blockedPendingOperations),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) => AndroidDiagnosticsScreen(
-                        accountId: widget.notificationAccountId,
-                      ),
-                    ),
-                  ),
+                  child: Text(context.l10n.retry),
                 ),
               ],
             ),
-          const AndroidContactsSettings(),
-          _Section(
-            title: context.l10n.accounts,
-            children: [
-              if (accounts.isEmpty)
-                ListTile(
-                  leading: const Icon(Icons.account_circle_outlined),
-                  title: Text(context.l10n.providerConnectionDescription),
-                ),
-              for (final account in accounts.where(
-                (account) =>
-                    widget.notificationAccountId == null ||
-                    account.id == widget.notificationAccountId,
-              )) ...[
-                if (account.provider.isDav &&
-                    ref
-                        .watch(
-                          accountCollectionCreationFailuresProvider(account.id),
-                        )
-                        .isNotEmpty)
-                  AccountCollectionCreationFeedback(
-                    accountId: account.id,
-                    dismissButtonBuilder: (_, onPressed, label) =>
-                        TextButton(onPressed: onPressed, child: Text(label)),
-                  ),
-                if (account.provider == BusyProvider.microsoft ||
-                    account.provider == BusyProvider.google)
-                  _AndroidRegistrationCard(
-                    account: account,
-                    onMigrate: () => _connect(account.provider, account, true),
-                  ),
-                ListTile(
-                  leading: Icon(_providerIcon(account.provider)),
-                  title: Text(account.displayLabel),
-                  subtitle: Text(
-                    account.provider == BusyProvider.nextcloud &&
-                            (ref
-                                        .watch(
-                                          nextcloudPendingInvitationCountProvider(
-                                            account.id,
-                                          ),
-                                        )
-                                        .valueOrNull ??
-                                    0) >
-                                0
-                        ? '${_accountSubtitle(account)} • ${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})'
-                        : _accountSubtitle(account),
-                  ),
-                  trailing: _removing.contains(account.id)
-                      ? const SizedBox.square(
-                          dimension: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'sync') {
-                              unawaited(_syncAccount(account.id));
-                            } else if (value == 'migrate') {
-                              unawaited(
-                                _connect(account.provider, account, true),
-                              );
-                            } else if (value == 'reconnect') {
-                              unawaited(_connect(account.provider, account));
-                            } else if (value == 'remove') {
-                              unawaited(_removeAccount(account));
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            if (account.isSyncEligible)
-                              PopupMenuItem(
-                                value: 'sync',
-                                child: Text(context.l10n.sync),
+          Expanded(
+            child:
+                widget.notificationAccountId != null &&
+                    !widget.notificationConflicts &&
+                    accounts.isNotEmpty
+                ? _accountDetails(accounts.first, sources, lists)
+                : _AndroidSettingsCategories(
+                    category: category,
+                    onOpen: (category) =>
+                        setState(() => _selectedCategory = category),
+                    sections: {
+                      AndroidSettingsCategory.system: [
+                        _Section(
+                          title: context.l10n.appearance,
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.palette_outlined),
+                              title: Text(context.l10n.theme),
+                              subtitle:
+                                  DropdownButton<BusyMaxThemeModePreference>(
+                                    isExpanded: true,
+                                    value: settings.themeModePreference,
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        unawaited(
+                                          ref
+                                              .read(
+                                                appSettingsControllerProvider
+                                                    .notifier,
+                                              )
+                                              .setThemeModePreference(value),
+                                        );
+                                      }
+                                    },
+                                    items: [
+                                      DropdownMenuItem(
+                                        value:
+                                            BusyMaxThemeModePreference.system,
+                                        child: Text(context.l10n.themeSystem),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: BusyMaxThemeModePreference.light,
+                                        child: Text(context.l10n.themeLight),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: BusyMaxThemeModePreference.dark,
+                                        child: Text(context.l10n.themeDark),
+                                      ),
+                                    ],
+                                  ),
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.language),
+                              title: Text(context.l10n.currentLocale),
+                              subtitle: DropdownButton<String>(
+                                isExpanded: true,
+                                value: settings.localeTag ?? 'system',
+                                onChanged: (value) => unawaited(
+                                  ref
+                                      .read(
+                                        appSettingsControllerProvider.notifier,
+                                      )
+                                      .setLocaleTag(
+                                        value == 'system' ? null : value,
+                                      ),
+                                ),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: 'system',
+                                    child: Text(context.l10n.themeSystem),
+                                  ),
+                                  for (final option in busyMaxLocaleOptions)
+                                    DropdownMenuItem(
+                                      value: option.tag,
+                                      child: Text(option.endonym),
+                                    ),
+                                ],
                               ),
-                            if (account.provider == BusyProvider.microsoft)
-                              PopupMenuItem(
-                                value: 'migrate',
-                                child: Text(context.l10n.registrationReplace),
-                              ),
-                            if (account.provider == BusyProvider.google ||
-                                account.provider == BusyProvider.microsoft ||
-                                account.needsReconnect)
-                              PopupMenuItem(
-                                value: 'reconnect',
-                                child: Text(context.l10n.reconnectAccount),
-                              ),
-                            PopupMenuItem(
-                              value: 'remove',
-                              child: Text(context.l10n.removeAccount),
                             ),
                           ],
                         ),
-                ),
-              ],
-              const Divider(height: 1),
-              if (_connecting != null)
-                ListTile(
-                  leading: const Icon(Icons.cancel_outlined),
-                  title: Text(context.l10n.cancelAccountConnection),
-                  onTap: () {
-                    _authorizationCancellation?.cancel();
-                    setState(() => _connecting = null);
-                  },
-                ),
-              _AccountButtons(
-                connecting: _connecting,
-                onConnect: (provider) => unawaited(_connect(provider)),
-              ),
-            ],
-          ),
-          _Section(
-            title: context.l10n.collectionSettings,
-            children: [
-              if (accounts.any(
-                (account) =>
-                    account.isSignedIn &&
-                    account.calendarsEnabled &&
-                    accountCollectionCreationModes(account.provider)
-                            .calendarMode !=
-                        CalendarCollectionCreationMode.unavailable,
-              ))
-                ListTile(
-                  leading: const Icon(Icons.add_box_outlined),
-                  title: Text(context.l10n.newCalendar),
-                  onTap: () =>
-                      unawaited(_createCollection(accounts, calendar: true)),
-                ),
-              for (final account in accounts)
-                if (account.provider == BusyProvider.microsoft &&
-                    account.isSignedIn)
-                  ListTile(
-                    leading: const Icon(Icons.people_outline),
-                    title: Text(context.l10n.openSharedCalendar),
-                    subtitle: Text(
-                      account.displayName ?? account.email ?? account.id,
-                    ),
-                    onTap: () => unawaited(_openSharedCalendar(account.id)),
-                  ),
-              for (final account in accounts)
-                if (account.isSignedIn &&
-                    sources.any(
-                      (source) =>
-                          source.accountId == account.id &&
-                          CloudCalendarSharingService.canManageSource(source),
-                    ))
-                  ListTile(
-                    key: Key('android-manage-sharing-${account.id}'),
-                    leading: const Icon(Icons.people_outline),
-                    title: Text(context.l10n.manageCalendarSharing),
-                    subtitle: Text(account.displayLabel),
-                    onTap: () => unawaited(
-                      _manageCalendarSharing(
-                        sources
-                            .where(
-                              (source) =>
-                                  source.accountId == account.id &&
-                                  CloudCalendarSharingService.canManageSource(
-                                    source,
+                      ],
+                      AndroidSettingsCategory.accounts: [
+                        if (widget.notificationAccountId == null)
+                          ListTile(
+                            title: Text(context.l10n.refreshAll),
+                            leading: const SyncActivityIcon(
+                              scope: allSyncScope,
+                              refresh: Icon(Icons.refresh),
+                              warning: Icon(Icons.warning_amber_rounded),
+                              child: Icon(Icons.refresh),
+                            ),
+                            onTap: () => unawaited(_syncAll()),
+                          ),
+                        _Section(
+                          title: context.l10n.addAccount,
+                          children: [
+                            if (_connecting != null)
+                              ListTile(
+                                title: Text(
+                                  context.l10n.cancelAccountConnection,
+                                ),
+                                onTap: () {
+                                  _authorizationCancellation?.cancel();
+                                  setState(() => _connecting = null);
+                                },
+                              ),
+                            _AccountButtons(
+                              connecting: _connecting,
+                              onConnect: (provider) =>
+                                  unawaited(_connect(provider)),
+                            ),
+                          ],
+                        ),
+                        _Section(
+                          title: context.l10n.accounts,
+                          children: [
+                            if (allAccounts.isLoading)
+                              const LinearProgressIndicator(),
+                            if (allAccounts.hasError)
+                              ListTile(
+                                title: Text(context.l10n.collectionsLoadFailed),
+                                trailing: TextButton(
+                                  onPressed: () => ref.invalidate(
+                                    accountManagementStreamProvider,
                                   ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ),
-              if (accounts.any(
-                (account) =>
-                    account.isSignedIn &&
-                    account.tasksEnabled &&
-                    accountCollectionCreationModes(account.provider)
-                            .taskListMode !=
-                        TaskListCreationMode.unavailable,
-              ))
-                ListTile(
-                  leading: const Icon(Icons.playlist_add),
-                  title: Text(context.l10n.newTaskList),
-                  onTap: () =>
-                      unawaited(_createCollection(accounts, calendar: false)),
-                ),
-              if (sources.isEmpty && lists.isEmpty)
-                ListTile(title: Text(context.l10n.noCalendarsSynced)),
-              for (final source in sources)
-                ListTile(
-                  leading: const Icon(Icons.calendar_today_outlined),
-                  title: Text(source.summary),
-                  subtitle: Text(source.provider.displayName),
-                  trailing: Switch(
-                    value: source.selected,
-                    onChanged: (value) => unawaited(
-                      ref
-                          .read(calendarRepositoryProvider)
-                          .setSourceSelected(source.id, value),
-                    ),
-                  ),
-                  onTap: () => unawaited(_editCalendarSource(source)),
-                ),
-              for (final list in lists)
-                ListTile(
-                  leading: const Icon(Icons.checklist_outlined),
-                  title: Text(list.title),
-                  subtitle: Text(context.l10n.showInSchedule),
-                  trailing: Switch(
-                    value: settings.isTaskListVisibleInSchedule(
-                      list.accountId,
-                      list.id,
-                    ),
-                    onChanged: (value) => unawaited(
-                      ref
-                          .read(appSettingsControllerProvider.notifier)
-                          .setTaskListVisibleInSchedule(
-                            accountId: list.accountId,
-                            taskListId: list.id,
-                            visible: value,
-                          ),
-                    ),
-                  ),
-                  onTap: () => unawaited(_editTaskList(list, accounts)),
-                ),
-              for (final collection
-                  in ref.watch(davCollectionsStreamProvider).valueOrNull ??
-                      const [])
-                if (collection.provider == BusyProvider.caldav &&
-                    (collection.supportsEvents || collection.supportsTasks))
-                  ListTile(
-                    leading: const Icon(Icons.tune_outlined),
-                    title: Text(collection.name),
-                    subtitle: Text(
-                      collection.capabilities.permissionsKnown
-                          ? context.l10n.collectionSettings
-                          : context.l10n.davPermissionsUnknown,
-                    ),
-                    onTap: () => _selectCalDavCollection(collection.id),
-                  ),
-              for (final account in accounts.where(
-                (a) =>
-                    a.provider == BusyProvider.nextcloud ||
-                    a.provider == BusyProvider.caldav,
-              ))
-                ListTile(
-                  leading: const Icon(Icons.verified_user_outlined),
-                  title: Text(context.l10n.privateServerCertificates),
-                  subtitle: Text(account.displayLabel),
-                  onTap: () => manageNextcloudCertificates(
-                    ref,
-                    account.id,
-                    (data) => mounted
-                        ? showAndroidNextcloudCertificate(context, data)
-                        : Future.value(null),
-                  ),
-                ),
-              for (final account in accounts.where(
-                (account) => account.provider == BusyProvider.nextcloud,
-              ))
-                ListTile(
-                  leading: const Icon(Icons.delete_sweep_outlined),
-                  title: Text(context.l10n.nextcloudTrash),
-                  subtitle: Text(account.displayLabel),
-                  onTap: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          AndroidNextcloudTrashScreen(accountId: account.id),
-                    ),
-                  ),
-                ),
-              for (final account in accounts.where(
-                (account) =>
-                    account.provider == BusyProvider.nextcloud &&
-                    ref.watch(nextcloudFederationAvailableProvider(account.id)),
-              ))
-                ListTile(
-                  leading: const Icon(Icons.mark_email_unread_outlined),
-                  title: Text(
-                    '${context.l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(account.id)).valueOrNull ?? 0})',
-                  ),
-                  subtitle: Text(account.displayLabel),
-                  onTap: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) => AndroidNextcloudFederationScreen(
-                        accountId: account.id,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          _Section(
-            title: context.l10n.calendarSubscriptions,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.add_link),
-                title: Text(context.l10n.addCalendarSubscription),
-                subtitle: Text(context.l10n.calendarSubscriptionsDescription),
-                onTap: () => unawaited(_addSubscription()),
-              ),
-              for (final subscription in subscriptions)
-                ListTile(
-                  leading: const Icon(Icons.public),
-                  title: Text(subscription.name),
-                  subtitle: Text(
-                    subscription.lastFailureCode == null
-                        ? context.l10n.subscriptionSafeOrigin(
-                            subscription.safeOrigin,
-                          )
-                        : context.l10n.subscriptionStatusIssue(
-                            subscription.lastFailureCode!,
-                          ),
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) =>
-                        unawaited(_subscriptionAction(subscription, value)),
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'refresh',
-                        child: Text(context.l10n.refreshNow),
-                      ),
-                      PopupMenuItem(
-                        value: 'rename',
-                        child: Text(context.l10n.rename),
-                      ),
-                      PopupMenuItem(
-                        value: 'remove',
-                        child: Text(context.l10n.unsubscribe),
-                      ),
-                    ],
-                  ),
-                ),
-              ListTile(
-                leading: const Icon(Icons.file_open_outlined),
-                title: Text(context.l10n.importIcsFile),
-                subtitle: Text(context.l10n.calendarImportDescription),
-                onTap: () => unawaited(showAndroidIcsImport(context, ref)),
-              ),
-            ],
-          ),
-          _Section(
-            title: context.l10n.appearance,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.palette_outlined),
-                title: Text(context.l10n.theme),
-                trailing: DropdownButton<BusyMaxThemeModePreference>(
-                  value: settings.themeModePreference,
-                  onChanged: (value) {
-                    if (value != null) {
-                      unawaited(
-                        ref
-                            .read(appSettingsControllerProvider.notifier)
-                            .setThemeModePreference(value),
-                      );
-                    }
-                  },
-                  items: [
-                    DropdownMenuItem(
-                      value: BusyMaxThemeModePreference.system,
-                      child: Text(context.l10n.themeSystem),
-                    ),
-                    DropdownMenuItem(
-                      value: BusyMaxThemeModePreference.light,
-                      child: Text(context.l10n.themeLight),
-                    ),
-                    DropdownMenuItem(
-                      value: BusyMaxThemeModePreference.dark,
-                      child: Text(context.l10n.themeDark),
-                    ),
-                  ],
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.language),
-                title: Text(context.l10n.currentLocale),
-                trailing: DropdownButton<String>(
-                  value: settings.localeTag ?? 'system',
-                  onChanged: (value) => unawaited(
-                    ref
-                        .read(appSettingsControllerProvider.notifier)
-                        .setLocaleTag(value == 'system' ? null : value),
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: 'system',
-                      child: Text(context.l10n.themeSystem),
-                    ),
-                    for (final option in busyMaxLocaleOptions)
-                      DropdownMenuItem(
-                        value: option.tag,
-                        child: Text(option.endonym),
-                      ),
-                  ],
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.schedule),
-                title: Text(context.l10n.timeFormat),
-                trailing: DropdownButton<BusyMaxTimeFormatPreference>(
-                  value: settings.timeFormatPreference,
-                  onChanged: (value) {
-                    if (value != null) {
-                      unawaited(
-                        ref
-                            .read(appSettingsControllerProvider.notifier)
-                            .setTimeFormatPreference(value),
-                      );
-                    }
-                  },
-                  items: [
-                    DropdownMenuItem(
-                      value: BusyMaxTimeFormatPreference.system,
-                      child: Text(context.l10n.themeSystem),
-                    ),
-                    DropdownMenuItem(
-                      value: BusyMaxTimeFormatPreference.twelveHour,
-                      child: Text(context.l10n.timeFormatTwelveHour),
-                    ),
-                    DropdownMenuItem(
-                      value: BusyMaxTimeFormatPreference.twentyFourHour,
-                      child: Text(context.l10n.timeFormatTwentyFourHour),
-                    ),
-                  ],
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.calendar_view_week_outlined),
-                title: Text(context.l10n.firstDayOfWeek),
-                subtitle: DropdownButtonHideUnderline(
-                  child: DropdownButton<BusyMaxFirstDayOfWeekPreference>(
-                    isExpanded: true,
-                    value: settings.firstDayOfWeekPreference,
-                    onChanged: (value) {
-                      if (value != null) {
-                        unawaited(
-                          ref
-                              .read(appSettingsControllerProvider.notifier)
-                              .setFirstDayOfWeekPreference(value),
-                        );
-                      }
+                                  child: Text(context.l10n.retry),
+                                ),
+                              ),
+                            for (final account in accounts.where(
+                              (a) => !a.isSubscription,
+                            ))
+                              ListTile(
+                                key: ValueKey('account-entry-${account.id}'),
+                                leading: Icon(_providerIcon(account.provider)),
+                                title: Text(account.displayLabel),
+                                subtitle: Text(_accountSubtitle(account)),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => Navigator.of(context).push<void>(
+                                  MaterialPageRoute(
+                                    builder: (_) => AndroidSettingsScreen(
+                                      notificationAccountId: account.id,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const AndroidContactsSettings(),
+                        _Section(
+                          title: context.l10n.importIcsFile,
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.file_open_outlined),
+                              title: Text(context.l10n.importIcsFile),
+                              subtitle: Text(
+                                context.l10n.calendarImportDescription,
+                              ),
+                              onTap: () =>
+                                  unawaited(showAndroidIcsImport(context, ref)),
+                            ),
+                          ],
+                        ),
+                        _Section(
+                          title: context.l10n.calendarSubscriptions,
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.add_link),
+                              title: Text(context.l10n.addCalendarSubscription),
+                              subtitle: Text(
+                                context.l10n.calendarSubscriptionsDescription,
+                              ),
+                              onTap: () => unawaited(_addSubscription()),
+                            ),
+                            for (final subscription in subscriptions)
+                              ListTile(
+                                leading: Icon(
+                                  Icons.public,
+                                  color: _subscriptionColor(subscription),
+                                ),
+                                title: Text(subscription.name),
+                                subtitle: Text(
+                                  [
+                                    context.l10n.subscriptionSafeOrigin(
+                                      subscription.safeOrigin,
+                                    ),
+                                    context.l10n.subscriptionReadOnly,
+                                    subscription.lastSuccessfulSyncAtUtc == null
+                                        ? context.l10n.syncNoRecord
+                                        : context.l10n.subscriptionLastRefresh(
+                                            DateFormat.yMd().add_Hm().format(
+                                              subscription
+                                                  .lastSuccessfulSyncAtUtc!
+                                                  .toLocal(),
+                                            ),
+                                          ),
+                                    context.l10n.subscriptionNextRefresh(
+                                      DateFormat.yMd().add_Hm().format(
+                                        subscription.nextRefreshAtUtc.toLocal(),
+                                      ),
+                                    ),
+                                    if (subscription.lastFailureCode != null)
+                                      context.l10n.subscriptionStatusIssue(
+                                        subscription.lastFailureCode!,
+                                      ),
+                                  ].join('\n'),
+                                ),
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (value) => unawaited(
+                                    _subscriptionAction(subscription, value),
+                                  ),
+                                  itemBuilder: (context) => [
+                                    PopupMenuItem(
+                                      value: 'refresh',
+                                      child: Text(context.l10n.refreshNow),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'color',
+                                      child: Text(
+                                        context.l10n.subscriptionColor,
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'frequency',
+                                      child: Text(
+                                        context.l10n.subscriptionRefreshMode,
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'rename',
+                                      child: Text(context.l10n.rename),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'remove',
+                                      child: Text(context.l10n.unsubscribe),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                      AndroidSettingsCategory.schedule: [
+                        _Section(
+                          title: context.l10n.scheduleSection,
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.schedule),
+                              title: Text(context.l10n.timeFormat),
+                              subtitle:
+                                  DropdownButton<BusyMaxTimeFormatPreference>(
+                                    isExpanded: true,
+                                    value: settings.timeFormatPreference,
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        unawaited(
+                                          ref
+                                              .read(
+                                                appSettingsControllerProvider
+                                                    .notifier,
+                                              )
+                                              .setTimeFormatPreference(value),
+                                        );
+                                      }
+                                    },
+                                    items: [
+                                      DropdownMenuItem(
+                                        value:
+                                            BusyMaxTimeFormatPreference.system,
+                                        child: Text(context.l10n.themeSystem),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: BusyMaxTimeFormatPreference
+                                            .twelveHour,
+                                        child: Text(
+                                          context.l10n.timeFormatTwelveHour,
+                                        ),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: BusyMaxTimeFormatPreference
+                                            .twentyFourHour,
+                                        child: Text(
+                                          context.l10n.timeFormatTwentyFourHour,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                            ),
+                            ListTile(
+                              leading: const Icon(
+                                Icons.calendar_view_week_outlined,
+                              ),
+                              title: Text(context.l10n.firstDayOfWeek),
+                              subtitle: DropdownButtonHideUnderline(
+                                child:
+                                    DropdownButton<
+                                      BusyMaxFirstDayOfWeekPreference
+                                    >(
+                                      isExpanded: true,
+                                      value: settings.firstDayOfWeekPreference,
+                                      onChanged: (value) {
+                                        if (value != null) {
+                                          unawaited(
+                                            ref
+                                                .read(
+                                                  appSettingsControllerProvider
+                                                      .notifier,
+                                                )
+                                                .setFirstDayOfWeekPreference(
+                                                  value,
+                                                ),
+                                          );
+                                        }
+                                      },
+                                      items: [
+                                        for (final value
+                                            in BusyMaxFirstDayOfWeekPreference
+                                                .values)
+                                          DropdownMenuItem(
+                                            value: value,
+                                            child: Text(
+                                              busyMaxFirstDayOfWeekPreferenceLabel(
+                                                context,
+                                                value,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                              ),
+                            ),
+                            ListTile(
+                              title: Text(context.l10n.defaultCalendar),
+                              subtitle: DropdownButton<CreationDestination>(
+                                isExpanded: true,
+                                value:
+                                    sources.any(
+                                      (s) =>
+                                          s.id ==
+                                              settings.defaultCalendar?.id &&
+                                          s.accountId ==
+                                              settings
+                                                  .defaultCalendar
+                                                  ?.accountId &&
+                                          s.capabilities.canCreateEvents,
+                                    )
+                                    ? settings.defaultCalendar
+                                    : null,
+                                hint: Text(context.l10n.lastUsed),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: null,
+                                    child: Text(context.l10n.lastUsed),
+                                  ),
+                                  for (final source in sources.where(
+                                    (s) => s.capabilities.canCreateEvents,
+                                  ))
+                                    DropdownMenuItem(
+                                      value: CreationDestination(
+                                        accountId: source.accountId,
+                                        id: source.id,
+                                      ),
+                                      child: Text(
+                                        '${source.summary} · ${source.authenticatedAccountEmail ?? source.accountId}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                ],
+                                onChanged: (value) => ref
+                                    .read(
+                                      appSettingsControllerProvider.notifier,
+                                    )
+                                    .setDefaultCalendar(value),
+                              ),
+                            ),
+                            ListTile(
+                              title: Text(context.l10n.defaultTaskList),
+                              subtitle: DropdownButton<CreationDestination>(
+                                isExpanded: true,
+                                value:
+                                    lists.any(
+                                      (l) =>
+                                          l.id ==
+                                              settings.defaultTaskList?.id &&
+                                          l.accountId ==
+                                              settings
+                                                  .defaultTaskList
+                                                  ?.accountId &&
+                                          ref.watch(
+                                            scheduleTaskListCreateEligibleProvider(
+                                              l,
+                                            ),
+                                          ),
+                                    )
+                                    ? settings.defaultTaskList
+                                    : null,
+                                hint: Text(context.l10n.lastUsed),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: null,
+                                    child: Text(context.l10n.lastUsed),
+                                  ),
+                                  for (final list in lists.where(
+                                    (list) => ref.watch(
+                                      scheduleTaskListCreateEligibleProvider(
+                                        list,
+                                      ),
+                                    ),
+                                  ))
+                                    DropdownMenuItem(
+                                      value: CreationDestination(
+                                        accountId: list.accountId,
+                                        id: list.id,
+                                      ),
+                                      child: Text(
+                                        '${list.title} · ${accounts.where((a) => a.id == list.accountId).firstOrNull?.selectorLabel ?? list.accountId}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                ],
+                                onChanged: (value) => ref
+                                    .read(
+                                      appSettingsControllerProvider.notifier,
+                                    )
+                                    .setDefaultTaskList(value),
+                              ),
+                            ),
+                            ListTile(
+                              title: Text(context.l10n.scheduleDayStartsAt),
+                              subtitle: Text(
+                                _scheduleMinuteLabel(
+                                  context,
+                                  settings.scheduleDayStartMinute,
+                                ),
+                              ),
+                              onTap: () => _pickDayBoundary(true),
+                            ),
+                            ListTile(
+                              title: Text(context.l10n.scheduleDayEndsAt),
+                              subtitle: Text(
+                                _scheduleMinuteLabel(
+                                  context,
+                                  settings.scheduleDayEndMinute,
+                                ),
+                              ),
+                              onTap: () => _pickDayBoundary(false),
+                            ),
+                          ],
+                        ),
+                      ],
+                      AndroidSettingsCategory.notifications: [
+                        _Section(
+                          title: context.l10n.notifications,
+                          children: [
+                            _NotificationSwitch(
+                              title: context.l10n.eventReminders,
+                              value: settings.notifyEventReminders,
+                              onChanged: (value) => _setNotificationSetting(
+                                value,
+                                ref
+                                    .read(
+                                      appSettingsControllerProvider.notifier,
+                                    )
+                                    .setNotifyEventReminders,
+                              ),
+                            ),
+                            _NotificationSwitch(
+                              title: context.l10n.taskReminders,
+                              value: settings.notifyTaskReminders,
+                              onChanged: (value) => _setNotificationSetting(
+                                value,
+                                ref
+                                    .read(
+                                      appSettingsControllerProvider.notifier,
+                                    )
+                                    .setNotifyTaskReminders,
+                              ),
+                            ),
+                            SwitchListTile(
+                              secondary: const Icon(Icons.today_outlined),
+                              title: Text(context.l10n.notifyDueToday),
+                              value: settings.notifyDueToday,
+                              onChanged: (value) => unawaited(
+                                _setNotificationSetting(
+                                  value,
+                                  ref
+                                      .read(
+                                        appSettingsControllerProvider.notifier,
+                                      )
+                                      .setNotifyDueToday,
+                                ),
+                              ),
+                            ),
+                            _NotificationSwitch(
+                              title: context.l10n.notifySyncFailures,
+                              value: settings.notifySyncFailures,
+                              onChanged: (value) => _setNotificationSetting(
+                                value,
+                                ref
+                                    .read(
+                                      appSettingsControllerProvider.notifier,
+                                    )
+                                    .setNotifySyncFailures,
+                              ),
+                            ),
+                            _NotificationSwitch(
+                              title: context.l10n.notifyConflicts,
+                              value: settings.notifyConflicts,
+                              onChanged: (value) => _setNotificationSetting(
+                                value,
+                                ref
+                                    .read(
+                                      appSettingsControllerProvider.notifier,
+                                    )
+                                    .setNotifyConflicts,
+                              ),
+                            ),
+                            SwitchListTile(
+                              secondary: const Icon(
+                                Icons.visibility_off_outlined,
+                              ),
+                              title: Text(context.l10n.notificationDetailLevel),
+                              subtitle: Text(
+                                context.l10n.notificationDetailPrivate,
+                              ),
+                              value:
+                                  settings.notificationDetailLevel ==
+                                  NotificationDetailLevel.private,
+                              onChanged: (value) => unawaited(
+                                ref
+                                    .read(
+                                      appSettingsControllerProvider.notifier,
+                                    )
+                                    .setNotificationDetailLevel(
+                                      value
+                                          ? NotificationDetailLevel.private
+                                          : NotificationDetailLevel.normal,
+                                    )
+                                    .then(
+                                      (_) => ref
+                                          .read(notificationReconcilerProvider)
+                                          .reconcile(),
+                                    ),
+                              ),
+                            ),
+                            ValueListenableBuilder<
+                              AndroidNotificationReadiness
+                            >(
+                              valueListenable: ref
+                                  .read(androidNotificationServiceProvider)
+                                  .readiness,
+                              builder: (context, status, _) => Column(
+                                children: [
+                                  ListTile(
+                                    leading: const Icon(
+                                      Icons.notifications_outlined,
+                                    ),
+                                    title: Text(context.l10n.notifications),
+                                    subtitle: Text(
+                                      [
+                                        if (status.failed ||
+                                            !status.initialized ||
+                                            status.notificationsAllowed == null)
+                                          context.l10n.notificationsUnknown
+                                        else if (status.notificationsAllowed ==
+                                                false ||
+                                            status.remindersAllowed == false ||
+                                            status.summariesAllowed == false ||
+                                            status.statusAllowed == false)
+                                          context.l10n.notificationsBlocked
+                                        else
+                                          context.l10n.notificationsAllowed,
+                                        if (status.remindersAllowed == false)
+                                          context.l10n.reminders,
+                                        if (status.summariesAllowed == false)
+                                          context.l10n.notifyDueToday,
+                                        if (status.statusAllowed == false)
+                                          context.l10n.sync,
+                                      ].join('\n'),
+                                    ),
+                                    onTap: () => BusyMaxAndroidPlatform.instance
+                                        .openNotificationSettings(),
+                                    trailing: TextButton(
+                                      onPressed: () => unawaited(
+                                        BusyMaxAndroidPlatform.instance
+                                            .openNotificationSettings(),
+                                      ),
+                                      child: Text(context.l10n.settingsSystem),
+                                    ),
+                                  ),
+                                  ListTile(
+                                    leading: const Icon(Icons.alarm_outlined),
+                                    title: Text(context.l10n.reminders),
+                                    subtitle: Text(
+                                      status.exactAlarms
+                                          ? context.l10n.notificationExactAlarms
+                                          : context
+                                                .l10n
+                                                .notificationInexactAlarms,
+                                    ),
+                                    trailing: status.exactAlarms
+                                        ? null
+                                        : TextButton(
+                                            onPressed: () => unawaited(
+                                              _requestExactAlarms(),
+                                            ),
+                                            child: Text(
+                                              context.l10n.settingsSystem,
+                                            ),
+                                          ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ListTile(
+                              title: Text(context.l10n.dailySummaryTime),
+                              subtitle: Text(context.l10n.dailySummaryScope),
+                              trailing: Text(settings.dueTodayNotificationTime),
+                              enabled: settings.notifyDueToday,
+                              onTap: _pickSummaryTime,
+                            ),
+                            SwitchListTile(
+                              secondary: const Icon(Icons.bedtime_outlined),
+                              title: Text(context.l10n.quietHours),
+                              subtitle: Text(
+                                context.l10n.quietHoursDescription,
+                              ),
+                              value: settings.quietHoursEnabled,
+                              onChanged: (value) => unawaited(
+                                ref
+                                    .read(
+                                      appSettingsControllerProvider.notifier,
+                                    )
+                                    .setQuietHoursEnabled(value)
+                                    .then(
+                                      (_) => ref
+                                          .read(notificationReconcilerProvider)
+                                          .reconcile(),
+                                    ),
+                              ),
+                            ),
+                            ...[
+                              ListTile(
+                                leading: const Icon(Icons.nights_stay_outlined),
+                                title: Text(context.l10n.quietHoursStart),
+                                enabled: settings.quietHoursEnabled,
+                                trailing: Text(settings.quietHoursStart),
+                                onTap: () => unawaited(_pickQuietTime(true)),
+                              ),
+                              ListTile(
+                                leading: const Icon(Icons.wb_sunny_outlined),
+                                title: Text(context.l10n.quietHoursEnd),
+                                enabled: settings.quietHoursEnabled,
+                                trailing: Text(settings.quietHoursEnd),
+                                onTap: () => unawaited(_pickQuietTime(false)),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                      AndroidSettingsCategory.privacy: [
+                        _Section(
+                          title: context.l10n.privacy,
+                          children: [
+                            SwitchListTile(
+                              secondary: const Icon(Icons.shield_outlined),
+                              title: Text(
+                                context.l10n.redactTaskContentInDiagnostics,
+                              ),
+                              value: settings.redactTaskContentInDiagnostics,
+                              onChanged: (value) => unawaited(
+                                ref
+                                    .read(
+                                      appSettingsControllerProvider.notifier,
+                                    )
+                                    .setRedactTaskContentInDiagnostics(value),
+                              ),
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.privacy_tip_outlined),
+                              title: Text(context.l10n.privacy),
+                              enabled: ref
+                                  .read(buildConfigProvider)
+                                  .privacyPolicyUrl
+                                  .isNotEmpty,
+                              onTap: () =>
+                                  unawaited(_openConfiguredLink('privacy')),
+                            ),
+                          ],
+                        ),
+                      ],
+                      AndroidSettingsCategory.diagnostics: [
+                        _Section(
+                          title: context.l10n.sync,
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.sync_problem_outlined),
+                              title: Text(context.l10n.forceFullResync),
+                              subtitle: Text(
+                                context.l10n.forceFullResyncDescription,
+                              ),
+                              enabled: !ref
+                                  .watch(accountSyncActivityProvider)
+                                  .busy(allSyncScope),
+                              onTap:
+                                  ref
+                                      .watch(accountSyncActivityProvider)
+                                      .busy(allSyncScope)
+                                  ? null
+                                  : () => unawaited(_syncAll(full: true)),
+                            ),
+                          ],
+                        ),
+                        _Section(
+                          title: context.l10n.syncConflicts,
+                          children: [
+                            if (conflicts.isEmpty)
+                              ListTile(
+                                leading: const Icon(Icons.check_circle_outline),
+                                title: Text(
+                                  context.l10n.noBlockedPendingOperations,
+                                ),
+                              ),
+                            for (final conflict in conflicts.where(
+                              (conflict) =>
+                                  widget.notificationAccountId == null ||
+                                  conflict.accountId ==
+                                      widget.notificationAccountId,
+                            ))
+                              ListTile(
+                                leading: const Icon(Icons.warning_amber),
+                                title: Text(conflict.itemTitle),
+                                subtitle: Text(
+                                  '${conflict.accountLabel} · ${conflict.collectionName}\n${conflict.localEditSummary}',
+                                ),
+                                isThreeLine: true,
+                                onTap: () =>
+                                    unawaited(_resolveConflict(conflict)),
+                              ),
+                          ],
+                        ),
+                        AndroidDiagnosticsScreen(
+                          accountId: widget.notificationAccountId,
+                          embedded: true,
+                        ),
+                      ],
                     },
-                    items: [
-                      for (final value
-                          in BusyMaxFirstDayOfWeekPreference.values)
-                        DropdownMenuItem(
-                          value: value,
-                          child: Text(
-                            busyMaxFirstDayOfWeekPreferenceLabel(
-                              context,
-                              value,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
                   ),
-                ),
-              ),
-            ],
-          ),
-          _Section(
-            title: context.l10n.notifications,
-            children: [
-              _NotificationSwitch(
-                title: context.l10n.eventReminders,
-                value: settings.notifyEventReminders,
-                onChanged: (value) => _setNotificationSetting(
-                  value,
-                  ref
-                      .read(appSettingsControllerProvider.notifier)
-                      .setNotifyEventReminders,
-                ),
-              ),
-              _NotificationSwitch(
-                title: context.l10n.taskReminders,
-                value: settings.notifyTaskReminders,
-                onChanged: (value) => _setNotificationSetting(
-                  value,
-                  ref
-                      .read(appSettingsControllerProvider.notifier)
-                      .setNotifyTaskReminders,
-                ),
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.today_outlined),
-                title: Text(context.l10n.notifyDueToday),
-                value: settings.notifyDueToday,
-                onChanged: (value) => unawaited(
-                  _setNotificationSetting(
-                    value,
-                    ref
-                        .read(appSettingsControllerProvider.notifier)
-                        .setNotifyDueToday,
-                  ),
-                ),
-              ),
-              _NotificationSwitch(
-                title: context.l10n.notifySyncFailures,
-                value: settings.notifySyncFailures,
-                onChanged: (value) => _setNotificationSetting(
-                  value,
-                  ref
-                      .read(appSettingsControllerProvider.notifier)
-                      .setNotifySyncFailures,
-                ),
-              ),
-              _NotificationSwitch(
-                title: context.l10n.notifyConflicts,
-                value: settings.notifyConflicts,
-                onChanged: (value) => _setNotificationSetting(
-                  value,
-                  ref
-                      .read(appSettingsControllerProvider.notifier)
-                      .setNotifyConflicts,
-                ),
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.visibility_off_outlined),
-                title: Text(context.l10n.notificationDetailLevel),
-                subtitle: Text(context.l10n.notificationDetailPrivate),
-                value:
-                    settings.notificationDetailLevel ==
-                    NotificationDetailLevel.private,
-                onChanged: (value) => unawaited(
-                  ref
-                      .read(appSettingsControllerProvider.notifier)
-                      .setNotificationDetailLevel(
-                        value
-                            ? NotificationDetailLevel.private
-                            : NotificationDetailLevel.normal,
-                      )
-                      .then(
-                        (_) => ref
-                            .read(notificationReconcilerProvider)
-                            .reconcile(),
-                      ),
-                ),
-              ),
-              ValueListenableBuilder<AndroidNotificationReadiness>(
-                valueListenable: ref
-                    .read(androidNotificationServiceProvider)
-                    .readiness,
-                builder: (context, status, _) => Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.notifications_outlined),
-                      title: Text(context.l10n.notifications),
-                      subtitle: Text(
-                        [
-                          if (status.failed ||
-                              !status.initialized ||
-                              status.notificationsAllowed == null)
-                            context.l10n.notificationsUnknown
-                          else if (status.notificationsAllowed == false ||
-                              status.remindersAllowed == false ||
-                              status.summariesAllowed == false ||
-                              status.statusAllowed == false)
-                            context.l10n.notificationsBlocked
-                          else
-                            context.l10n.notificationsAllowed,
-                          if (status.remindersAllowed == false)
-                            context.l10n.reminders,
-                          if (status.summariesAllowed == false)
-                            context.l10n.notifyDueToday,
-                          if (status.statusAllowed == false) context.l10n.sync,
-                        ].join('\n'),
-                      ),
-                      onTap: () => BusyMaxAndroidPlatform.instance
-                          .openNotificationSettings(),
-                      trailing: TextButton(
-                        onPressed: () => unawaited(
-                          BusyMaxAndroidPlatform.instance
-                              .openNotificationSettings(),
-                        ),
-                        child: Text(context.l10n.settingsSystem),
-                      ),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.alarm_outlined),
-                      title: Text(context.l10n.reminders),
-                      subtitle: Text(
-                        status.exactAlarms
-                            ? context.l10n.notificationExactAlarms
-                            : context.l10n.notificationInexactAlarms,
-                      ),
-                      trailing: status.exactAlarms
-                          ? null
-                          : TextButton(
-                              onPressed: () => unawaited(_requestExactAlarms()),
-                              child: Text(context.l10n.settingsSystem),
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-              ListTile(
-                title: Text(context.l10n.dailySummaryTime),
-                subtitle: Text(context.l10n.dailySummaryScope),
-                trailing: Text(settings.dueTodayNotificationTime),
-                enabled: settings.notifyDueToday,
-                onTap: _pickSummaryTime,
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.bedtime_outlined),
-                title: Text(context.l10n.quietHours),
-                subtitle: Text(context.l10n.quietHoursDescription),
-                value: settings.quietHoursEnabled,
-                onChanged: (value) => unawaited(
-                  ref
-                      .read(appSettingsControllerProvider.notifier)
-                      .setQuietHoursEnabled(value)
-                      .then(
-                        (_) => ref
-                            .read(notificationReconcilerProvider)
-                            .reconcile(),
-                      ),
-                ),
-              ),
-              if (settings.quietHoursEnabled) ...[
-                ListTile(
-                  leading: const Icon(Icons.nights_stay_outlined),
-                  title: Text(context.l10n.quietHoursStart),
-                  trailing: Text(settings.quietHoursStart),
-                  onTap: () => unawaited(_pickQuietTime(true)),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.wb_sunny_outlined),
-                  title: Text(context.l10n.quietHoursEnd),
-                  trailing: Text(settings.quietHoursEnd),
-                  onTap: () => unawaited(_pickQuietTime(false)),
-                ),
-              ],
-            ],
-          ),
-          _Section(
-            title: context.l10n.sync,
-            children: [
-              ListTile(
-                leading: _syncing
-                    ? const SizedBox.square(
-                        dimension: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.sync),
-                title: Text(context.l10n.sync),
-                enabled: !_syncing,
-                onTap: _syncing ? null : () => unawaited(_syncAll()),
-              ),
-              ListTile(
-                leading: const Icon(Icons.battery_saver_outlined),
-                title: Text(context.l10n.runInBackgroundWhenClosed),
-                subtitle: Text(context.l10n.launchAtLoginDescription),
-                onTap: () => unawaited(enqueueImmediateBusyMaxSync()),
-              ),
-              ListTile(
-                leading: const Icon(Icons.monitor_heart_outlined),
-                title: Text(context.l10n.diagnostics),
-                onTap: () => Navigator.of(context).push<void>(
-                  MaterialPageRoute(
-                    builder: (_) => const AndroidDiagnosticsScreen(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          _Section(
-            title: context.l10n.syncConflicts,
-            children: [
-              if (conflicts.isEmpty)
-                ListTile(
-                  leading: const Icon(Icons.check_circle_outline),
-                  title: Text(context.l10n.noBlockedPendingOperations),
-                ),
-              for (final conflict in conflicts.where(
-                (conflict) =>
-                    widget.notificationAccountId == null ||
-                    conflict.accountId == widget.notificationAccountId,
-              ))
-                ListTile(
-                  leading: const Icon(Icons.warning_amber),
-                  title: Text(conflict.itemTitle),
-                  subtitle: Text(
-                    '${conflict.accountLabel} · ${conflict.collectionName}\n${conflict.localEditSummary}',
-                  ),
-                  isThreeLine: true,
-                  onTap: () => unawaited(_resolveConflict(conflict)),
-                ),
-            ],
-          ),
-          _Section(
-            title: context.l10n.privacy,
-            children: [
-              SwitchListTile(
-                secondary: const Icon(Icons.shield_outlined),
-                title: Text(context.l10n.redactTaskContentInDiagnostics),
-                value: settings.redactTaskContentInDiagnostics,
-                onChanged: (value) => unawaited(
-                  ref
-                      .read(appSettingsControllerProvider.notifier)
-                      .setRedactTaskContentInDiagnostics(value),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.privacy_tip_outlined),
-                title: Text(context.l10n.privacy),
-                enabled: ref
-                    .read(buildConfigProvider)
-                    .privacyPolicyUrl
-                    .isNotEmpty,
-                onTap: () => unawaited(_openConfiguredLink('privacy')),
-              ),
-              ListTile(
-                leading: const Icon(Icons.support_agent_outlined),
-                title: Text(context.l10n.website),
-                enabled: ref.read(buildConfigProvider).supportUrl.isNotEmpty,
-                onTap: () => unawaited(_openConfiguredLink('support')),
-              ),
-              ListTile(
-                leading: const Icon(Icons.home_outlined),
-                title: Text(context.l10n.website),
-                onTap: () => unawaited(_openConfiguredLink('homepage')),
-              ),
-              ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: Text(context.l10n.aboutBusyMax),
-                subtitle: Text(context.l10n.aboutBusyMaxDescription),
-                onTap: _showAbout,
-              ),
-              ListTile(
-                leading: const Icon(Icons.feedback_outlined),
-                title: Text(context.l10n.sendFeedback),
-                enabled: ref
-                    .read(buildConfigProvider)
-                    .feedbackEndpoint
-                    .isNotEmpty,
-                onTap: () => Navigator.of(context).push<void>(
-                  MaterialPageRoute(
-                    builder: (_) => const AndroidFeedbackScreen(),
-                  ),
-                ),
-              ),
-            ],
           ),
         ],
       ),
     );
   }
 
+  Widget _accountDetails(
+    AccountEntity account,
+    List<CalendarSourceEntity> sources,
+    List<TaskListEntity> lists,
+  ) {
+    final conflicts = ref.watch(davConflictsStreamProvider).valueOrNull ?? [];
+    final collections =
+        (ref.watch(davCollectionsStreamProvider).valueOrNull ?? []).where(
+          (c) =>
+              c.accountId == account.id &&
+              (c.supportsEvents || c.supportsTasks),
+        );
+    final pendingInvitations =
+        ref
+            .watch(nextcloudPendingInvitationCountProvider(account.id))
+            .valueOrNull ??
+        0;
+    return ListView(
+      key: PageStorageKey('account-${account.id}'),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 48),
+      children: [
+        _Section(
+          title: account.provider.displayName,
+          children: [
+            ListTile(
+              leading: Icon(_providerIcon(account.provider)),
+              title: Text(account.displayLabel),
+              subtitle: Text(_accountSubtitle(account)),
+            ),
+            ListTile(
+              key: ValueKey('account-recovery-${account.id}'),
+              leading: SyncActivityIcon(
+                scope: accountSyncScope(account.id),
+                refresh: const Icon(Icons.refresh),
+                warning: const Icon(Icons.warning_amber_rounded),
+                child: Icon(
+                  account.needsReconnect ? Icons.key_outlined : Icons.refresh,
+                ),
+              ),
+              title: Text(
+                account.needsReconnect
+                    ? context.l10n.reconnectAccount
+                    : context.l10n.refreshAccount,
+              ),
+              enabled:
+                  !ref
+                      .watch(accountSyncActivityProvider)
+                      .busy(accountSyncScope(account.id)) &&
+                  _connecting == null &&
+                  (account.isSyncEligible || account.needsReconnect),
+              onTap: () => unawaited(
+                account.needsReconnect
+                    ? _connect(account.provider, account)
+                    : _syncAccount(account.id),
+              ),
+            ),
+            ExpansionTile(
+              key: PageStorageKey(('account-sync-details', account.id)),
+              title: Text(context.l10n.sync),
+              children: [_AndroidAccountSyncStatus(account: account)],
+            ),
+          ],
+        ),
+        if (account.provider.isDav &&
+            ref
+                .watch(accountCollectionCreationFailuresProvider(account.id))
+                .isNotEmpty)
+          AccountCollectionCreationFeedback(
+            accountId: account.id,
+            dismissButtonBuilder: (_, onPressed, label) =>
+                TextButton(onPressed: onPressed, child: Text(label)),
+          ),
+        _Section(
+          title: context.l10n.collectionSettings,
+          children: [
+            if (account.isSignedIn &&
+                account.calendarsEnabled &&
+                accountCollectionCreationModes(account.provider).calendarMode !=
+                    CalendarCollectionCreationMode.unavailable)
+              ListTile(
+                leading: const Icon(Icons.add_box_outlined),
+                title: Text(context.l10n.newCalendar),
+                onTap: () =>
+                    unawaited(_createCollection([account], calendar: true)),
+              ),
+            if (account.isSignedIn &&
+                account.tasksEnabled &&
+                accountCollectionCreationModes(account.provider).taskListMode !=
+                    TaskListCreationMode.unavailable)
+              ListTile(
+                leading: const Icon(Icons.playlist_add),
+                title: Text(context.l10n.newTaskList),
+                onTap: () =>
+                    unawaited(_createCollection([account], calendar: false)),
+              ),
+            if (!account.provider.isDav) ...[
+              for (final source in sources)
+                Column(
+                  children: [
+                    ListTile(
+                      leading: IconTheme(
+                        data: IconThemeData(
+                          color: _settingsSourceColor(source),
+                        ),
+                        child: SyncActivityIcon(
+                          scope: calendarSyncScope(source.accountId, source.id),
+                          refresh: const Icon(Icons.refresh),
+                          warning: const Icon(Icons.warning_amber_rounded),
+                          child: const Icon(Icons.calendar_today_outlined),
+                        ),
+                      ),
+                      title: Text(source.summary),
+                      subtitle: Text(
+                        [
+                          if (source.primaryCalendar) context.l10n.calendar,
+                          if (!source.capabilities.canEditEvents)
+                            context.l10n.readOnlySharedCollection,
+                          if (source.hidden) context.l10n.off,
+                          if (source.accessRole == 'unavailable')
+                            context.l10n.collectionsUnavailable,
+                        ].join(' · '),
+                      ),
+                      onTap: () => unawaited(_editCalendarSource(source)),
+                    ),
+                    SwitchListTile(
+                      title: Text(context.l10n.showInSchedule),
+                      value: source.selected && !source.hidden,
+                      onChanged: source.hidden
+                          ? null
+                          : (value) => unawaited(
+                              ref
+                                  .read(calendarRepositoryProvider)
+                                  .setSourceSelected(source.id, value),
+                            ),
+                    ),
+                    if (account.provider == BusyProvider.google)
+                      AndroidCalendarProviderVisibility(
+                        source: source,
+                        showSourceName: false,
+                      ),
+                  ],
+                ),
+              for (final list in lists)
+                Column(
+                  children: [
+                    ListTile(
+                      leading: SyncActivityIcon(
+                        scope: taskListSyncScope(list.accountId, list.id),
+                        refresh: const Icon(Icons.refresh),
+                        warning: const Icon(Icons.warning_amber_rounded),
+                        child: const Icon(Icons.checklist_outlined),
+                      ),
+                      title: Text(list.title),
+                      onTap: () => unawaited(_editTaskList(list, [account])),
+                    ),
+                    SwitchListTile(
+                      title: Text(context.l10n.showInSchedule),
+                      value: ref
+                          .watch(appSettingsControllerProvider)
+                          .isTaskListVisibleInSchedule(list.accountId, list.id),
+                      onChanged: (value) => unawaited(
+                        ref
+                            .read(appSettingsControllerProvider.notifier)
+                            .setTaskListVisibleInSchedule(
+                              accountId: list.accountId,
+                              taskListId: list.id,
+                              visible: value,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+            for (final collection in collections)
+              Column(
+                children: [
+                  ListTile(
+                    leading: SyncActivityIcon(
+                      scope: davCollectionSyncScope(account.id, collection.id),
+                      refresh: const Icon(Icons.refresh),
+                      warning: const Icon(Icons.warning_amber_rounded),
+                      child: const Icon(Icons.folder_outlined),
+                    ),
+                    trailing: IconButton(
+                      tooltip: context.l10n.refreshCollection,
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () async {
+                        if (await _ensureLocalNetworkAccess(
+                              account.authority,
+                            ) &&
+                            mounted) {
+                          await refreshFromAndroid(
+                            context,
+                            ref,
+                            davCollectionSyncScope(account.id, collection.id),
+                          );
+                        }
+                      },
+                    ),
+                    title: Text(collection.name),
+                    subtitle: Text(
+                      collection.readOnly
+                          ? context.l10n.readOnlySharedCollection
+                          : collection.capabilities.permissionsKnown
+                          ? context.l10n.collectionSettings
+                          : context.l10n.davPermissionsUnknown,
+                    ),
+                    onTap: () => account.provider == BusyProvider.nextcloud
+                        ? Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => AndroidNextcloudCollectionScreen(
+                                accountId: account.id,
+                                collectionId: collection.id,
+                              ),
+                            ),
+                          )
+                        : _selectCalDavCollection(collection.id),
+                  ),
+                  if (collection.supportsEvents)
+                    SwitchListTile(
+                      title: Text(
+                        collection.supportsTasks
+                            ? context.l10n.calendarContent
+                            : context.l10n.showInSchedule,
+                      ),
+                      value: collection.eventsSelected,
+                      onChanged: (value) => unawaited(
+                        ref
+                            .read(davSettingsRepositoryProvider)
+                            .setEventsSelected(collection.id, value),
+                      ),
+                    ),
+                  if (collection.supportsTasks)
+                    SwitchListTile(
+                      title: Text(
+                        collection.supportsEvents
+                            ? context.l10n.taskContent
+                            : context.l10n.showInSchedule,
+                      ),
+                      value: collection.tasksSelected,
+                      onChanged: (value) => unawaited(
+                        ref
+                            .read(davSettingsRepositoryProvider)
+                            .setTasksSelected(collection.id, value),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+        if (conflicts.any((c) => c.accountId == account.id))
+          _Section(
+            title: context.l10n.syncConflicts,
+            children: [
+              for (final conflict in conflicts.where(
+                (c) => c.accountId == account.id,
+              ))
+                ListTile(
+                  title: Text(conflict.itemTitle),
+                  subtitle: Text(conflict.collectionName),
+                  onTap: () => unawaited(_resolveConflict(conflict)),
+                ),
+            ],
+          ),
+        if (account.provider == BusyProvider.microsoft && account.isSignedIn)
+          ListTile(
+            leading: const Icon(Icons.people_outline),
+            title: Text(context.l10n.openSharedCalendar),
+            onTap: () => unawaited(_openSharedCalendar(account.id)),
+          ),
+        if (sources.any(CloudCalendarSharingService.canManageSource))
+          ListTile(
+            key: Key('android-manage-sharing-${account.id}'),
+            leading: const Icon(Icons.people_outline),
+            title: Text(context.l10n.manageCalendarSharing),
+            onTap: () => unawaited(
+              _manageCalendarSharing(
+                sources
+                    .where(CloudCalendarSharingService.canManageSource)
+                    .toList(),
+              ),
+            ),
+          ),
+        if (account.provider == BusyProvider.nextcloud) ...[
+          if (ref.watch(nextcloudFederationAvailableProvider(account.id)))
+            ListTile(
+              leading: const Icon(Icons.mark_email_unread_outlined),
+              title: Text(
+                '${context.l10n.nextcloudFederationInvitations} ($pendingInvitations)',
+              ),
+              enabled: ref.watch(
+                nextcloudFederationAvailableProvider(account.id),
+              ),
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      AndroidNextcloudFederationScreen(accountId: account.id),
+                ),
+              ),
+            ),
+          ListTile(
+            leading: const Icon(Icons.delete_sweep_outlined),
+            title: Text(context.l10n.nextcloudTrash),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) =>
+                    AndroidNextcloudTrashScreen(accountId: account.id),
+              ),
+            ),
+          ),
+        ],
+        AndroidContactsSettings(accountId: account.id),
+        ExpansionTile(
+          key: PageStorageKey(('account-advanced', account.id)),
+          title: Text(context.l10n.advancedSection),
+          children: [
+            if (account.provider == BusyProvider.nextcloud ||
+                account.provider == BusyProvider.caldav)
+              ListTile(
+                leading: const Icon(Icons.verified_user_outlined),
+                title: Text(context.l10n.privateServerCertificates),
+                onTap: () => manageNextcloudCertificates(
+                  ref,
+                  account.id,
+                  (data) => mounted
+                      ? showAndroidNextcloudCertificate(context, data)
+                      : Future.value(null),
+                ),
+              ),
+            if (account.provider == BusyProvider.google ||
+                account.provider == BusyProvider.microsoft)
+              _AndroidRegistrationCard(
+                account: account,
+                onMigrate: () => _connect(account.provider, account, true),
+              ),
+            ListTile(
+              title: Text(context.l10n.reconnectAccount),
+              onTap: () => unawaited(_connect(account.provider, account)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        ListTile(
+          leading: const Icon(Icons.person_remove_outlined),
+          title: Text(context.l10n.removeAccount),
+          enabled: !_removing.contains(account.id),
+          onTap: () => unawaited(_removeAccount(account)),
+        ),
+      ],
+    );
+  }
+
+  Color _subscriptionColor(WebCalSubscriptionEntity subscription) {
+    final color = int.tryParse(
+      subscription.color?.replaceAll('#', '') ?? '',
+      radix: 16,
+    );
+    return color == null
+        ? ScheduleProjection.deterministicSourceColor(
+            subscription.calendarSourceId,
+            Theme.of(context).brightness,
+          )
+        : Color(0xff000000 | color);
+  }
+
+  Color _settingsSourceColor(CalendarSourceEntity source) {
+    final hex = calendarSourceBackgroundColorHex(
+      provider: source.provider,
+      backgroundColor: source.backgroundColor,
+      colorId: source.colorId,
+    );
+    return hex == null
+        ? ScheduleProjection.deterministicSourceColor(
+            source.id,
+            Theme.of(context).brightness,
+          )
+        : Color(0xff000000 | int.parse(hex.replaceAll('#', ''), radix: 16));
+  }
+
   String _accountSubtitle(AccountEntity account) {
-    final state = account.isSignedIn
-        ? context.l10n.signedInAccount
-        : account.needsReconnect
-        ? context.l10n.accountReconnectRequired
-        : account.authState;
-    final synced = account.provider.isDav
-        ? account.lastSuccessfulSyncAtUtc
-        : null;
-    return synced == null
-        ? '${account.provider.displayName} · $state'
-        : '${account.provider.displayName} · $state\n${context.l10n.davLastSuccessfulSync(DateFormat.yMd().add_jm().format(synced.toLocal()))}';
+    final sync = ref.watch(accountSyncStatusProvider(account));
+    return '${account.provider.displayName} · ${sync.label(context)}';
   }
 
   Future<void> _connect(
@@ -913,13 +1456,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           fixedServer: reconnecting?.authority,
           fixedUsername: reconnecting?.providerAccountId,
         );
-        if (input == null || !mounted) return;
+        if (input == null || !mounted) {
+          return;
+        }
         server = input.serverUrl;
         email = input.username;
         password = input.password;
       } else if (provider == BusyProvider.appleICloud) {
         final input = await _appleCredentials(reconnecting?.email);
-        if (input == null) return;
+        if (input == null) {
+          return;
+        }
         (email, password) = input;
       } else if (provider == BusyProvider.nextcloud) {
         server = await _textPrompt(
@@ -930,12 +1477,18 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           initialValue: reconnecting?.authority,
           helper: context.l10n.nextcloudBrowserAuthorizationHelp,
         );
-        if (server == null || !mounted) return;
+        if (server == null || !mounted) {
+          return;
+        }
       }
       if (server != null) {
-        if (!await _ensureLocalNetworkAccess(server)) return;
+        if (!await _ensureLocalNetworkAccess(server)) {
+          return;
+        }
       }
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       AuthorizationRequest? request;
       if (provider == BusyProvider.microsoft) {
         if (reconnecting != null && !replaceRegistration) {
@@ -946,7 +1499,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             ref,
             provider,
           );
-          if (handle == null || !mounted) return;
+          if (handle == null || !mounted) {
+            return;
+          }
           request = reconnecting == null
               ? AuthorizationRequest.newConnection(handle)
               : AuthorizationRequest.replace(reconnecting.id, handle);
@@ -955,7 +1510,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         request = AuthorizationRequest.reconnect(reconnecting.id);
       }
       setState(() => _connecting = provider);
-      if (!mounted || ownedCancellation.isCancelled) return;
+      if (!mounted || ownedCancellation.isCancelled) {
+        return;
+      }
       request = (request ?? const AuthorizationRequest.newConnection(null))
           .withCancellation(ownedCancellation);
       try {
@@ -1063,20 +1620,27 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           case BusyProvider.webCal:
             return;
         }
-        if (accountId != null) {
-          ownedCancellation.committed();
-          if (mounted &&
-              identical(_authorizationCancellation, ownedCancellation)) {
-            unawaited(_syncAccount(accountId));
-          }
+        if (accountId != null &&
+            mounted &&
+            identical(_authorizationCancellation, ownedCancellation)) {
+          await finishAccountConnection(
+            accountId: accountId,
+            cancellation: ownedCancellation,
+            session: ref.read(authSessionControllerProvider.notifier),
+            synchronize: () => _syncAccount(accountId!),
+            onFollowUpFailure: (error) {
+              if (mounted) {
+                _message(
+                  context.l10n.syncFailed(
+                    localizedAuthorizationError(context.l10n, error),
+                  ),
+                );
+              }
+            },
+          );
         }
       } on Object catch (error) {
-        if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
-          return;
-        }
-        if (error is DavException && error.kind == DavErrorKind.cancelled) {
-          return;
-        }
+        if (accountConnectionWasCancelled(error)) return;
         if (mounted &&
             identical(_authorizationCancellation, ownedCancellation)) {
           _message(localizedAuthorizationError(context.l10n, error));
@@ -1091,7 +1655,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       ownedCancellation.cancel();
       if (identical(_authorizationCancellation, ownedCancellation)) {
         _authorizationCancellation = null;
-        if (mounted) setState(() => _connecting = null);
+        if (mounted) {
+          setState(() => _connecting = null);
+        }
       }
     }
   }
@@ -1141,85 +1707,63 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         ),
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true) {
+      return;
+    }
     setState(() => _removing.add(account.id));
     try {
-      if (account.provider.isDav) {
-        // DAV onboarding owns this account gate, including contact preparation.
-        final result = await ref
-            .read(davAccountOnboardingServiceProvider)
-            .removeAccount(account.id);
-        if (mounted &&
-            result.remoteRevocationAttempted &&
-            !result.remoteRevocationSucceeded) {
-          _message(l10n.nextcloudAccountRemovedRevokeFailed);
-        }
-      } else {
-        await ref
-            .read(crossEngineAccountGateProvider)
-            .run(
-              account.id,
-              () => ref
-                  .read(authRepositoryProvider)
-                  .removeAccount(
-                    accountId: account.id,
-                    revokeAuthorization: revoke,
-                  ),
-            );
+      final outcome = await removeBusyMaxAccount(
+        accountId: account.id,
+        provider: account.provider,
+        revokeGoogleAuthorization: revoke,
+        auth: () => ref.read(authRepositoryProvider),
+        dav: () => ref.read(davAccountOnboardingServiceProvider),
+        guardOAuthRemoval: (remove) =>
+            ref.read(crossEngineAccountGateProvider).run(account.id, remove),
+      );
+      final warning = localizedAccountRemovalWarning(l10n, outcome);
+      if (mounted && warning != null) {
+        _message(warning);
       }
       await ref.read(notificationReconcilerProvider).reconcile();
+      if (mounted && widget.notificationAccountId == account.id) {
+        Navigator.of(context).pop();
+      }
     } on Object catch (error) {
       _message(localizedAccountRemovalError(l10n, error));
     } finally {
-      if (mounted) setState(() => _removing.remove(account.id));
+      if (mounted) {
+        setState(() => _removing.remove(account.id));
+      }
     }
   }
 
-  Future<void> _syncAll() async {
-    final l10n = context.l10n;
-    setState(() => _syncing = true);
-    try {
-      final accounts = await ref
-          .read(accountsRepositoryProvider)
-          .listSyncEligibleAccounts();
-      final blocked = <String>{};
-      for (final account in accounts) {
-        if ((account.provider == BusyProvider.caldav ||
-                account.provider == BusyProvider.nextcloud) &&
-            !await _ensureLocalNetworkAccess(account.authority)) {
-          blocked.add(account.id);
-        }
-      }
-      if (blocked.isEmpty) {
-        await ref.read(allAccountsSyncRunnerProvider)();
-      } else {
-        await runAllSyncEligibleAccountSync(
-          listSyncEligibleAccounts: () async => [
-            for (final account in accounts)
-              if (!blocked.contains(account.id)) account,
-          ],
-          syncAccount: (id) => ref.read(signedInSyncRunnerProvider)(id, false),
-          rethrowFirstFailure: true,
-          onSyncFailure: (error) => ref
-              .read(operationalNotificationReporterProvider)
-              .notifySyncFailure(error),
-        );
-      }
-      await ref.read(notificationReconcilerProvider).reconcile();
-      if (blocked.isEmpty) _message(l10n.syncComplete);
-    } on Object catch (error) {
-      _message(
-        l10n.syncFailed(
-          syncFailureMessage(
-            error,
-            networkUnavailableMessage: l10n.networkOfflineTryAgain,
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _syncing = false);
+  Future<void> _pickDayBoundary(bool start) async {
+    final settings = ref.read(appSettingsControllerProvider);
+    final value = start
+        ? settings.scheduleDayStartMinute
+        : settings.scheduleDayEndMinute;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: value ~/ 60 % 24, minute: value % 60),
+    );
+    if (time == null || !mounted) {
+      return;
+    }
+    final minute = time.hour * 60 + time.minute;
+    final controller = ref.read(appSettingsControllerProvider.notifier);
+    if (start) {
+      await controller.setScheduleDayStartMinute(minute);
+    } else {
+      await controller.setScheduleDayEndMinute(minute == 0 ? 1440 : minute);
     }
   }
+
+  Future<void> _syncAll({bool full = false}) => refreshAndroidAccounts(
+    context,
+    ref,
+    strategy: full ? SyncStrategy.fullRecovery : SyncStrategy.ordinary,
+  );
 
   Future<void> _syncAccount(String accountId) async {
     final l10n = context.l10n;
@@ -1238,17 +1782,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           !await _ensureLocalNetworkAccess(account.authority)) {
         return;
       }
-      await ref.read(signedInSyncRunnerProvider)(accountId, true);
-      await ref.read(notificationReconcilerProvider).reconcile();
-      _message(l10n.syncComplete);
+      if (mounted) {
+        await refreshFromAndroid(
+          context,
+          ref,
+          accountSyncScope(accountId),
+          openRecovery: () => unawaited(_connect(account.provider, account)),
+        );
+      }
     } on Object catch (error) {
       _message(
-        l10n.syncFailed(
-          syncFailureMessage(
-            error,
-            networkUnavailableMessage: l10n.networkOfflineTryAgain,
-          ),
-        ),
+        l10n.syncFailed(AccountSettingsFeedback.fromError(l10n, error).message),
       );
     }
   }
@@ -1288,7 +1832,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         ),
       );
       controller.dispose();
-      if (!mounted || owner == null || owner.trim().isEmpty) return;
+      if (!mounted || owner == null || owner.trim().isEmpty) {
+        return;
+      }
       try {
         final result = await ref
             .read(microsoftSharedCalendarServiceProvider)
@@ -1335,380 +1881,16 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     );
   }
 
-  Future<void> _selectCalDavCollection(String id) => showDialog<void>(
-    context: context,
-    builder: (dialogContext) => Consumer(
-      builder: (context, ref, _) {
-        final collection = ref
-            .watch(davCollectionsStreamProvider)
-            .valueOrNull
-            ?.where((c) => c.id == id && c.provider == BusyProvider.caldav)
-            .firstOrNull;
-        return AlertDialog(
-          title: Text(collection?.name ?? context.l10n.collectionSettings),
-          content: collection == null
-              ? Text(context.l10n.collectionsUnavailable)
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!collection.capabilities.permissionsKnown)
-                      Text(context.l10n.davPermissionsUnknown),
-                    if (collection.readOnly)
-                      Text(context.l10n.readOnlySharedCollection),
-                    if (collection.supportsEvents)
-                      SwitchListTile(
-                        title: Text(context.l10n.calendarContent),
-                        value: collection.eventsSelected,
-                        onChanged: (value) => ref
-                            .read(davSettingsRepositoryProvider)
-                            .setEventsSelected(id, value),
-                      ),
-                    if (collection.supportsTasks)
-                      SwitchListTile(
-                        title: Text(context.l10n.taskContent),
-                        value: collection.tasksSelected,
-                        onChanged: (value) => ref
-                            .read(davSettingsRepositoryProvider)
-                            .setTasksSelected(id, value),
-                      ),
-                  ],
-                ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(context.l10n.close),
-            ),
-          ],
-        );
-      },
-    ),
-  );
+  Future<void> _selectCalDavCollection(String id) =>
+      showAndroidDavCollectionSelection(context, ref, id);
 
-  Future<void> _editCalendarSource(CalendarSourceEntity source) async {
-    final l10n = context.l10n;
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: Text(source.summary),
-              subtitle:
-                  source.provider == BusyProvider.caldav &&
-                      source.davEffectivePermissions['permissionsKnown'] ==
-                          false
-                  ? Text(context.l10n.davPermissionsUnknown)
-                  : null,
-            ),
-            if (source.capabilities.canRenameCalendar)
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: Text(context.l10n.rename),
-                onTap: () => Navigator.pop(context, 'rename'),
-              ),
-            if (source.capabilities.canChangeCalendarColor)
-              ListTile(
-                leading: const Icon(Icons.palette_outlined),
-                title: Text(context.l10n.calendarColor),
-                onTap: () => Navigator.pop(context, 'color'),
-              ),
-            ListTile(
-              leading: const Icon(Icons.notifications_outlined),
-              title: Text(context.l10n.reminders),
-              onTap: () => Navigator.pop(context, 'reminders'),
-            ),
-            if (source.provider == BusyProvider.nextcloud &&
-                source.davCollectionId != null)
-              ListTile(
-                leading: const Icon(Icons.inbox_outlined),
-                title: Text(context.l10n.nextcloudSchedulingInbox),
-                onTap: () => Navigator.pop(context, 'scheduling'),
-              ),
-            if (source.provider == BusyProvider.nextcloud &&
-                source.davCollectionId != null)
-              ListTile(
-                leading: const Icon(Icons.people_outline),
-                title: Text(context.l10n.nextcloudSharing),
-                onTap: () => Navigator.pop(context, 'sharing'),
-              ),
-            if (source.capabilities.canExportCalendar)
-              ListTile(
-                leading: const Icon(Icons.file_download_outlined),
-                title: Text(context.l10n.export),
-                onTap: () => Navigator.pop(context, 'export'),
-              ),
-            if (source.capabilities.canRemoveCalendar)
-              ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: Text(
-                  source.capabilities.removalMode ==
-                          CalendarRemovalMode.removeFromList
-                      ? context.l10n.removeFromMyCalendars
-                      : context.l10n.delete,
-                ),
-                textColor:
-                    source.capabilities.removalMode ==
-                        CalendarRemovalMode.delete
-                    ? Theme.of(context).colorScheme.error
-                    : null,
-                iconColor:
-                    source.capabilities.removalMode ==
-                        CalendarRemovalMode.delete
-                    ? Theme.of(context).colorScheme.error
-                    : null,
-                onTap: () => Navigator.pop(context, 'delete'),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (action == null) return;
-    try {
-      if (action == 'rename') {
-        final name = await _textPrompt(
-          title: l10n.calendar,
-          label: l10n.setCustomCalendarName,
-          initialValue: source.summary,
-        );
-        if (name != null && name != source.summary) {
-          await ref
-              .read(calendarRepositoryProvider)
-              .renameLocalSource(source.id, name);
-          _requestQueuedCalendarSync(source);
-        }
-      } else if (action == 'reminders') {
-        final reminders = await _booleanPrompt(
-          l10n.reminders,
-          source.remindersEnabled,
-        );
-        if (reminders == null) return;
-        await ref
-            .read(calendarRepositoryProvider)
-            .setSourceRemindersEnabled(source.id, reminders);
-      } else if (action == 'color') {
-        final choice = await _selectCalendarColor(source);
-        if (choice == null) return;
-        await ref
-            .read(calendarRepositoryProvider)
-            .setSourceColor(source.id, choice);
-        _requestQueuedCalendarSync(source);
-      } else if (action == 'export') {
-        await _exportCollection(source.accountId, source.davCollectionId!);
-      } else if (action == 'sharing') {
-        if (!mounted || source.provider != BusyProvider.nextcloud) return;
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => AndroidNextcloudSharingScreen(
-              accountId: source.accountId,
-              collectionId: source.davCollectionId!,
-              title: source.summary,
-            ),
-          ),
-        );
-      } else if (action == 'scheduling') {
-        if (!mounted) return;
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => AndroidNextcloudSchedulingScreen(
-              accountId: source.accountId,
-              collectionId: source.davCollectionId!,
-            ),
-          ),
-        );
-      } else if (action == 'delete') {
-        final remove =
-            source.capabilities.removalMode ==
-            CalendarRemovalMode.removeFromList;
-        final openedMicrosoftOwner =
-            remove && source.provider == BusyProvider.microsoft;
-        final confirmed = await _confirm(
-          remove ? l10n.removeFromMyCalendars : l10n.delete,
-          remove
-              ? openedMicrosoftOwner
-                    ? l10n.removeOpenedSharedCalendarConfirmation(
-                        source.summary,
-                      )
-                    : l10n.removeCalendarConfirmation(source.summary)
-              : source.isMixedDavCollection
-              ? l10n.nextcloudRemoveMixed
-              : l10n.deleteCalendarConfirmation(source.summary),
-          remove ? l10n.removeAction : l10n.delete,
-        );
-        if (!confirmed) return;
-        await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
-        if (!openedMicrosoftOwner) _requestQueuedCalendarSync(source);
-      }
-    } on DavRefreshPending {
-      _message(l10n.davRefreshPending);
-    } on Object catch (error) {
-      if (error is DavException &&
-          error.code == 'DavCollectionCreationPending') {
-        _message(l10n.davCollectionCreationPending);
-        return;
-      }
-
-      _message(
-        l10n.calendarUpdateFailed(
-          localizedSyncFailureMessage(
-            l10n,
-            error,
-            networkUnavailableMessage: l10n.networkOfflineTryAgain,
-          ),
-        ),
-      );
-    }
-  }
+  Future<void> _editCalendarSource(CalendarSourceEntity source) =>
+      showAndroidCalendarSourceActions(context, ref, source);
 
   Future<void> _editTaskList(
     TaskListEntity list,
     List<AccountEntity> accounts,
-  ) async {
-    final l10n = context.l10n;
-    final account = accounts
-        .where((item) => item.id == list.accountId)
-        .firstOrNull;
-    final davCapabilities = list.davCollectionId == null
-        ? null
-        : await ref.read(
-            davTaskCollectionCapabilitiesProvider((
-              accountId: list.accountId,
-              taskListId: list.id,
-            )).future,
-          );
-    if (!mounted) return;
-    final capabilities = list.davCollectionId != null
-        ? davCapabilities ?? noTaskCollectionCapabilities
-        : account == null
-        ? noTaskCollectionCapabilities
-        : adapterDefaultTaskCapabilities(account.provider);
-    final canRename = account?.provider == BusyProvider.microsoft
-        ? list.canRenameOrDeleteForMicrosoft
-        : capabilities.supportsListRename;
-    final canDelete =
-        account?.provider == BusyProvider.caldav && list.davCollectionId == null
-        ? false
-        : account?.provider == BusyProvider.microsoft
-        ? list.canRenameOrDeleteForMicrosoft
-        : capabilities.supportsListDelete;
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(title: Text(list.title)),
-            if (canRename)
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: Text(context.l10n.rename),
-                onTap: () => Navigator.pop(context, 'rename'),
-              ),
-            ListTile(
-              leading: const Icon(Icons.notifications_outlined),
-              title: Text(context.l10n.reminders),
-              onTap: () => Navigator.pop(context, 'reminders'),
-            ),
-            if (account?.provider == BusyProvider.nextcloud &&
-                list.davCollectionId != null &&
-                capabilities.supportsSharing)
-              ListTile(
-                leading: const Icon(Icons.people_outline),
-                title: Text(context.l10n.nextcloudSharing),
-                onTap: () => Navigator.pop(context, 'sharing'),
-              ),
-            if (list.davCollectionId != null &&
-                capabilities.supportsNativeExport)
-              ListTile(
-                leading: const Icon(Icons.file_download_outlined),
-                title: Text(context.l10n.export),
-                onTap: () => Navigator.pop(context, 'export'),
-              ),
-            if (canDelete)
-              ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: Text(context.l10n.deleteList),
-                textColor: Theme.of(context).colorScheme.error,
-                iconColor: Theme.of(context).colorScheme.error,
-                onTap: () => Navigator.pop(context, 'delete'),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (action == null) return;
-    try {
-      if (action == 'rename') {
-        final name = await _textPrompt(
-          title: l10n.taskLists,
-          label: l10n.list,
-          initialValue: list.title,
-        );
-        if (name != null && name != list.title) {
-          await ref
-              .read(taskListsRepositoryForAccountProvider(list.accountId))
-              .renameTaskList(list.id, name);
-        }
-      } else if (action == 'reminders') {
-        final reminders = await _booleanPrompt(
-          l10n.reminders,
-          list.remindersEnabled,
-        );
-        if (reminders == null) return;
-        await ref
-            .read(taskListsRepositoryForAccountProvider(list.accountId))
-            .setRemindersEnabled(list.id, reminders);
-      } else if (action == 'export') {
-        await _exportCollection(list.accountId, list.davCollectionId!);
-      } else if (action == 'sharing') {
-        if (!mounted ||
-            account?.provider != BusyProvider.nextcloud ||
-            !capabilities.supportsSharing) {
-          return;
-        }
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => AndroidNextcloudSharingScreen(
-              accountId: list.accountId,
-              collectionId: list.davCollectionId!,
-              title: list.title,
-            ),
-          ),
-        );
-      } else if (action == 'delete') {
-        final confirmed = await _confirm(
-          l10n.deleteList,
-          list.isMixedDavCollection
-              ? l10n.nextcloudRemoveMixed
-              : l10n.deleteTaskListConfirmation(list.title),
-          l10n.delete,
-        );
-        if (!confirmed) return;
-        await ref
-            .read(taskListsRepositoryForAccountProvider(list.accountId))
-            .deleteTaskList(list.id);
-      }
-    } on DavRefreshPending {
-      _message(l10n.davRefreshPending);
-    } on Object catch (error) {
-      if (error is DavException &&
-          error.code == 'DavCollectionCreationPending') {
-        _message(l10n.davCollectionCreationPending);
-        return;
-      }
-
-      _message(
-        l10n.taskListRenameFailed(
-          syncFailureMessage(
-            error,
-            networkUnavailableMessage: l10n.networkOfflineTryAgain,
-          ),
-        ),
-      );
-    }
-  }
+  ) => showAndroidTaskListActions(context, ref, list, accounts);
 
   Future<void> _createCollection(
     List<AccountEntity> accounts, {
@@ -1727,7 +1909,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                         modes.taskListMode != TaskListCreationMode.unavailable);
         })
         .toList(growable: false);
-    if (eligible.isEmpty) return;
+    if (eligible.isEmpty) {
+      return;
+    }
     final account = eligible.length == 1
         ? eligible.single
         : await showModalBottomSheet<AccountEntity>(
@@ -1755,12 +1939,16 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
               ),
             ),
           );
-    if (account == null || !mounted) return;
+    if (account == null || !mounted) {
+      return;
+    }
     final title = await _textPrompt(
       title: calendar ? l10n.newCalendar : l10n.newTaskList,
       label: l10n.title,
     );
-    if (title == null || !mounted) return;
+    if (title == null || !mounted) {
+      return;
+    }
     try {
       if (calendar) {
         final result = await ref
@@ -1795,130 +1983,159 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
   }
 
-  Future<CalendarColorChoice?> _selectCalendarColor(
-    CalendarSourceEntity source,
-  ) {
-    final choices = calendarColorChoices(source.provider);
-    return showModalBottomSheet<CalendarColorChoice>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            ListTile(title: Text(context.l10n.calendarColor)),
-            for (var index = 0; index < choices.length; index++)
-              ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: _colorFromHex(
-                    choices[index].backgroundColor,
-                  ),
-                ),
-                title: Text(context.l10n.calendarColorOption(index + 1)),
-                trailing:
-                    choices[index].backgroundColor.toLowerCase() ==
-                        source.backgroundColor?.toLowerCase()
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () => Navigator.pop(sheetContext, choices[index]),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _requestQueuedCalendarSync(CalendarSourceEntity source) {
-    if (source.provider != BusyProvider.google &&
-        source.provider != BusyProvider.microsoft) {
-      return;
-    }
-    ref
-        .read(
-          pendingCalendarMutationSyncRequesterForAccountProvider(
-            source.accountId,
-          ),
-        )
-        .request();
-  }
-
-  Future<void> _exportCollection(String accountId, String collectionId) async {
-    final l10n = context.l10n;
-    final resources = await ref
-        .read(nextcloudNativeExportServiceProvider)
-        .collection(accountId, collectionId);
-    final folder = await BusyMaxAndroidPlatform.instance.exportDocumentTree(
-      folderName:
-          'BusyMax-export-${DateTime.now().toUtc().millisecondsSinceEpoch}',
-      resources: [
-        for (var index = 0; index < resources.length; index++)
-          AndroidExportResource(
-            name: 'resource-${index + 1}.ics',
-            bytes: Uint8List.fromList(utf8.encode(resources[index].rawIcs)),
-          ),
-      ],
-    );
-    if (folder != null) _message(l10n.exportedFile(folder));
-  }
-
   Future<void> _addSubscription() async {
-    final l10n = context.l10n;
-    final url = await _textPrompt(
-      title: l10n.addCalendarSubscription,
-      label: l10n.subscriptionUrl,
-      helper: l10n.subscriptionUrlHelp,
-    );
-    if (url == null) return;
-    final name = await _textPrompt(
-      title: l10n.addCalendarSubscription,
-      label: l10n.subscriptionName,
-    );
+    final url = TextEditingController(),
+        name = TextEditingController(),
+        color = TextEditingController();
+    var mode = WebCalRefreshMode.automatic;
+    String? error;
     try {
-      await ref
-          .read(webCalSubscriptionServiceProvider)
-          .addSubscription(subscriptionUrl: url, localName: name);
-    } on Object catch (error) {
-      _message(l10n.subscriptionOperationFailed('$error'));
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            String? origin;
+            try {
+              origin = normalizeWebCalUri(url.text).safeOrigin.toString();
+            } on FormatException {
+              /* Validate on submission. */
+            }
+            return AlertDialog(
+              title: Text(context.l10n.addCalendarSubscription),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: url,
+                      keyboardType: TextInputType.url,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.subscriptionUrl,
+                        helperText: context.l10n.subscriptionUrlHelp,
+                      ),
+                      onChanged: (_) => setDialogState(() => error = null),
+                    ),
+                    if (origin != null)
+                      Text(context.l10n.subscriptionSafeOrigin(origin)),
+                    TextField(
+                      controller: name,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.subscriptionName,
+                      ),
+                    ),
+                    TextField(
+                      controller: color,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.subscriptionColor,
+                        helperText: context.l10n.subscriptionColorHelp,
+                      ),
+                    ),
+                    DropdownButtonFormField<WebCalRefreshMode>(
+                      initialValue: mode,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.subscriptionRefreshMode,
+                      ),
+                      items: [
+                        for (final value in WebCalRefreshMode.values)
+                          DropdownMenuItem(
+                            value: value,
+                            child: Text(switch (value) {
+                              WebCalRefreshMode.automatic =>
+                                context.l10n.subscriptionAutomatic,
+                              WebCalRefreshMode.hourly =>
+                                context.l10n.subscriptionHourly,
+                              WebCalRefreshMode.sixHours =>
+                                context.l10n.subscriptionSixHours,
+                              WebCalRefreshMode.daily =>
+                                context.l10n.subscriptionDaily,
+                            }),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          mode = value;
+                        }
+                      },
+                    ),
+                    if (error != null)
+                      Text(
+                        error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(context.l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    try {
+                      normalizeWebCalUri(url.text);
+                    } on FormatException {
+                      setDialogState(
+                        () => error = context.l10n.subscriptionUrlInvalid,
+                      );
+                      return;
+                    }
+                    if (color.text.trim().isNotEmpty &&
+                        !RegExp(r'^#[0-9a-fA-F]{6}$')
+                            .hasMatch(color.text.trim())) {
+                      setDialogState(
+                        () => error = context.l10n.subscriptionColorInvalid,
+                      );
+                      return;
+                    }
+                    try {
+                      await ref
+                          .read(webCalSubscriptionServiceProvider)
+                          .addSubscription(
+                            subscriptionUrl: url.text,
+                            localName: name.text,
+                            color: color.text.trim().isEmpty
+                                ? null
+                                : color.text.trim(),
+                            refreshMode: mode,
+                          );
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext);
+                      }
+                    } on Object catch (failure) {
+                      if (context.mounted) {
+                        setDialogState(
+                          () => error = context.l10n
+                              .subscriptionOperationFailed('$failure'),
+                        );
+                      }
+                    }
+                  },
+                  child: Text(context.l10n.addSubscriptionAction),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    } finally {
+      url.dispose();
+      name.dispose();
+      color.dispose();
     }
   }
 
   Future<void> _subscriptionAction(
     WebCalSubscriptionEntity subscription,
     String action,
-  ) async {
-    final l10n = context.l10n;
-    try {
-      final service = ref.read(webCalSubscriptionServiceProvider);
-      if (action == 'refresh') {
-        await service.refreshSubscription(subscription.id, force: true);
-      } else if (action == 'rename') {
-        final name = await _textPrompt(
-          title: l10n.rename,
-          label: l10n.subscriptionName,
-          initialValue: subscription.name,
-        );
-        if (name != null) {
-          await service.renameSubscription(subscription.id, name);
-        }
-      } else if (action == 'remove') {
-        final confirmed = await _confirm(
-          l10n.unsubscribeCalendarTitle(subscription.name),
-          l10n.unsubscribeCalendarConfirmation,
-          l10n.unsubscribe,
-        );
-        if (confirmed) {
-          await ref
-              .read(crossEngineAccountGateProvider)
-              .run(
-                subscription.accountId,
-                () => service.unsubscribe(subscription.id),
-              );
-        }
-      }
-    } on Object catch (error) {
-      _message(l10n.subscriptionOperationFailed('$error'));
-    }
-  }
+  ) => _AndroidSourceActions(
+    context,
+    ref,
+  )._subscriptionAction(subscription, action);
 
   Future<void> _resolveConflict(DavConflictEntity conflict) async {
     final l10n = context.l10n;
@@ -1965,7 +2182,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         ),
       ),
     );
-    if (resolution == null || !mounted) return;
+    if (resolution == null || !mounted) {
+      return;
+    }
     final needsConsent =
         resolution == DavConflictResolution.duplicateLocal &&
         conflict.duplicationRequiresSchedulingConsent;
@@ -1975,7 +2194,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         l10n.caldavConflictDuplicationSchedulingWarning,
         l10n.duplicateLocalItem,
       );
-      if (!allowed || !mounted) return;
+      if (!allowed || !mounted) {
+        return;
+      }
     }
     try {
       await ref
@@ -1995,11 +2216,15 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       final granted = await ref
           .read(androidNotificationServiceProvider)
           .requestNotificationPermission();
-      if (!granted && mounted) _message(context.l10n.notificationsBlocked);
+      if (!granted && mounted) {
+        _message(context.l10n.notificationsBlocked);
+      }
     }
     await save(enabled);
     await ref.read(notificationReconcilerProvider).reconcile();
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _requestExactAlarms() async {
@@ -2007,7 +2232,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         .read(androidNotificationServiceProvider)
         .requestExactAlarmPermission();
     await ref.read(notificationReconcilerProvider).reconcile();
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _pickSummaryTime() async {
@@ -2022,7 +2249,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         minute: int.parse(parts[1]),
       ),
     );
-    if (selected == null) return;
+    if (selected == null) {
+      return;
+    }
     await ref
         .read(appSettingsControllerProvider.notifier)
         .setDueTodayNotificationTime(
@@ -2042,7 +2271,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         minute: parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0,
       ),
     );
-    if (picked == null) return;
+    if (picked == null) {
+      return;
+    }
     final value =
         '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
     final controller = ref.read(appSettingsControllerProvider.notifier);
@@ -2067,17 +2298,6 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
   }
 
-  Future<void> _showAbout() async {
-    final info = await PackageInfo.fromPlatform();
-    if (!mounted) return;
-    showAboutDialog(
-      context: context,
-      applicationName: info.appName.isEmpty ? 'BusyMax' : info.appName,
-      applicationVersion: info.version,
-      applicationLegalese: '© BusyStack',
-    );
-  }
-
   Future<String?> _textPrompt({
     required String title,
     required String label,
@@ -2091,26 +2311,6 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         label: label,
         initialValue: initialValue,
         helper: helper,
-      ),
-    );
-  }
-
-  Future<bool?> _booleanPrompt(String title, bool value) {
-    return showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: Text(context.l10n.notificationDetailLevel),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(context.l10n.hide),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(context.l10n.show),
-          ),
-        ],
       ),
     );
   }
@@ -2136,7 +2336,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       false;
 
   void _message(String message) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
   }
@@ -2191,7 +2393,9 @@ class _AndroidTextPromptDialogState extends State<_AndroidTextPromptDialog> {
         FilledButton(
           onPressed: () {
             final text = _controller.text.trim();
-            if (text.isNotEmpty) Navigator.pop(context, text);
+            if (text.isNotEmpty) {
+              Navigator.pop(context, text);
+            }
           },
           child: Text(context.l10n.save),
         ),
@@ -2291,120 +2495,46 @@ class AndroidNextcloudSharingScreen extends ConsumerStatefulWidget {
 class _AndroidNextcloudSharingScreenState
     extends ConsumerState<AndroidNextcloudSharingScreen> {
   final _search = TextEditingController();
-  NextcloudSharingState? _state;
-  List<NextcloudShareRecipient> _recipients = const [];
-  var _recipientSearchGeneration = 0;
-  var _searchingRecipients = false;
-  var _recipientQuery = '';
-  String? _recipientResultsQuery;
-  Object? _recipientSearchError;
-  bool _busy = true;
-  Object? _error;
+  late final _model = NextcloudCollectionController(
+    ref.read(nextcloudSharingServiceProvider(widget.accountId)),
+    widget.collectionId,
+  );
 
-  NextcloudSharingService get _service =>
-      ref.read(nextcloudSharingServiceProvider(widget.accountId));
+  bool get _canChange => !_model.busy && !_model.refreshPending;
 
   @override
   void initState() {
     super.initState();
-    _search.addListener(_recipientQueryChanged);
-    unawaited(_load());
+    _model.addListener(_changed);
+    unawaited(_model.load());
   }
+
+  void _changed() => setState(() {});
 
   @override
   void dispose() {
-    _search.removeListener(_recipientQueryChanged);
     _search.dispose();
+    _model.dispose();
     super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final state = await _service.load(widget.collectionId);
-      if (mounted) setState(() => _state = state);
-    } on Object catch (error) {
-      if (mounted) setState(() => _error = error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
   }
 
   Future<void> _findRecipients() async {
     final query = _search.text.trim();
-    if (_busy || query.isEmpty) return;
-    final generation = ++_recipientSearchGeneration;
-    setState(() {
-      _searchingRecipients = true;
-      _recipientSearchError = null;
-      _recipientResultsQuery = null;
-      _recipients = const [];
-    });
-    bool current() =>
-        mounted &&
-        generation == _recipientSearchGeneration &&
-        _search.text.trim() == query;
-    try {
-      final recipients = await _service.search(query);
-      if (current()) {
-        setState(() {
-          _recipients = recipients;
-          _recipientResultsQuery = query;
-        });
-      }
-    } on Object catch (error) {
-      if (current()) setState(() => _recipientSearchError = error);
-    } finally {
-      if (current()) setState(() => _searchingRecipients = false);
-    }
-  }
-
-  void _recipientQueryChanged() {
-    final query = _search.text.trim();
-    if (query == _recipientQuery) return;
-    _recipientQuery = query;
-    _recipientSearchGeneration += 1;
-    setState(() {
-      _searchingRecipients = false;
-      _recipientSearchError = null;
-      _recipientResultsQuery = null;
-      _recipients = const [];
-    });
-  }
-
-  void _shareSearchRecipient(NextcloudShareRecipient recipient, bool writable) {
-    if (_busy ||
-        _searchingRecipients ||
-        _recipientResultsQuery != _search.text.trim() ||
-        !_recipients.contains(recipient)) {
-      return;
-    }
-    unawaited(_changeShare(recipient, writable));
+    if (_canChange && query.isNotEmpty) await _model.search(query);
   }
 
   Future<void> _changeShare(
     NextcloudShareRecipient recipient,
-    bool? writable,
-  ) async {
-    setState(() => _busy = true);
-    try {
-      await _service.changeShare(
-        widget.collectionId,
-        recipient,
-        writable: writable,
-      );
-      if (!mounted) return;
-      _search.clear();
-      _recipients = const [];
-      await _load();
-    } on Object catch (error) {
-      if (mounted) setState(() => _error = error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
+    bool? writable, {
+    bool fromSearch = false,
+  }) async {
+    if (!_canChange ||
+        _model.state?.canShare != true ||
+        (fromSearch && !_model.recipients.contains(recipient))) {
+      return;
     }
+    await _model.share(recipient, writable);
+    if (mounted && !_model.failed) _search.clear();
   }
 
   Future<void> _setPublished(bool value) async {
@@ -2426,37 +2556,37 @@ class _AndroidNextcloudSharingScreenState
           ],
         ),
       );
-      if (confirmed != true) return;
+      if (confirmed != true) {
+        return;
+      }
     }
-    setState(() => _busy = true);
-    try {
-      await _service.setPublished(widget.collectionId, value);
-      await _load();
-    } on Object catch (error) {
-      if (mounted) setState(() => _error = error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    if (!mounted || !_canChange || _model.state?.canPublish != true) return;
+    await _model.publish(value);
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = _state;
+    final state = _model.state;
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      body: _busy && state == null
+      body: _model.busy && state == null
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _load,
+              onRefresh: _model.load,
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
-                  if ((_error ?? _recipientSearchError) case final error?)
+                  if (_model.error case final error?)
                     ListTile(
                       leading: const Icon(Icons.error_outline),
                       title: Text(context.l10n.operationFailed),
-                      subtitle: Text('$error'),
+                      subtitle: Text(
+                        localizedNextcloudCollectionError(context.l10n, error),
+                      ),
                     ),
+                  if (_model.refreshPending)
+                    ListTile(title: Text(context.l10n.nextcloudRefreshPending)),
                   if (state?.canPublish ?? false)
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
@@ -2470,34 +2600,34 @@ class _AndroidNextcloudSharingScreenState
                           ? null
                           : SelectableText(state.publishUrl.toString()),
                       value: state.publishUrl != null,
-                      onChanged: _busy ? null : _setPublished,
+                      onChanged: _canChange ? _setPublished : null,
                     ),
                   if (state?.canShare ?? false) ...[
                     TextField(
                       controller: _search,
-                      enabled: !_busy,
+                      enabled: _canChange,
+                      onChanged: (_) => _model.clearSearch(),
                       decoration: InputDecoration(
                         labelText: context.l10n.nextcloudRecipientSearch,
                         suffixIcon: IconButton(
-                          onPressed: _busy || _searchingRecipients
-                              ? null
-                              : _findRecipients,
+                          onPressed: _canChange ? _findRecipients : null,
                           icon: const Icon(Icons.search),
                         ),
                       ),
                       onSubmitted: (_) => unawaited(_findRecipients()),
                     ),
-                    if (_searchingRecipients) const LinearProgressIndicator(),
-                    for (final recipient in _recipients)
+                    if (_model.searching) const LinearProgressIndicator(),
+                    for (final recipient in _model.recipients)
                       ListTile(
                         leading: Icon(
                           recipient.group ? Icons.groups : Icons.person_outline,
                         ),
                         title: Text(recipient.label),
                         trailing: PopupMenuButton<bool>(
-                          enabled: !_busy && !_searchingRecipients,
-                          onSelected: (value) =>
-                              _shareSearchRecipient(recipient, value),
+                          enabled: _canChange,
+                          onSelected: (value) => unawaited(
+                            _changeShare(recipient, value, fromSearch: true),
+                          ),
                           itemBuilder: (context) => [
                             PopupMenuItem(
                               value: false,
@@ -2529,6 +2659,7 @@ class _AndroidNextcloudSharingScreenState
                             : context.l10n.nextcloudReadAccess,
                       ),
                       trailing: PopupMenuButton<String>(
+                        enabled: _canChange && state?.canShare == true,
                         onSelected: (value) => unawaited(
                           _changeShare(share.recipient, switch (value) {
                             'read' => false,
@@ -2554,9 +2685,9 @@ class _AndroidNextcloudSharingScreenState
                     ),
                   if (state != null &&
                       state.shares.isEmpty &&
-                      _recipients.isEmpty)
+                      _model.recipients.isEmpty)
                     ListTile(title: Text(context.l10n.nextcloudNoRecipients)),
-                  if (_busy)
+                  if (_model.busy)
                     const Padding(
                       padding: EdgeInsets.all(16),
                       child: LinearProgressIndicator(),
@@ -2580,85 +2711,23 @@ class AndroidNextcloudTrashScreen extends ConsumerStatefulWidget {
 
 class _AndroidNextcloudTrashScreenState
     extends ConsumerState<AndroidNextcloudTrashScreen> {
-  final _loadCancellation = DavCancellationToken();
-  @override
-  void dispose() {
-    _loadCancellation.cancel();
-    super.dispose();
-  }
-
-  NextcloudTrashListing? _listing;
-  bool _busy = true;
-  Object? _error;
-
-  NextcloudTrashService get _service =>
-      ref.read(nextcloudTrashServiceProvider(widget.accountId));
+  late final _session = NextcloudTrashSession(
+    ref.read(nextcloudTrashServiceProvider(widget.accountId)),
+  );
 
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    _session.addListener(_onSessionChanged);
+    unawaited(_session.load());
   }
 
-  int _listingEpoch = 0;
-  final _loadingDetails = <Uri>{};
+  void _onSessionChanged() => setState(() {});
 
-  Future<void> _details(
-    NextcloudTrashItem item, {
-    bool automatic = false,
-  }) async {
-    if (!_loadingDetails.add(item.href)) return;
-    final epoch = _listingEpoch;
-    setState(() {});
-    try {
-      final detailed = await ref
-          .read(nextcloudTrashServiceProvider(widget.accountId))
-          .details(item, cancellationToken: _loadCancellation);
-      if (mounted && _listingEpoch == epoch) {
-        setState(
-          () => _listing = NextcloudTrashListing(
-            List.unmodifiable(
-              _listing!.items.map(
-                (row) => row.href == item.href ? detailed : row,
-              ),
-            ),
-            _listing!.retentionSeconds,
-          ),
-        );
-      }
-    } on Object catch (caught) {
-      if (!automatic && mounted && _listingEpoch == epoch) {
-        setState(() => _error = caught);
-      }
-    } finally {
-      _loadingDetails.remove(item.href);
-      if (mounted) setState(() {});
-    }
-  }
-
-  Future<void> _load() async {
-    final epoch = ++_listingEpoch;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final listing = await _service.list(cancellationToken: _loadCancellation);
-      if (mounted && _listingEpoch == epoch) setState(() => _listing = listing);
-    } on Object catch (error) {
-      if (mounted && _listingEpoch == epoch) setState(() => _error = error);
-    } finally {
-      if (mounted && _listingEpoch == epoch) setState(() => _busy = false);
-    }
-    if (mounted && _listingEpoch == epoch) {
-      final previews =
-          _listing?.items.where((item) => item.canPreview).take(5).toList() ??
-          const <NextcloudTrashItem>[];
-      for (final item in previews) {
-        if (!mounted || _listingEpoch != epoch || _busy) break;
-        await _details(item, automatic: true);
-      }
-    }
+  @override
+  void dispose() {
+    _session.dispose();
+    super.dispose();
   }
 
   Future<void> _act(NextcloudTrashItem item, {required bool permanent}) async {
@@ -2680,46 +2749,43 @@ class _AndroidNextcloudTrashScreenState
           ],
         ),
       );
-      if (confirmed != true) return;
-    }
-    setState(() => _busy = true);
-    try {
-      if (permanent) {
-        await _service.permanentlyDelete(item);
-      } else {
-        await _service.restore(item);
+      if (confirmed != true) {
+        return;
       }
-      await _load();
-    } on Object catch (error) {
-      if (mounted) setState(() => _error = error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
+    if (!mounted) return;
+    await _session.mutate(item, permanent: permanent);
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = _listing?.items ?? const <NextcloudTrashItem>[];
+    final items = _session.listing?.items ?? const <NextcloudTrashItem>[];
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.nextcloudTrash)),
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: _session.load,
         child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           itemCount: items.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
               return Column(
                 children: [
-                  if (_error != null)
+                  if (_session.error != null)
                     ListTile(
                       leading: const Icon(Icons.error_outline),
                       title: Text(context.l10n.operationFailed),
                       subtitle: Text(
-                        localizedNextcloudCollectionError(context.l10n, _error),
+                        localizedNextcloudCollectionError(
+                          context.l10n,
+                          _session.error,
+                        ),
                       ),
                     ),
-                  if (_listing?.retentionSeconds case final seconds?)
+                  if (_session.refreshPending)
+                    ListTile(title: Text(context.l10n.nextcloudRefreshPending)),
+                  if (_session.listing?.retentionSeconds case final seconds?)
                     ListTile(
                       title: Text(
                         seconds == 0
@@ -2729,9 +2795,9 @@ class _AndroidNextcloudTrashScreenState
                               ),
                       ),
                     ),
-                  if (!_busy && items.isEmpty && _error == null)
+                  if (!_session.busy && items.isEmpty && _session.error == null)
                     ListTile(title: Text(context.l10n.nextcloudTrashEmpty)),
-                  if (_busy) const LinearProgressIndicator(),
+                  if (_session.busy) const LinearProgressIndicator(),
                 ],
               );
             }
@@ -2747,7 +2813,7 @@ class _AndroidNextcloudTrashScreenState
                   Icons.folder_copy_outlined,
               }),
               title: Text(item.title),
-              subtitle: _loadingDetails.contains(item.href)
+              subtitle: _session.loadingDetails(item.href)
                   ? const LinearProgressIndicator()
                   : item.deletedAt == null
                   ? null
@@ -2756,23 +2822,23 @@ class _AndroidNextcloudTrashScreenState
                 key: ValueKey(('nextcloud-trash-menu', item.href.toString())),
                 onSelected: (value) => unawaited(
                   value == 'details'
-                      ? _details(item)
+                      ? _session.details(item)
                       : _act(item, permanent: value == 'delete'),
                 ),
-                enabled: !_busy,
+                enabled: !_session.busy,
                 itemBuilder: (context) => [
                   if (item.isObject && !item.contentLoaded)
                     PopupMenuItem(
                       value: 'details',
-                      enabled: !_loadingDetails.contains(item.href),
+                      enabled: !_session.loadingDetails(item.href),
                       child: Text(context.l10n.show),
                     ),
-                  if (item.canRestore)
+                  if (_session.canMutate && item.canRestore)
                     PopupMenuItem(
                       value: 'restore',
                       child: Text(context.l10n.nextcloudRestore),
                     ),
-                  if (item.canPermanentlyDelete)
+                  if (_session.canMutate && item.canPermanentlyDelete)
                     PopupMenuItem(
                       value: 'delete',
                       child: Text(context.l10n.nextcloudPermanentDelete),
@@ -2783,6 +2849,104 @@ class _AndroidNextcloudTrashScreenState
           },
         ),
       ),
+    );
+  }
+}
+
+class _AndroidAccountSyncStatus extends ConsumerWidget {
+  const _AndroidAccountSyncStatus({required this.account});
+  final AccountEntity account;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activity = ref.watch(accountSyncActivityProvider);
+    final times = ref.watch(accountDomainSyncTimesProvider(account.id));
+    final collections = ref.watch(davCollectionsStreamProvider);
+    final discovery = account.provider.isDav
+        ? ref.watch(davAccountDiscoveryProvider(account.id))
+        : null;
+    Widget domain(bool calendar) {
+      final name = calendar ? 'calendar' : 'tasks';
+      final selected = collections.valueOrNull
+          ?.where(
+            (c) =>
+                c.accountId == account.id &&
+                (calendar
+                    ? c.supportsEvents && c.eventsSelected
+                    : c.supportsTasks && c.tasksSelected),
+          )
+          .toList();
+      var last = times.valueOrNull?[name];
+      if (account.provider.isDav &&
+          selected?.isNotEmpty == true &&
+          selected!.every((c) => c.lastSyncAtUtc != null)) {
+        last = selected
+            .map((c) => c.lastSyncAtUtc!)
+            .reduce((a, b) => a.isBefore(b) ? a : b);
+      }
+      final running =
+          activity.isRunning(account.id, name) ||
+          account.provider.isDav && activity.isRunning(account.id, 'dav');
+      final error =
+          activity.failure(account.id, name) ??
+          (account.provider.isDav ? activity.failure(account.id, 'dav') : null);
+      final failed =
+          times.hasError || collections.hasError || discovery?.hasError == true;
+      final loading = account.provider.isDav
+          ? collections.isLoading || discovery?.isLoading == true
+          : times.isLoading;
+      final collectionError =
+          discovery?.valueOrNull?.lastDiscoveryErrorCode != null ||
+          selected?.any((c) => c.syncErrorCode != null) == true;
+      final sourceUnavailable =
+          calendar &&
+          (ref.watch(calendarSourcesStreamProvider).valueOrNull ?? []).any(
+            (s) => s.accountId == account.id && s.accessRole == 'unavailable',
+          );
+      final status = running
+          ? context.l10n.traySyncing
+          : error != null
+          ? localizedSyncFailureMessage(
+              context.l10n,
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            )
+          : failed
+          ? context.l10n.collectionsLoadFailed
+          : collectionError || sourceUnavailable
+          ? context.l10n.cachedSyncError
+          : loading
+          ? context.l10n.collectionsLoading
+          : last == null
+          ? context.l10n.syncNoRecord
+          : null;
+      return ListTile(
+        title: Text(
+          calendar ? context.l10n.calendarContent : context.l10n.taskContent,
+        ),
+        subtitle: Text(
+          [
+            if (status != null) status,
+            if (last != null)
+              context.l10n.davLastSuccessfulSync(
+                DateFormat.yMd().add_Hm().format(last.toLocal()),
+              ),
+          ].join('\n'),
+        ),
+        leading: Icon(
+          error != null || failed || collectionError || sourceUnavailable
+              ? Icons.warning_amber
+              : calendar
+              ? Icons.calendar_month
+              : Icons.checklist,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        if (account.calendarsEnabled) domain(true),
+        if (account.tasksEnabled) domain(false),
+      ],
     );
   }
 }
@@ -2828,8 +2992,8 @@ class _AccountButtons extends StatelessWidget {
           BusyProvider.nextcloud,
           context.l10n.addNextcloudAccount,
         ),
-        _button(context, BusyProvider.google, context.l10n.addGoogleAccount),
         _button(context, BusyProvider.caldav, context.l10n.addCalDavAccount),
+        _button(context, BusyProvider.google, context.l10n.addGoogleAccount),
         _button(
           context,
           BusyProvider.microsoft,
@@ -2913,14 +3077,16 @@ Future<void> showAndroidIcsImport(
         await BusyMaxAndroidPlatform.instance.openDocument(
           maximumBytes: icalIngestionDecodedBodyLimit,
         );
-    if (selected == null || !context.mounted) return;
+    if (selected == null || !context.mounted) {
+      return;
+    }
     final service = ref.read(icalImportServiceProvider);
     final preview = service.parsePreview(selected.bytes);
     final destinations = await service.writableDestinations();
-    if (!context.mounted) return;
-    CalendarSourceEntity? destination = destinations.firstOrNull;
-    var newCopies = false;
-    var allowScheduling = false;
+    if (!context.mounted) {
+      return;
+    }
+    final session = IcalImportSession(preview, destinations);
     final selection = await showDialog<IcalImportSelection>(
       context: context,
       barrierDismissible: false,
@@ -2932,7 +3098,29 @@ Future<void> showAndroidIcsImport(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(context.l10n.importEventsFound(preview.eventCount)),
+                Text(
+                  session.native
+                      ? context.l10n.nextcloudImportItems(
+                          preview.nativePreview.resources.length,
+                        )
+                      : context.l10n.importEventsFound(preview.eventCount),
+                ),
+                if (session.native) ...[
+                  Text(
+                    session.destination?.provider == BusyProvider.nextcloud
+                        ? context.l10n.nextcloudNativeImport
+                        : context.l10n.caldavNativeImport,
+                  ),
+                  if (preview.nativePreview.schedulingMethod != null)
+                    Text(context.l10n.nextcloudImportMethod),
+                ] else if (preview.fieldsThatWillBeOmitted.isNotEmpty)
+                  Text(
+                    context.l10n.importFieldsOmitted(
+                      (preview.fieldsThatWillBeOmitted.toList()..sort()).join(
+                        ', ',
+                      ),
+                    ),
+                  ),
                 if (preview.invalidEventCount > 0)
                   Text(
                     context.l10n.importInvalidEvents(preview.invalidEventCount),
@@ -2942,7 +3130,8 @@ Future<void> showAndroidIcsImport(
                   Text(context.l10n.noWritableCalendars)
                 else
                   DropdownButtonFormField<CalendarSourceEntity>(
-                    initialValue: destination,
+                    isExpanded: true,
+                    initialValue: session.destination,
                     decoration: InputDecoration(
                       labelText: context.l10n.importDestinationCalendar,
                     ),
@@ -2950,32 +3139,33 @@ Future<void> showAndroidIcsImport(
                       for (final source in destinations)
                         DropdownMenuItem(
                           value: source,
-                          child: Text(source.summary),
+                          child: Text(
+                            '${source.summary} · ${source.authenticatedAccountEmail ?? source.accountId}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                     ],
                     onChanged: (value) => setDialogState(() {
-                      destination = value;
-                      allowScheduling = false;
+                      session.destination = value;
                     }),
                   ),
-                if (destination?.provider == BusyProvider.caldav &&
-                    preview.nativePreview.hasAttendees)
+                if (session.schedulingConsentRequired)
                   CheckboxListTile(
                     key: const ValueKey('caldav-import-scheduling-consent'),
                     contentPadding: EdgeInsets.zero,
                     title: Text(context.l10n.caldavImportSchedulingWarning),
-                    value: allowScheduling,
-                    onChanged: (value) =>
-                        setDialogState(() => allowScheduling = value == true),
+                    value: session.allowScheduling,
+                    onChanged: (value) => setDialogState(
+                      () => session.allowScheduling = value == true,
+                    ),
                   ),
-                if (destination?.provider == BusyProvider.nextcloud ||
-                    destination?.provider == BusyProvider.caldav)
+                if (session.native)
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(context.l10n.nextcloudImportCopies),
-                    value: newCopies,
+                    value: session.newCopies,
                     onChanged: (value) =>
-                        setDialogState(() => newCopies = value == true),
+                        setDialogState(() => session.newCopies = value == true),
                   ),
               ],
             ),
@@ -2986,51 +3176,27 @@ Future<void> showAndroidIcsImport(
               child: Text(context.l10n.cancel),
             ),
             FilledButton(
-              onPressed:
-                  destination == null ||
-                      (destination?.provider == BusyProvider.caldav &&
-                          preview.nativePreview.hasAttendees &&
-                          !allowScheduling)
+              onPressed: session.selection == null
                   ? null
-                  : () => Navigator.pop(
-                      dialogContext,
-                      IcalImportSelection(
-                        destination!,
-                        newCopies: newCopies,
-                        allowScheduling: allowScheduling,
-                      ),
-                    ),
+                  : () => Navigator.pop(dialogContext, session.selection),
               child: Text(context.l10n.importIcsConfirm),
             ),
           ],
         ),
       ),
     );
-    if (selection == null || !context.mounted) return;
-    final report = await service.importPreview(
-      preview: preview,
-      destination: selection.destination,
-      nativeDuplicates: selection.duplicatePolicy,
-      allowScheduling: selection.allowScheduling,
-      normalizeNativeSchedulingMethod:
-          selection.destination.provider == BusyProvider.nextcloud ||
-          selection.destination.provider == BusyProvider.caldav,
-    );
-    if (!context.mounted) return;
+    if (selection == null || !context.mounted) {
+      return;
+    }
+    final report = await service.importSelection(preview, selection);
+    if (!context.mounted) {
+      return;
+    }
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(context.l10n.importIcsComplete),
-        content: Text(
-          [
-            context.l10n.importQueued(report.queued),
-            context.l10n.importDuplicatesSkipped(report.duplicatesSkipped),
-            context.l10n.importUnsupportedSets(
-              report.unsupportedRecurrenceSets.length,
-            ),
-            context.l10n.importInvalidEvents(report.invalidEvents),
-          ].join('\n'),
-        ),
+        content: Text(localizedIcalImportReport(context.l10n, report)),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -3040,7 +3206,9 @@ Future<void> showAndroidIcsImport(
       ),
     );
   } on Object catch (error) {
-    if (!context.mounted) return;
+    if (!context.mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.l10n.importIcsFailed('$error'))),
     );
@@ -3059,7 +3227,9 @@ class _AndroidRegistrationCard extends ConsumerWidget {
     final summary = ref
         .watch(registrationSummariesProvider)
         .valueOrNull?[account.id];
-    if (summary == null) return const SizedBox.shrink();
+    if (summary == null) {
+      return const SizedBox.shrink();
+    }
     final l10n = context.l10n;
     return Card(
       child: Padding(
@@ -3113,7 +3283,9 @@ class _AndroidNextcloudFederationScreenState
   }
 
   void _changed() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -3196,3 +3368,8 @@ class _AndroidNextcloudFederationScreenState
     );
   }
 }
+
+String _scheduleMinuteLabel(BuildContext context, int value) => value == 1440
+    ? '24:00'
+    : BusyMaxTimeFormatScope.of(context)
+          .format(DateTime(2026, 1, 1, value ~/ 60, value % 60));

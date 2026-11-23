@@ -68,11 +68,10 @@ final class SchedulePlannerCoordinates {
         local.dy >= b.size.height) {
       return null;
     }
-    final index =
-        (((rtl ? right - local.dx : local.dx - left) +
-                    p.mainHorizontalController.offset) /
-                p.dayWidth)
-            .floor();
+    final index = p.dayWidthCalculator.indexForOffset(
+      (rtl ? right - local.dx : local.dx - left) +
+          p.mainHorizontalController.offset,
+    );
     final day = p.getDayFromIndex(index);
     if (local.dy < gridTop) {
       return SchedulePointerTime(ScheduleTimeMath.date(day), dateOnly: true);
@@ -105,8 +104,12 @@ final class SchedulePlannerCoordinates {
     }
     final left = rtl ? 0.0 : gutterWidth;
     final offset = p.mainHorizontalController.offset;
-    final first = (offset / p.dayWidth).floor();
-    final last = ((offset + b.size.width - gutterWidth) / p.dayWidth).ceil();
+    final first = p.dayWidthCalculator.indexForOffset(offset);
+    final last =
+        p.dayWidthCalculator.indexForOffset(
+          offset + b.size.width - gutterWidth,
+        ) +
+        1;
     final start = allDay
         ? ScheduleTimeMath.civil(interval.start)
         : ScheduleTimeMath.civil(interval.start.toLocal());
@@ -117,15 +120,19 @@ final class SchedulePlannerCoordinates {
       final value = p.getDayFromIndex(index);
       final day = DateTime.utc(value.year, value.month, value.day);
       final next = day.add(const Duration(days: 1));
-      if (!start.isBefore(next) || !end.isAfter(day)) continue;
+      if (!start.isBefore(next) || !end.isAfter(day)) {
+        continue;
+      }
+      final dayWidth = p.dayWidthCalculator.widthForIndex(index);
+      final dayOffset = p.dayWidthCalculator.offsetForIndex(index);
       final x = rtl
-          ? b.size.width - gutterWidth - (index + 1) * p.dayWidth + offset
-          : left + index * p.dayWidth - offset;
+          ? b.size.width - gutterWidth - dayOffset - dayWidth + offset
+          : left + dayOffset - offset;
       if (allDay) {
         yield Rect.fromLTWH(
           x + 4,
           headerHeight + 2,
-          p.dayWidth - 8,
+          dayWidth - 8,
           math.max(24, allDayHeight - 4),
         );
       } else {
@@ -139,7 +146,7 @@ final class SchedulePlannerCoordinates {
         final raw = Rect.fromLTWH(
           x + 4,
           y + a * p.heightPerMinute,
-          p.dayWidth - 8,
+          dayWidth - 8,
           math.max(4, (z - a) * p.heightPerMinute),
         );
         final clipped = raw.intersect(
@@ -150,7 +157,9 @@ final class SchedulePlannerCoordinates {
             b.size.height,
           ),
         );
-        if (!clipped.isEmpty) yield clipped;
+        if (!clipped.isEmpty) {
+          yield clipped;
+        }
       }
     }
   }
@@ -158,24 +167,36 @@ final class SchedulePlannerCoordinates {
   void scrollAt(Offset global) {
     final p = planner;
     final b = box;
-    if (p == null || b == null || !b.hasSize) return;
+    if (p == null || b == null || !b.hasSize) {
+      return;
+    }
     final at = b.globalToLocal(global);
     double velocity(double value, double low, double high) {
       const edge = 36.0;
-      if (value < low || value > high) return 0;
-      if (value < low + edge) return -math.min(14.0, (low + edge - value) / 2);
-      if (value > high - edge) return math.min(14, (value - high + edge) / 2);
+      if (value < low || value > high) {
+        return 0;
+      }
+      if (value < low + edge) {
+        return -math.min(14.0, (low + edge - value) / 2);
+      }
+      if (value > high - edge) {
+        return math.min(14, (value - high + edge) / 2);
+      }
       return 0;
     }
 
     void step(ScrollController controller, double delta) {
-      if (!controller.hasClients || delta == 0) return;
+      if (!controller.hasClients || delta == 0) {
+        return;
+      }
       final position = controller.position;
       final next = (position.pixels + delta).clamp(
         position.minScrollExtent,
         position.maxScrollExtent,
       );
-      if (next != position.pixels) controller.jumpTo(next);
+      if (next != position.pixels) {
+        controller.jumpTo(next);
+      }
     }
 
     step(
@@ -215,8 +236,10 @@ class ScheduleInteractionRegion extends StatefulWidget {
     this.onReschedule,
     this.onRangeCreated,
     this.onEmptySlot,
+    this.touch = false,
   });
   final Widget child;
+  final bool touch;
   final SchedulePlannerCoordinates? coordinates;
   final SchedulePreviewBuilder previewBuilder;
   final Color previewColor;
@@ -271,12 +294,16 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) cancel();
+    if (state != AppLifecycleState.resumed) {
+      cancel();
+    }
   }
 
   @override
   void didChangeViewFocus(ViewFocusEvent event) {
-    if (event.state == ViewFocusState.unfocused) cancel();
+    if (event.state == ViewFocusState.unfocused) {
+      cancel();
+    }
   }
 
   @override
@@ -289,9 +316,15 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
     super.dispose();
   }
 
+  final _touchPointers = <int>{};
+  bool _multiTouch = false;
+  _TouchGridSelectionGesture? _touchSelection;
+
   SchedulePointerTime? at(Offset global) {
     final planner = widget.coordinates;
-    if (planner != null) return planner.at(global);
+    if (planner != null) {
+      return planner.at(global);
+    }
     for (final date in _dates.values) {
       final box = date.box();
       if (box.attached &&
@@ -304,7 +337,8 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
   }
 
   bool begin(ScheduleEventDragData data, ScheduleTimingAction action) {
-    if (active ||
+    if (_multiTouch ||
+        active ||
         widget.onReschedule == null ||
         !data.item.canReschedule ||
         data.grab == null) {
@@ -323,9 +357,13 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
   }
 
   void beginSelection(Offset down) {
-    if (active || widget.onRangeCreated == null) return;
+    if (active || widget.onRangeCreated == null) {
+      return;
+    }
     final value = at(down);
-    if (value == null || value.dateOnly) return;
+    if (value == null || value.dateOnly) {
+      return;
+    }
     _token = Object();
     _anchor = value;
     _pointer = down;
@@ -335,7 +373,9 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
   void _startScroll() {
     _scroll?.cancel();
     _scroll = Timer.periodic(const Duration(milliseconds: 16), (_) {
-      if (!active || _saving || _pointer == null) return;
+      if (!active || _saving || _pointer == null) {
+        return;
+      }
       widget.coordinates?.scrollAt(_pointer!);
       update(_pointer!);
     });
@@ -345,14 +385,22 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
       !_saving && active && identical(data.token, _token) && _valid(at(global));
 
   bool _valid(SchedulePointerTime? point) {
-    if (point == null) return false;
-    if (_drag == null) return !point.dateOnly;
-    if (allDay) return point.dateOnly;
+    if (point == null) {
+      return false;
+    }
+    if (_drag == null) {
+      return !point.dateOnly;
+    }
+    if (allDay) {
+      return point.dateOnly;
+    }
     return _action == ScheduleTimingAction.move || !point.dateOnly;
   }
 
   void update(Offset global) {
-    if (!active || _saving) return;
+    if (!active || _saving) {
+      return;
+    }
     _pointer = global;
     final point = at(global);
     if (!_valid(point)) {
@@ -384,7 +432,9 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
   }
 
   void finish() {
-    if (!active || _saving) return;
+    if (!active || _saving) {
+      return;
+    }
     _scroll?.cancel();
     final interval = _preview;
     if (interval == null || _pointer == null || !_valid(at(_pointer!))) {
@@ -416,22 +466,32 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
           () => mounted && identical(token, _token),
         ),
       ).whenComplete(() {
-        if (mounted && identical(token, _token)) cancel();
+        if (mounted && identical(token, _token)) {
+          cancel();
+        }
       }),
     );
   }
 
   /// Drag-end is cleanup only. It must never act as an accepted drop.
   void dragEnded(ScheduleEventDragData data) {
-    if (!identical(data.token, _token)) return;
+    if (!identical(data.token, _token)) {
+      return;
+    }
     _clearMoveCursor(token: data.token);
-    if (!_saving) cancel();
+    if (!_saving) {
+      cancel();
+    }
   }
 
   void _clearMoveCursor({required Object? token}) {
-    if (!identical(token, _token) || !_moveCursorActive) return;
+    if (!identical(token, _token) || !_moveCursorActive) {
+      return;
+    }
     _moveCursorActive = false;
-    if (mounted) _notify();
+    if (mounted) {
+      _notify();
+    }
   }
 
   void cancel() {
@@ -443,7 +503,9 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
     _preview = null;
     _saving = false;
     _moveCursorActive = false;
-    if (mounted) _notify();
+    if (mounted) {
+      _notify();
+    }
   }
 
   void _notify() => changes.value++;
@@ -453,7 +515,9 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
       return false;
     }
     final point = at(event.position);
-    if (point == null || point.dateOnly) return false;
+    if (point == null || point.dateOnly) {
+      return false;
+    }
     final box = widget.coordinates!.box!;
     final local = box.globalToLocal(event.position);
     if (local.dx > box.size.width - 14 || local.dy > box.size.height - 14) {
@@ -524,7 +588,9 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
             child: ListenableBuilder(
               listenable: changes,
               builder: (context, _) {
-                if (!_moveCursorActive) return const SizedBox.shrink();
+                if (!_moveCursorActive) {
+                  return const SizedBox.shrink();
+                }
                 return const MouseRegion(
                   cursor: SystemMouseCursors.move,
                   opaque: false,
@@ -539,6 +605,25 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
     );
     body = RawGestureDetector(
       gestures: {
+        if (widget.touch)
+          _TouchGridSelectionGesture:
+              GestureRecognizerFactoryWithHandlers<_TouchGridSelectionGesture>(
+                () => _touchSelection = _TouchGridSelectionGesture(),
+                (recognizer) => recognizer
+                  ..allowed = ((event) =>
+                      _touchPointers.isEmpty && _backgroundAllowed(event))
+                  ..onLongPressStart = (details) {
+                    beginSelection(details.globalPosition);
+                    update(details.globalPosition);
+                  }
+                  ..onLongPressMoveUpdate = (details) {
+                    update(details.globalPosition);
+                  }
+                  ..onLongPressEnd = (_) {
+                    finish();
+                  }
+                  ..onLongPressCancel = cancel,
+              ),
         _GridSelectionGesture:
             GestureRecognizerFactoryWithHandlers<_GridSelectionGesture>(
               _GridSelectionGesture.new,
@@ -558,7 +643,38 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
       },
       child: body,
     );
-    return _InteractionScope(state: this, child: body);
+    return _InteractionScope(
+      state: this,
+      child: Listener(
+        onPointerDown: !widget.touch
+            ? null
+            : (event) {
+                if (event.kind != PointerDeviceKind.touch &&
+                    event.kind != PointerDeviceKind.stylus) {
+                  return;
+                }
+                _touchPointers.add(event.pointer);
+                if (_touchPointers.length > 1) {
+                  _multiTouch = true;
+                  _touchSelection?.rejectSelection();
+                  cancel();
+                }
+              },
+        onPointerUp: (event) => _removeTouchPointer(event.pointer),
+        onPointerCancel: (event) {
+          _removeTouchPointer(event.pointer);
+          if (widget.touch) {
+            cancel();
+          }
+        },
+        child: body,
+      ),
+    );
+  }
+
+  void _removeTouchPointer(int pointer) {
+    _touchPointers.remove(pointer);
+    if (_touchPointers.isEmpty) _multiTouch = false;
   }
 }
 
@@ -612,13 +728,17 @@ class _GridSelectionGesture extends OneSequenceGestureRecognizer {
 
   @override
   void handleEvent(PointerEvent event) {
-    if (event.pointer != _pointer) return;
+    if (event.pointer != _pointer) {
+      return;
+    }
     if (event is PointerMoveEvent) {
       if (!_dragging && (event.position - _down!).distance > kTouchSlop) {
         _dragging = true;
         started?.call(_down!);
       }
-      if (_dragging) moved?.call(event.position);
+      if (_dragging) {
+        moved?.call(event.position);
+      }
     } else if (event is PointerUpEvent) {
       if (_dragging) {
         moved?.call(event.position);
@@ -653,6 +773,29 @@ class _GridSelectionGesture extends OneSequenceGestureRecognizer {
   void didStopTrackingLastPointer(int pointer) {}
   @override
   String get debugDescription => 'calendar background range';
+}
+
+/// Hold first so ordinary one-finger scrolling and two-finger zoom retain
+/// ownership until the user deliberately selects a range.
+class _TouchGridSelectionGesture extends LongPressGestureRecognizer {
+  _TouchGridSelectionGesture()
+    : super(
+        duration: const Duration(milliseconds: 450),
+        supportedDevices: const {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.stylus,
+        },
+      );
+  bool Function(PointerDownEvent)? allowed;
+  @override
+  bool isPointerAllowed(PointerDownEvent event) =>
+      (allowed?.call(event) ?? false) && super.isPointerAllowed(event);
+
+  void rejectSelection() {
+    if (state != GestureRecognizerState.possible) return;
+    resolve(GestureDisposition.rejected);
+    stopTrackingPointer(primaryPointer!);
+  }
 }
 
 /// Wrap each actual event, including each member of an equal-time strip.
@@ -695,11 +838,13 @@ class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
   ) {
     if (region.active ||
         event.buttons != kPrimaryMouseButton ||
-        event.kind != PointerDeviceKind.mouse) {
+        (event.kind != PointerDeviceKind.mouse && !region.widget.touch)) {
       return;
     }
     final item = widget.item;
-    if (item is! CalendarScheduleItem || !item.canReschedule) return;
+    if (item is! CalendarScheduleItem || !item.canReschedule) {
+      return;
+    }
     data
       ..pointerDown = event.position
       ..grab =
@@ -732,126 +877,263 @@ class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
               : item.end!.subtract(const Duration(microseconds: 1)),
         ) ==
         0;
-    Widget handle(ScheduleTimingAction action) => MouseRegion(
-      cursor: item.allDay
-          ? SystemMouseCursors.resizeLeftRight
-          : SystemMouseCursors.resizeUpDown,
-      child: GestureDetector(
-        key: ValueKey('schedule-${action.name}-${item.id}'),
-        behavior: HitTestBehavior.opaque,
-        supportedDevices: const {PointerDeviceKind.mouse},
-        onPanStart: (details) {
-          _ownsResize = region.begin(data, action);
-          if (_ownsResize) {
-            region.update(details.globalPosition);
-          }
-        },
-        onPanUpdate: (details) {
-          if (_ownsResize && region.owns(_data)) {
-            region.update(details.globalPosition);
-          }
-        },
-        onPanEnd: (_) {
-          if (_ownsResize && region.owns(_data)) region.finish();
-          _ownsResize = false;
-        },
-        onPanCancel: () {
-          if (_ownsResize && region.owns(_data)) region.cancel();
-          _ownsResize = false;
-        },
-        child: SizedBox(
-          width: item.allDay ? 8 : 32,
-          height: item.allDay ? double.infinity : 8,
-          child: Center(
-            child: Container(
-              width: item.allDay ? 2 : 18,
-              height: item.allDay ? 12 : 2,
-              color: region.widget.previewColor.withValues(alpha: .7),
+    Widget handle(ScheduleTimingAction action, {double? allDayWidth}) =>
+        MouseRegion(
+          cursor: item.allDay
+              ? SystemMouseCursors.resizeLeftRight
+              : SystemMouseCursors.resizeUpDown,
+          child: GestureDetector(
+            key: ValueKey('schedule-${action.name}-${item.id}'),
+            behavior: HitTestBehavior.opaque,
+            supportedDevices: region.widget.touch
+                ? const {PointerDeviceKind.touch, PointerDeviceKind.stylus}
+                : const {PointerDeviceKind.mouse},
+            onLongPressStart: !region.widget.touch
+                ? null
+                : (details) {
+                    _ownsResize = region.begin(data, action);
+                    if (_ownsResize) {
+                      region.update(details.globalPosition);
+                    }
+                  },
+            onLongPressMoveUpdate: !region.widget.touch
+                ? null
+                : (details) {
+                    if (_ownsResize && region.owns(_data)) {
+                      region.update(details.globalPosition);
+                    }
+                  },
+            onLongPressEnd: !region.widget.touch
+                ? null
+                : (_) {
+                    if (_ownsResize && region.owns(_data)) {
+                      region.finish();
+                    }
+                    _ownsResize = false;
+                  },
+            onLongPressCancel: !region.widget.touch
+                ? null
+                : () {
+                    if (_ownsResize && region.owns(_data)) {
+                      region.cancel();
+                    }
+                    _ownsResize = false;
+                  },
+            onPanStart: region.widget.touch
+                ? null
+                : (details) {
+                    _ownsResize = region.begin(data, action);
+                    if (_ownsResize) {
+                      region.update(details.globalPosition);
+                    }
+                  },
+            onPanUpdate: region.widget.touch
+                ? null
+                : (details) {
+                    if (_ownsResize && region.owns(_data)) {
+                      region.update(details.globalPosition);
+                    }
+                  },
+            onPanEnd: region.widget.touch
+                ? null
+                : (_) {
+                    if (_ownsResize && region.owns(_data)) {
+                      region.finish();
+                    }
+                    _ownsResize = false;
+                  },
+            onPanCancel: region.widget.touch
+                ? null
+                : () {
+                    if (_ownsResize && region.owns(_data)) {
+                      region.cancel();
+                    }
+                    _ownsResize = false;
+                  },
+            child: SizedBox(
+              width: item.allDay
+                  ? (region.widget.touch ? allDayWidth : 8)
+                  : (region.widget.touch ? 44 : 32),
+              height: item.allDay
+                  ? double.infinity
+                  : (region.widget.touch ? 24 : 8),
+              child: Center(
+                child: Container(
+                  width: item.allDay ? 2 : 18,
+                  height: item.allDay ? 12 : 2,
+                  color: region.widget.previewColor.withValues(alpha: .7),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        );
     return ScheduleInteractionBlocker(
       child: Listener(
         onPointerDown: (event) => _down(event, region, data),
         onPointerCancel: (_) {
-          if (region.owns(_data)) region.cancel();
+          if (region.owns(_data)) {
+            region.cancel();
+          }
         },
         child: MouseRegion(
           cursor: MouseCursor.defer,
-          child: Stack(
-            fit: widget.dateOnly ? StackFit.loose : StackFit.expand,
-            children: [
-              Draggable<ScheduleEventDragData>(
-                data: data,
-                allowedButtonsFilter: (buttons) =>
-                    buttons == kPrimaryMouseButton && region.canMove,
-                // Availability is checked at pointer-down by the live filter.
-                maxSimultaneousDrags: 1,
-                dragAnchorStrategy: pointerDragAnchorStrategy,
-                feedback: ListenableBuilder(
-                  listenable: region.changes,
-                  builder: (context, _) {
-                    final interval = region.preview;
-                    if (interval == null || region.widget.coordinates != null) {
-                      return const SizedBox.shrink();
-                    }
-                    return SizedBox(
-                      width: 220,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: region.widget.previewColor.withValues(
-                            alpha: .3,
-                          ),
-                        ),
-                        child: region.widget.previewBuilder(
-                          context,
-                          interval,
-                          item.allDay,
-                        ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Keep a distinct move target between both boundaries even in
+              // compact Month cells and narrow, horizontally scrolling days.
+              final allDayWidth = math.min(24.0, constraints.maxWidth / 4);
+              return Stack(
+                fit: widget.dateOnly ? StackFit.loose : StackFit.expand,
+                children: [
+                  if (region.widget.touch)
+                    LongPressDraggable<ScheduleEventDragData>(
+                      delay: const Duration(milliseconds: 450),
+                      data: data,
+                      allowedButtonsFilter: (buttons) =>
+                          buttons == kPrimaryMouseButton && region.canMove,
+                      // Availability is checked at pointer-down by the live filter.
+                      maxSimultaneousDrags: 1,
+                      dragAnchorStrategy: pointerDragAnchorStrategy,
+                      feedback: ListenableBuilder(
+                        listenable: region.changes,
+                        builder: (context, _) {
+                          final interval = region.preview;
+                          if (interval == null ||
+                              region.widget.coordinates != null) {
+                            return const SizedBox.shrink();
+                          }
+                          return SizedBox(
+                            width: 220,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: region.widget.previewColor.withValues(
+                                  alpha: .3,
+                                ),
+                              ),
+                              child: region.widget.previewBuilder(
+                                context,
+                                interval,
+                                item.allDay,
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
-                onDragStarted: () {
-                  _dragging = true;
-                  region.begin(data, ScheduleTimingAction.move);
-                },
-                onDragUpdate: (details) {
-                  if (region.owns(data)) region.update(details.globalPosition);
-                },
-                onDragEnd: (_) {
-                  region.dragEnded(data);
-                  setState(() {
-                    _dragging = false;
-                    _data = null;
-                  });
-                },
-                // Flutter still invokes this after a refresh disposes the
-                // source Draggable. Cleanup belongs to the surviving region.
-                onDraggableCanceled: (_, _) {
-                  if (region.mounted) region.dragEnded(data);
-                },
-                childWhenDragging: Opacity(opacity: .4, child: widget.child),
-                child: widget.child,
-              ),
-              if ((!widget.dateOnly || item.allDay) && first)
-                Positioned(
-                  top: 0,
-                  left: item.allDay ? 0 : null,
-                  right: item.allDay ? null : 2,
-                  bottom: item.allDay ? 0 : null,
-                  child: handle(ScheduleTimingAction.resizeStart),
-                ),
-              if ((!widget.dateOnly || item.allDay) && last)
-                Positioned(
-                  bottom: 0,
-                  right: item.allDay ? 0 : 2,
-                  top: item.allDay ? 0 : null,
-                  child: handle(ScheduleTimingAction.resizeEnd),
-                ),
-            ],
+                      onDragStarted: () {
+                        _dragging = true;
+                        region.begin(data, ScheduleTimingAction.move);
+                      },
+                      onDragUpdate: (details) {
+                        if (region.owns(data)) {
+                          region.update(details.globalPosition);
+                        }
+                      },
+                      onDragEnd: (_) {
+                        region.dragEnded(data);
+                        setState(() {
+                          _dragging = false;
+                          _data = null;
+                        });
+                      },
+                      // Flutter still invokes this after a refresh disposes the
+                      // source Draggable. Cleanup belongs to the surviving region.
+                      onDraggableCanceled: (_, _) {
+                        if (region.mounted) {
+                          region.dragEnded(data);
+                        }
+                      },
+                      childWhenDragging: Opacity(
+                        opacity: .4,
+                        child: widget.child,
+                      ),
+                      child: widget.child,
+                    )
+                  else
+                    Draggable<ScheduleEventDragData>(
+                      data: data,
+                      allowedButtonsFilter: (buttons) =>
+                          buttons == kPrimaryMouseButton && region.canMove,
+                      // Availability is checked at pointer-down by the live filter.
+                      maxSimultaneousDrags: 1,
+                      dragAnchorStrategy: pointerDragAnchorStrategy,
+                      feedback: ListenableBuilder(
+                        listenable: region.changes,
+                        builder: (context, _) {
+                          final interval = region.preview;
+                          if (interval == null ||
+                              region.widget.coordinates != null) {
+                            return const SizedBox.shrink();
+                          }
+                          return SizedBox(
+                            width: 220,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: region.widget.previewColor.withValues(
+                                  alpha: .3,
+                                ),
+                              ),
+                              child: region.widget.previewBuilder(
+                                context,
+                                interval,
+                                item.allDay,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      onDragStarted: () {
+                        _dragging = true;
+                        region.begin(data, ScheduleTimingAction.move);
+                      },
+                      onDragUpdate: (details) {
+                        if (region.owns(data)) {
+                          region.update(details.globalPosition);
+                        }
+                      },
+                      onDragEnd: (_) {
+                        region.dragEnded(data);
+                        setState(() {
+                          _dragging = false;
+                          _data = null;
+                        });
+                      },
+                      // Flutter still invokes this after a refresh disposes the
+                      // source Draggable. Cleanup belongs to the surviving region.
+                      onDraggableCanceled: (_, _) {
+                        if (region.mounted) {
+                          region.dragEnded(data);
+                        }
+                      },
+                      childWhenDragging: Opacity(
+                        opacity: .4,
+                        child: widget.child,
+                      ),
+                      child: widget.child,
+                    ),
+                  if ((!widget.dateOnly || item.allDay) && first)
+                    Positioned(
+                      top: 0,
+                      left: item.allDay ? 0 : null,
+                      right: item.allDay ? null : 2,
+                      bottom: item.allDay ? 0 : null,
+                      child: handle(
+                        ScheduleTimingAction.resizeStart,
+                        allDayWidth: allDayWidth,
+                      ),
+                    ),
+                  if ((!widget.dateOnly || item.allDay) && last)
+                    Positioned(
+                      bottom: 0,
+                      right: item.allDay ? 0 : 2,
+                      top: item.allDay ? 0 : null,
+                      child: handle(
+                        ScheduleTimingAction.resizeEnd,
+                        allDayWidth: allDayWidth,
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ),

@@ -11,7 +11,7 @@ import '../../app/busymax_dialogs.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../dav/nextcloud/nextcloud_scheduling_controller.dart';
 import '../../dav/nextcloud/nextcloud_scheduling_service.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/time_format_scope.dart';
 

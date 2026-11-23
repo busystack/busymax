@@ -252,7 +252,11 @@ void main() {
                       supportedLocales: AppLocalizations.supportedLocales,
                       home: WindowsSettingsPage(),
                     )
-                  : localizedTestApp(child: const AndroidSettingsScreen()),
+                  : localizedTestApp(
+                      child: const AndroidSettingsScreen(
+                        category: AndroidSettingsCategory.accounts,
+                      ),
+                    ),
             ),
           );
           await settle(tester);
@@ -340,6 +344,12 @@ void main() {
             ),
             isNotEmpty,
           );
+          if (!windows) {
+            final entry = find.widgetWithText(ListTile, account.displayName);
+            await tester.ensureVisible(entry);
+            await tester.tap(entry);
+            await settle(tester);
+          }
           final setting = (await complete(
             tester,
             f.controller.sourceSettings,
@@ -369,6 +379,13 @@ void main() {
           );
           await contactActionsReady(tester, windows);
           if (!windows) {
+            await tester.ensureVisible(
+              find.widgetWithText(ExpansionTile, 'Advanced').last,
+            );
+            await tester.tap(
+              find.widgetWithText(ExpansionTile, 'Advanced').last,
+            );
+            await settle(tester);
             final secretBefore = Map<String, String>.from(f.davSecrets);
             final before = await complete(
               tester,
@@ -497,22 +514,42 @@ void main() {
                       supportedLocales: AppLocalizations.supportedLocales,
                       home: WindowsSettingsPage(),
                     )
-                  : localizedTestApp(child: const AndroidSettingsScreen()),
+                  : localizedTestApp(
+                      child: const AndroidSettingsScreen(
+                        category: AndroidSettingsCategory.accounts,
+                      ),
+                    ),
             ),
           );
           await settle(tester);
+          if (!windows) {
+            final entry = find.byKey(ValueKey('account-entry-${parents!.id}'));
+            await tester.ensureVisible(entry);
+            await tester.tap(entry);
+            await settle(tester);
+          }
           expect(
             find.text(
               'Use cached contacts from this account when adding event guests.',
             ),
             findsOneWidget,
           );
-          await tester.ensureVisible(
-            find.text('Enable contact suggestions').first,
+          final enable = find.widgetWithText(
+            windows ? fluent.Button : TextButton,
+            'Enable contact suggestions',
           );
-          await tester.tap(find.text('Enable contact suggestions').first);
+          await Scrollable.ensureVisible(tester.element(enable), alignment: .5);
+          await tester.pumpAndSettle();
+          expect(enable.hitTestable(), findsOneWidget);
+          await tester.tap(enable);
           await settle(tester);
           final id = 'contacts:${provider.name}';
+          final enrolled = await complete(
+            tester,
+            () => fixture.store.read((tx) => tx.accounts()),
+          );
+          expect(enrolled.single.id, id);
+          expect(enrolled.single.enabled, isTrue);
           await complete(
             tester,
             () => fixture.controller.synchronizeAccount(id),

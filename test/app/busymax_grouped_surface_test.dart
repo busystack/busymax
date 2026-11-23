@@ -179,13 +179,18 @@ void main() {
     final settings = File(
       'lib/src/features/settings/presentation/settings_screen.dart',
     ).readAsStringSync();
-    final yearView = File(
-      'lib/src/features/schedule/presentation/schedule_year_view.dart',
-    ).readAsStringSync();
+    final yearView = File('lib/src/ui/common/schedule/schedule_year_view.dart')
+        .readAsStringSync();
 
     expect(settings, contains('BusyMaxGroupedList('));
     expect(yearView, contains('YearMonthMiniCalendar('));
-    expect(yearView, contains('BusyMaxGroupedSurface('));
+    expect(yearView, contains('ScheduleGroupedSurface('));
+    expect(
+      File(
+        'lib/src/features/schedule/presentation/schedule_linux_presentation.dart',
+      ).readAsStringSync(),
+      contains('BusyMaxGroupedSurface(child: child)'),
+    );
     for (final source in [settings, yearView]) {
       expect(source, isNot(contains('BoxShadow(')));
       expect(source, isNot(contains('elevation:')));

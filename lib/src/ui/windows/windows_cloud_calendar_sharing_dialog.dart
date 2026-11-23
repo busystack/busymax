@@ -1,3 +1,5 @@
+import '../../features/calendar/application/cloud_calendar_sharing_session.dart';
+
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -53,17 +55,15 @@ class _WindowsCloudCalendarSharingContent extends ConsumerStatefulWidget {
 class _WindowsCloudCalendarSharingContentState
     extends ConsumerState<_WindowsCloudCalendarSharingContent> {
   final _recipient = TextEditingController();
-  CloudCalendarSharingService? _service;
-  CloudCalendarShareSnapshot? _snapshot;
-  Object? _error;
-  bool _busy = false;
-  Timer? _cooldownTimer;
+  late final _session = CloudCalendarSharingSession(_createService);
   String? _role;
-  int _generation = 0;
+
+  void _sessionChanged() => setState(() {});
 
   @override
   void initState() {
     super.initState();
+    _session.addListener(_sessionChanged);
     if (widget.sources.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_load(widget.sources.first));
@@ -73,113 +73,40 @@ class _WindowsCloudCalendarSharingContentState
 
   @override
   void dispose() {
-    _generation++;
-    _cooldownTimer?.cancel();
+    _session.dispose();
     _recipient.dispose();
     super.dispose();
   }
 
-  Future<void> _load(CalendarSourceEntity source) async {
-    final generation = ++_generation;
-    _cooldownTimer?.cancel();
-    setState(() {
-      _service = null;
-      _snapshot = null;
-      _error = null;
-      _busy = true;
-    });
-    try {
-      final service =
-          widget.serviceFactory?.call(source) ??
-          CloudCalendarSharingService(
-            source: source,
-            google: source.provider == BusyProvider.google
-                ? ref.read(
-                    googleCalendarApiClientForAccountProvider(source.accountId),
-                  )
-                : null,
-            microsoft: source.provider == BusyProvider.microsoft
-                ? ref.read(
-                    microsoftCalendarApiClientForAccountProvider(
-                      source.accountId,
-                    ),
-                  )
-                : null,
-          );
-      if (!mounted || generation != _generation) return;
-      setState(() {
-        _service = service;
-        _role = service.newGrantRoles.first;
-      });
-      final result = await service.load();
-      if (!mounted || generation != _generation) return;
-      setState(() => _snapshot = result);
-    } on Object catch (error) {
-      if (!mounted || generation != _generation) return;
-      setState(() => _error = error);
-    } finally {
-      if (mounted && generation == _generation) {
-        setState(() => _busy = false);
-        _scheduleCooldown();
-      }
-    }
-  }
+  Future<void> _load(CalendarSourceEntity source) => _session.select(source);
 
-  Future<void> _mutate(
-    Future<CloudCalendarShareSnapshot> Function(CloudCalendarSharingService)
-    action,
-  ) async {
-    final service = _service;
-    if (service == null ||
-        _busy ||
-        _snapshot == null ||
-        _snapshot!.refreshError != null ||
-        _snapshot!.outcomeUnknown ||
-        service.hasUnresolvedOutcome) {
-      return;
-    }
-    final generation = _generation;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final result = await action(service);
-      if (!mounted || generation != _generation) return;
-      setState(() => _snapshot = result);
-    } on Object catch (error) {
-      if (!mounted || generation != _generation) return;
-      setState(() => _error = error);
-    } finally {
-      if (mounted && generation == _generation) {
-        setState(() => _busy = false);
-        _scheduleCooldown();
-      }
-    }
-  }
-
-  void _scheduleCooldown() {
-    _cooldownTimer?.cancel();
-    final service = _service;
-    final delay = service?.retryAfter;
-    if (service == null || delay == null) return;
-    final generation = _generation;
-    _cooldownTimer = Timer(delay + const Duration(milliseconds: 1), () {
-      if (!mounted ||
-          generation != _generation ||
-          !identical(_service, service)) {
-        return;
-      }
-      setState(() {});
-      _scheduleCooldown();
-    });
+  CloudCalendarSharingService _createService(CalendarSourceEntity source) {
+    final service =
+        widget.serviceFactory?.call(source) ??
+        CloudCalendarSharingService(
+          source: source,
+          google: source.provider == BusyProvider.google
+              ? ref.read(
+                  googleCalendarApiClientForAccountProvider(source.accountId),
+                )
+              : null,
+          microsoft: source.provider == BusyProvider.microsoft
+              ? ref.read(
+                  microsoftCalendarApiClientForAccountProvider(
+                    source.accountId,
+                  ),
+                )
+              : null,
+        );
+    _role = service.newGrantRoles.first;
+    return service;
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final service = _service;
-    final grants = _snapshot?.grants;
+    final service = _session.service;
+    final grants = _session.snapshot?.grants;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -193,7 +120,7 @@ class _WindowsCloudCalendarSharingContentState
               for (final source in widget.sources)
                 ComboBoxItem(value: source.id, child: Text(source.summary)),
             ],
-            onChanged: _busy
+            onChanged: _session.busy
                 ? null
                 : (id) {
                     if (id == null) return;
@@ -202,15 +129,15 @@ class _WindowsCloudCalendarSharingContentState
                     );
                   },
           ),
-        if (_busy) const ProgressBar(),
-        if (_error != null) ...[
+        if (_session.busy) const ProgressBar(),
+        if (_session.error != null) ...[
           InfoBar(
             title: Text(l10n.operationFailed),
-            content: SelectableText('$_error'),
+            content: SelectableText('${_session.error}'),
             severity: InfoBarSeverity.error,
           ),
           Button(
-            onPressed: service == null || _busy
+            onPressed: service == null || _session.busy
                 ? null
                 : () => unawaited(_load(service.source)),
             child: Text(l10n.retry),
@@ -221,7 +148,7 @@ class _WindowsCloudCalendarSharingContentState
             title: Text(l10n.sharingRateLimited),
             severity: InfoBarSeverity.warning,
           ),
-        if (_snapshot?.outcomeUnknown == true)
+        if (_session.snapshot?.outcomeUnknown == true)
           Column(
             children: [
               InfoBar(
@@ -229,14 +156,14 @@ class _WindowsCloudCalendarSharingContentState
                 severity: InfoBarSeverity.warning,
               ),
               Button(
-                onPressed: _busy || service == null
+                onPressed: _session.busy || service == null
                     ? null
                     : () => unawaited(_load(service.source)),
                 child: Text(l10n.retry),
               ),
             ],
           )
-        else if (_snapshot?.refreshError != null)
+        else if (_session.snapshot?.refreshError != null)
           Column(
             children: [
               InfoBar(
@@ -244,7 +171,7 @@ class _WindowsCloudCalendarSharingContentState
                 severity: InfoBarSeverity.warning,
               ),
               Button(
-                onPressed: _busy || service == null
+                onPressed: _session.busy || service == null
                     ? null
                     : () => unawaited(_load(service.source)),
                 child: Text(l10n.retry),
@@ -279,13 +206,17 @@ class _WindowsCloudCalendarSharingContentState
                                         calendarSharingRoleLabel(l10n, role),
                                       ),
                                       onPressed:
-                                          _busy ||
+                                          _session.busy ||
                                               service?.isRateLimited == true ||
-                                              _snapshot?.refreshError != null ||
-                                              _snapshot?.outcomeUnknown == true
+                                              _session.snapshot?.refreshError !=
+                                                  null ||
+                                              _session
+                                                      .snapshot
+                                                      ?.outcomeUnknown ==
+                                                  true
                                           ? null
                                           : () => unawaited(
-                                              _mutate(
+                                              _session.mutate(
                                                 (s) => s.change(grant, role),
                                               ),
                                             ),
@@ -295,10 +226,12 @@ class _WindowsCloudCalendarSharingContentState
                             if (grant.canRevoke)
                               Button(
                                 onPressed:
-                                    _busy ||
+                                    _session.busy ||
                                         service?.isRateLimited == true ||
-                                        _snapshot?.refreshError != null ||
-                                        _snapshot?.outcomeUnknown == true
+                                        _session.snapshot?.refreshError !=
+                                            null ||
+                                        _session.snapshot?.outcomeUnknown ==
+                                            true
                                     ? null
                                     : () => unawaited(_confirmRevoke(grant)),
                                 child: Text(l10n.nextcloudRevokeShare),
@@ -316,7 +249,8 @@ class _WindowsCloudCalendarSharingContentState
             child: TextBox(
               key: const Key('windows-sharing-recipient'),
               controller: _recipient,
-              enabled: !_busy && _snapshot?.outcomeUnknown != true,
+              enabled:
+                  !_session.busy && _session.snapshot?.outcomeUnknown != true,
             ),
           ),
           const SizedBox(height: 8),
@@ -333,7 +267,8 @@ class _WindowsCloudCalendarSharingContentState
                     child: Text(calendarSharingRoleLabel(l10n, role)),
                   ),
               ],
-              onChanged: _busy || _snapshot?.outcomeUnknown == true
+              onChanged:
+                  _session.busy || _session.snapshot?.outcomeUnknown == true
                   ? null
                   : (value) => setState(() => _role = value),
             ),
@@ -344,11 +279,11 @@ class _WindowsCloudCalendarSharingContentState
             child: Button(
               key: const Key('windows-sharing-add'),
               onPressed:
-                  _busy ||
+                  _session.busy ||
                       service.isRateLimited ||
                       _role == null ||
-                      _snapshot?.refreshError != null ||
-                      _snapshot?.outcomeUnknown == true
+                      _session.snapshot?.refreshError != null ||
+                      _session.snapshot?.outcomeUnknown == true
                   ? null
                   : () => unawaited(_add()),
               child: Text(l10n.addCalendarShare),
@@ -364,14 +299,15 @@ class _WindowsCloudCalendarSharingContentState
   Future<void> _add() async {
     final role = _role;
     if (role == null) return;
-    await _mutate(
+    final result = await _session.mutate(
       (service) => service.add(recipient: _recipient.text, role: role),
     );
-    if (_error == null && mounted) _recipient.clear();
+    if (mounted && result != null && !result.outcomeUnknown) _recipient.clear();
   }
 
   Future<void> _confirmRevoke(CloudCalendarShareGrant grant) async {
     final l10n = AppLocalizations.of(context);
+    final serviceBeforeConfirmation = _session.service;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => ContentDialog(
@@ -389,8 +325,10 @@ class _WindowsCloudCalendarSharingContentState
         ],
       ),
     );
-    if (confirmed == true && mounted) {
-      await _mutate((service) => service.revoke(grant));
+    if (confirmed == true &&
+        mounted &&
+        identical(serviceBeforeConfirmation, _session.service)) {
+      await _session.mutate((service) => service.revoke(grant));
     }
   }
 }

@@ -1,3 +1,9 @@
+import '../../features/settings/presentation/account_sync_status.dart';
+import '../../features/sync/sync_request.dart';
+import '../../features/sync/sync_activity_icon.dart';
+import 'windows_sync_feedback.dart';
+import '../../features/auth/application/account_connection.dart';
+import '../../features/auth/application/account_removal.dart';
 import 'windows_nextcloud_certificate_dialog.dart';
 import '../common/nextcloud_certificate_review.dart';
 import 'windows_contacts_settings.dart';
@@ -29,6 +35,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/auth/data/auth_repository.dart';
+import '../../features/settings/presentation/account_settings_feedback.dart';
 import '../../dav/dav_errors.dart';
 import '../../dav/http/dav_http_transport.dart';
 import 'windows_dav_account_dialogs.dart';
@@ -668,6 +675,19 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
           ),
         ),
         const SizedBox(height: 20),
+        _SectionTitle(l10n.diagnostics),
+        Card(
+          child: ListTile(
+            leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+            title: Text(l10n.forceFullResync),
+            subtitle: Text(l10n.forceFullResyncDescription),
+            onPressed: () => ref.read(manualSyncRunnerProvider)(
+              allSyncScope,
+              strategy: SyncStrategy.fullRecovery,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
         const WindowsContactsSettings(),
         KeyedSubtree(key: _accountsKey, child: _SectionTitle(l10n.accounts)),
         Card(
@@ -682,6 +702,17 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
             ),
             data: (values) => Column(
               children: [
+                ListTile(
+                  title: Text(l10n.refreshAll),
+                  leading: SyncActivityIcon(
+                    scope: allSyncScope,
+                    refresh: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+                    warning: const Icon(FluentIcons.warning),
+                    child: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+                  ),
+                  onPressed: () =>
+                      refreshWindowsScope(context, ref, allSyncScope),
+                ),
                 if (session.message != null || _davError != null)
                   InfoBar(
                     title: Text(
@@ -778,22 +809,35 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                       ),
                     ),
                     subtitle: Text(
-                      values[index].provider == BusyProvider.nextcloud &&
-                              (ref
-                                          .watch(
-                                            nextcloudPendingInvitationCountProvider(
-                                              values[index].id,
-                                            ),
-                                          )
-                                          .valueOrNull ??
-                                      0) >
-                                  0
-                          ? '${l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(values[index].id)).valueOrNull ?? 0})'
-                          : values[index].provider.storageValue,
+                      [
+                        values[index].provider.displayName,
+                        ref
+                            .watch(accountSyncStatusProvider(values[index]))
+                            .label(context),
+                        if (values[index].provider == BusyProvider.nextcloud &&
+                            (ref
+                                        .watch(
+                                          nextcloudPendingInvitationCountProvider(
+                                            values[index].id,
+                                          ),
+                                        )
+                                        .valueOrNull ??
+                                    0) >
+                                0)
+                          '${l10n.nextcloudFederationInvitations} (${ref.watch(nextcloudPendingInvitationCountProvider(values[index].id)).valueOrNull})',
+                      ].join('\n'),
                     ),
                     trailing: DropDownButton(
                       title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
                       items: [
+                        MenuFlyoutItem(
+                          text: Text(l10n.refreshAccount),
+                          onPressed: () => refreshWindowsScope(
+                            context,
+                            ref,
+                            accountSyncScope(values[index].id),
+                          ),
+                        ),
                         if (values[index].provider == BusyProvider.caldav)
                           MenuFlyoutItem(
                             text: Text(l10n.reconnectAccount),
@@ -976,6 +1020,19 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                           ),
                     ),
                   ],
+                  if (values[index].isTaskCapable &&
+                      !values[index].provider.isDav)
+                    for (final list
+                        in ref.watch(scheduleTaskListsProvider).valueOrNull ??
+                            const [])
+                      if (list.accountId == values[index].id)
+                        ListTile(
+                          title: Text(list.title),
+                          trailing: _WindowsCollectionRefresh(
+                            scope: taskListSyncScope(list.accountId, list.id),
+                            label: l10n.refreshList,
+                          ),
+                        ),
                   if (values[index].provider == BusyProvider.nextcloud ||
                       values[index].provider == BusyProvider.caldav)
                     for (final collection
@@ -988,6 +1045,13 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               collection.supportsTasks))
                         ListTile(
                           title: Text(collection.name),
+                          trailing: _WindowsCollectionRefresh(
+                            scope: davCollectionSyncScope(
+                              collection.accountId,
+                              collection.id,
+                            ),
+                            label: l10n.refreshCollection,
+                          ),
                           subtitle: Text(
                             !collection.capabilities.permissionsKnown
                                 ? l10n.davPermissionsUnknown
@@ -1045,7 +1109,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                             leading: Icon(
                               windowsBusyMaxGlyph(BusyMaxGlyph.refresh),
                             ),
-                            text: Text(l10n.refresh),
+                            text: Text(l10n.refreshCalendar),
                             onPressed: () => unawaited(
                               _refreshWindowsSubscription(
                                 context,
@@ -1291,6 +1355,26 @@ class _WindowsCalendarSettingsColumnLabel extends StatelessWidget {
   }
 }
 
+class _WindowsCollectionRefresh extends ConsumerWidget {
+  const _WindowsCollectionRefresh({required this.scope, required this.label});
+  final SyncScope scope;
+  final String label;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Tooltip(
+    message: label,
+    child: IconButton(
+      icon: SyncActivityIcon(
+        scope: scope,
+        refresh: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh), size: 16),
+        warning: const Icon(FluentIcons.warning, size: 16),
+        child: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh), size: 16),
+      ),
+      onPressed: () => refreshWindowsScope(context, ref, scope),
+    ),
+  );
+}
+
 class _WindowsCalendarSettingsRow extends ConsumerWidget {
   const _WindowsCalendarSettingsRow({
     super.key,
@@ -1345,6 +1429,10 @@ class _WindowsCalendarSettingsRow extends ConsumerWidget {
                 semanticLabel: l10n.visibility,
               ),
             ),
+          _WindowsCollectionRefresh(
+            scope: calendarSyncScope(source.accountId, source.id),
+            label: l10n.refreshCalendar,
+          ),
           if (source.provider == BusyProvider.microsoft &&
               source.capabilities.removalMode ==
                   CalendarRemovalMode.removeFromList)
@@ -1524,20 +1612,13 @@ Future<void> _removeWindowsAccount(
   );
   if (options == null || !context.mounted) return;
   try {
-    final isDav = account.provider.isDav;
-    final authResult = isDav
-        ? null
-        : await ref
-              .read(authRepositoryProvider)
-              .removeAccount(
-                accountId: account.id,
-                revokeAuthorization: options.revokeGoogleAuthorization,
-              );
-    final davResult = isDav
-        ? await ref
-              .read(davAccountOnboardingServiceProvider)
-              .removeAccount(account.id)
-        : null;
+    final outcome = await removeBusyMaxAccount(
+      accountId: account.id,
+      provider: account.provider,
+      revokeGoogleAuthorization: options.revokeGoogleAuthorization,
+      auth: () => ref.read(authRepositoryProvider),
+      dav: () => ref.read(davAccountOnboardingServiceProvider),
+    );
     final remaining = await ref
         .read(accountsRepositoryProvider)
         .listVisibleAccounts();
@@ -1548,14 +1629,8 @@ Future<void> _removeWindowsAccount(
     }
     await ref.read(authSessionControllerProvider.notifier).load();
     if (!context.mounted) return;
-    if (authResult?.authorizationRevocationFailed ?? false) {
-      await _showWindowsMessage(context, l10n.accountRemovedGoogleRevokeFailed);
-    } else if (davResult?.remoteRevocationAttempted == true &&
-        !davResult!.remoteRevocationSucceeded) {
-      await _showWindowsMessage(
-        context,
-        l10n.nextcloudAccountRemovedRevokeFailed,
-      );
+    if (localizedAccountRemovalWarning(l10n, outcome) case final warning?) {
+      await _showWindowsMessage(context, warning);
     }
   } on Object catch (error) {
     if (context.mounted) {
@@ -1571,11 +1646,10 @@ Future<void> _refreshWindowsSubscription(
   BuildContext context,
   WidgetRef ref,
   WebCalSubscriptionEntity subscription,
-) => _runWindowsSubscriptionOperation(
+) => refreshWindowsScope(
   context,
-  () => ref
-      .read(webCalSubscriptionServiceProvider)
-      .refreshSubscription(subscription.id, force: true),
+  ref,
+  calendarSyncScope(subscription.accountId, subscription.calendarSourceId),
 );
 
 Future<void> _renameWindowsSubscription(
@@ -2071,12 +2145,36 @@ class _WindowsRegistrationCardState
         if (!mounted || cancellation.isCancelled) return;
         request = request.withCancellation(cancellation);
         final repository = ref.read(authRepositoryProvider);
-        if (account.provider == BusyProvider.google) {
-          await repository.signIn(request: request);
-        } else {
-          await repository.signInWithMicrosoft(request: request);
-        }
-        await ref.read(signedInSyncRunnerProvider)(account.id, false);
+        final session = ref.read(authSessionControllerProvider.notifier);
+        final runSync = ref.read(signedInSyncRunnerProvider);
+        final connected = await (account.provider == BusyProvider.google
+            ? repository.signIn(request: request)
+            : repository.signInWithMicrosoft(request: request));
+        await finishAccountConnection(
+          accountId: connected.accountId!,
+          cancellation: cancellation,
+          session: session,
+          synchronize: () => runSync(account.id, false),
+          onFollowUpFailure: (error) {
+            if (context.mounted) {
+              unawaited(
+                displayInfoBar(
+                  context,
+                  builder: (_, close) => InfoBar(
+                    title: Text(
+                      l10n.syncFailed(
+                        AccountSettingsFeedback.fromError(l10n, error).message,
+                      ),
+                    ),
+                    severity: InfoBarSeverity.warning,
+                    onClose: close,
+                  ),
+                ),
+              );
+            }
+          },
+          waitForSync: true,
+        );
       } on Object catch (error) {
         if (error is OAuthException &&
             error.classification == OAuthFailureKind.cancelled) {

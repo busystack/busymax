@@ -29,7 +29,7 @@ import 'package:busymax/src/features/tasks/presentation/ical_task_fields_editor.
 import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart';
-import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
+import 'package:busymax/src/features/schedule/application/attachment_upload_coordinator.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';

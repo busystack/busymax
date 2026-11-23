@@ -1,3 +1,5 @@
+import '../../../app/common/desktop_registration_wizard.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,8 +37,6 @@ Future<RegistrationHandle?> showRegistrationSetup(
   );
 }
 
-enum _SetupPage { methods, configuration, instructions }
-
 class _RegistrationDialog extends StatefulWidget {
   const _RegistrationDialog({
     required this.provider,
@@ -58,13 +58,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
   late final TextEditingController tenant = TextEditingController(
     text: setup.tenantId,
   );
-  _SetupPage page = _SetupPage.methods;
-  DesktopConnectionMethod method = DesktopConnectionMethod.custom;
-  bool returningFromInstructions = false;
-  bool launching = false;
-  String? linkError;
-  int? failedStep;
-  int linkRevision = 0;
+  final wizard = DesktopRegistrationWizard();
   final linkErrorAnchor = GlobalKey();
   final backFocus = FocusNode(debugLabel: 'Registration Back');
 
@@ -78,36 +72,25 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     if (mounted) setState(() {});
   }
 
-  void navigate(_SetupPage target) {
-    setState(() {
-      returningFromInstructions =
-          page == _SetupPage.instructions && target == _SetupPage.configuration;
-      page = target;
-      linkRevision++;
-      launching = false;
-      linkError = null;
-      failedStep = null;
-    });
-    if (target == _SetupPage.instructions) {
+  void navigate(RegistrationWizardPage target) {
+    setState(() => wizard.navigate(target));
+    if (target == RegistrationWizardPage.instructions) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && page == target) backFocus.requestFocus();
+        if (mounted && wizard.page == target) backFocus.requestFocus();
       });
     }
   }
 
   void chooseMethod(DesktopConnectionMethod value) {
-    method = value;
-    navigate(_SetupPage.configuration);
+    wizard.method = value;
+    navigate(RegistrationWizardPage.configuration);
   }
 
-  void showGuide() => navigate(_SetupPage.instructions);
+  void showGuide() => navigate(RegistrationWizardPage.instructions);
 
   void back() {
-    if (page == _SetupPage.instructions) {
-      navigate(_SetupPage.configuration);
-    } else if (page == _SetupPage.configuration) {
-      navigate(_SetupPage.methods);
-    }
+    final target = wizard.previousPage;
+    if (target != null) navigate(target);
   }
 
   bool get sharedAvailable => widget.provider == BusyProvider.google
@@ -139,13 +122,13 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     final l10n = AppLocalizations.of(context);
     final google = widget.provider == BusyProvider.google;
     final error = l10n.registrationSetupError(setup);
-    final title = page == _SetupPage.methods
+    final title = wizard.page == RegistrationWizardPage.methods
         ? l10n.registrationSetupTitle(widget.provider.displayName)
-        : page == _SetupPage.instructions
-        ? l10n.registrationInstructionsTitle(widget.provider, method)
-        : l10n.registrationConfigurationTitle(widget.provider, method);
+        : wizard.page == RegistrationWizardPage.instructions
+        ? l10n.registrationInstructionsTitle(widget.provider, wizard.method)
+        : l10n.registrationConfigurationTitle(widget.provider, wizard.method);
     final dialog = BusyMaxDialogShell(
-      key: ValueKey('registration-${page.name}-dialog'),
+      key: ValueKey('registration-${wizard.page.name}-dialog'),
       title: title,
       maxWidth: 560,
       header: Padding(
@@ -154,7 +137,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
           children: [
             SizedBox(
               width: BusyMaxSizes.headerIconButton,
-              child: page == _SetupPage.methods
+              child: wizard.page == RegistrationWizardPage.methods
                   ? null
                   : BusyMaxHeaderIconButton(
                       key: const ValueKey('registration-back'),
@@ -185,29 +168,31 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
           ],
         ),
       ),
-      actions: page == _SetupPage.instructions
+      actions: wizard.page == RegistrationWizardPage.instructions
           ? const []
           : [
               BusyMaxPushButton.standard(
-                autofocus: page == _SetupPage.methods && !sharedAvailable,
+                autofocus:
+                    wizard.page == RegistrationWizardPage.methods &&
+                    !sharedAvailable,
                 onPressed: () => Navigator.pop(context),
                 child: Text(l10n.cancel),
               ),
-              if (page == _SetupPage.configuration)
+              if (wizard.page == RegistrationWizardPage.configuration)
                 BusyMaxPushButton.suggested(
                   key: const ValueKey('registration-authorize'),
                   onPressed: setup.canConnect ? connect : null,
                   child: Text(l10n.registrationConnect),
                 ),
             ],
-      children: page == _SetupPage.instructions
+      children: wizard.page == RegistrationWizardPage.instructions
           ? _guide(l10n)
-          : page == _SetupPage.methods
+          : wizard.page == RegistrationWizardPage.methods
           ? _methods(l10n)
           : [
               Text(
                 google
-                    ? method == DesktopConnectionMethod.googleWorkspace
+                    ? wizard.method == DesktopConnectionMethod.googleWorkspace
                           ? l10n.registrationWorkspaceIntroduction
                           : l10n.registrationGoogleIntroduction
                     : l10n.registrationMicrosoftIntroduction,
@@ -220,7 +205,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
                 children: [
                   BusyMaxActionRow(
                     key: const ValueKey('registration-guide'),
-                    autofocus: returningFromInstructions,
+                    autofocus: wizard.returningFromInstructions,
                     title: l10n.registrationSetupInstructions,
                     subtitleWidget: Text(
                       l10n.registrationInstructionsDescription,
@@ -312,7 +297,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
                 ),
           trailing: BusyMaxPushButton.standard(
             key: const ValueKey('registration-import'),
-            autofocus: !returningFromInstructions,
+            autofocus: !wizard.returningFromInstructions,
             onPressed: setup.busy ? null : setup.validate,
             child: Text(
               selected == null
@@ -339,7 +324,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
         title: TextField(
           key: const ValueKey('registration-client-id'),
           controller: client,
-          autofocus: !returningFromInstructions,
+          autofocus: !wizard.returningFromInstructions,
           textInputAction: TextInputAction.next,
           decoration: busyMaxGroupedTextFieldDecoration(
             context,
@@ -393,13 +378,9 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
         ?.copyWith(color: Theme.of(context).colorScheme.error),
   );
   Future<void> openLink(String url, int step) async {
-    if (launching) return;
-    final revision = ++linkRevision;
-    setState(() {
-      launching = true;
-      linkError = null;
-      failedStep = null;
-    });
+    if (wizard.launching) return;
+    late final int revision;
+    setState(() => revision = wizard.beginLinkLaunch());
     var opened = false;
     try {
       opened = await launchUrl(
@@ -409,23 +390,13 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     } on Object {
       opened = false;
     }
-    if (!mounted ||
-        page != _SetupPage.instructions ||
-        revision != linkRevision) {
+    if (!mounted || !wizard.isCurrentLink(revision)) {
       return;
     }
-    setState(() {
-      launching = false;
-      if (!opened) {
-        linkError = AppLocalizations.of(context).registrationLinkFailed;
-        failedStep = step;
-      }
-    });
+    setState(() => wizard.finishLinkLaunch(opened: opened, step: step));
     if (!opened) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted ||
-            page != _SetupPage.instructions ||
-            revision != linkRevision) {
+        if (!mounted || !wizard.isCurrentLink(revision)) {
           return;
         }
         final errorContext = linkErrorAnchor.currentContext;
@@ -439,7 +410,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
   List<Widget> _guide(AppLocalizations l10n) {
     final steps = l10n.registrationDesktopSteps(
       widget.provider,
-      method: method,
+      method: wizard.method,
     );
     return [
       for (var i = 0; i < steps.length; i++) ...[
@@ -482,12 +453,12 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
                 ),
             ],
           ),
-        if (linkError != null && failedStep == i) ...[
+        if (wizard.failedStep == i) ...[
           const SizedBox(height: BusyMaxSpacing.sm),
           KeyedSubtree(
             key: linkErrorAnchor,
             child: _error(
-              linkError!,
+              l10n.registrationLinkFailed,
               const ValueKey('registration-link-error'),
             ),
           ),
@@ -497,12 +468,12 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: BusyMaxPushButton.standard(
-              onPressed: launching ? null : () => openLink(url, i),
+              onPressed: wizard.launching ? null : () => openLink(url, i),
               child: Text(steps[i].linkLabel!),
             ),
           ),
         ],
-        if (linkError != null && failedStep == i && steps[i].link != null)
+        if (wizard.failedStep == i && steps[i].link != null)
           YaruListTile.square(
             title: SelectableText(steps[i].link!),
             trailing: BusyMaxHeaderIconButton(

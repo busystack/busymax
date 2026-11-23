@@ -10,6 +10,11 @@ class DesktopStartupPolicy {
   bool _startupHandled = false;
   (bool, bool, bool)? _previousTrayPreferences;
 
+  static bool hidesOnClose({
+    required bool runInBackgroundWhenClosed,
+    required bool trayAvailable,
+  }) => runInBackgroundWhenClosed && trayAvailable;
+
   bool needsTray(AppSettings settings) {
     final preferences = (
       settings.showTrayIcon,

@@ -7,7 +7,7 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/ui/windows/windows_event_editor_dialog.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
@@ -140,7 +140,7 @@ void main() {
           await tester.tap(find.text('Open'));
         }
         await settle(tester);
-        if (platform == 'Linux') {
+        if (platform == 'Linux' || platform == 'Android') {
           await tester.ensureVisible(find.text('Add Guest').first);
           await tester.tap(find.text('Add Guest').first);
           await tester.pump();
@@ -180,10 +180,7 @@ void main() {
             ? guestInput.first
             : find.byType(EditableText).last;
         await tester.ensureVisible(input);
-        await tester.enterText(
-          input,
-          platform == 'Android' ? 'manual@example.test, ada' : 'ada',
-        );
+        await tester.enterText(input, 'ada');
         await settle(tester);
         if (!delayed) expect(find.textContaining('Ada Fixture'), findsWidgets);
         if (scenario.startsWith('switch') && platform == 'Windows') {
@@ -195,7 +192,7 @@ void main() {
           final dropdown = tester.widget<DropdownButtonFormField<String>>(
             find.byType(DropdownButtonFormField<String>).first,
           );
-          dropdown.onChanged!(b.id);
+          dropdown.onChanged!(b.accountId);
         } else if (scenario.startsWith('switch')) {
           // Drive the existing account selector's public selection callback.
           final selector = find.byWidgetPredicate(
@@ -247,18 +244,7 @@ void main() {
           expect(find.text('manual@example.test'), findsWidgets);
         }
         if (!scenario.startsWith('dispose') && platform == 'Android') {
-          expect(
-            tester
-                .widget<EditableText>(
-                  find.descendant(
-                    of: input,
-                    matching: find.byType(EditableText),
-                  ),
-                )
-                .controller
-                .text,
-            contains('manual@example.test'),
-          );
+          expect(find.text('manual@example.test'), findsWidgets);
         }
         await tester.pumpWidget(const SizedBox());
         await settle(tester);

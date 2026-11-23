@@ -1,5 +1,3 @@
-import '../http/dav_http_transport.dart';
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,8 +9,8 @@ import '../../app/busymax_design.dart';
 import '../../app/busymax_dialogs.dart';
 import '../../dav/nextcloud/nextcloud_collection_controller.dart';
 import '../../dav/nextcloud/nextcloud_collection_service.dart';
-import '../../dav/nextcloud/nextcloud_dav_context.dart';
 import '../../dav/nextcloud/nextcloud_trash_service.dart';
+import '../nextcloud/nextcloud_trash_session.dart';
 import '../nextcloud/nextcloud_federation_controller.dart';
 import '../../dav/xml/dav_xml.dart';
 import '../../l10n/l10n.dart';
@@ -450,97 +448,23 @@ class _LinuxNextcloudTrashDialog extends ConsumerStatefulWidget {
 
 class _LinuxNextcloudTrashState
     extends ConsumerState<_LinuxNextcloudTrashDialog> {
-  final _loadCancellation = DavCancellationToken();
-  @override
-  void dispose() {
-    _loadCancellation.cancel();
-    super.dispose();
-  }
+  late final _session = NextcloudTrashSession(
+    ref.read(nextcloudTrashServiceProvider(widget.accountId)),
+  );
 
-  NextcloudTrashListing? listing;
-  bool busy = false, failed = false, refreshPending = false;
-  Object? error;
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    _session.addListener(_onSessionChanged);
+    unawaited(_session.load());
   }
 
-  int _listingEpoch = 0;
-  final _loadingDetails = <Uri>{};
+  void _onSessionChanged() => setState(() {});
 
-  Future<void> _details(
-    NextcloudTrashItem item, {
-    bool automatic = false,
-  }) async {
-    if (!_loadingDetails.add(item.href)) return;
-    final epoch = _listingEpoch;
-    setState(() {});
-    try {
-      final detailed = await ref
-          .read(nextcloudTrashServiceProvider(widget.accountId))
-          .details(item, cancellationToken: _loadCancellation);
-      if (mounted && _listingEpoch == epoch) {
-        setState(
-          () => listing = NextcloudTrashListing(
-            List.unmodifiable(
-              listing!.items.map(
-                (row) => row.href == item.href ? detailed : row,
-              ),
-            ),
-            listing!.retentionSeconds,
-          ),
-        );
-      }
-    } on Object catch (caught) {
-      if (!automatic && mounted && _listingEpoch == epoch) {
-        setState(() {
-          failed = true;
-          error = caught;
-        });
-      }
-    } finally {
-      _loadingDetails.remove(item.href);
-      if (mounted) setState(() {});
-    }
-  }
-
-  Future<void> _load() async {
-    final epoch = ++_listingEpoch;
-    setState(() {
-      busy = true;
-      failed = false;
-    });
-    try {
-      final result = await ref
-          .read(nextcloudTrashServiceProvider(widget.accountId))
-          .list(cancellationToken: _loadCancellation);
-      if (mounted && _listingEpoch == epoch) {
-        setState(() {
-          listing = result;
-          refreshPending = false;
-        });
-      }
-    } on Object catch (caught) {
-      if (mounted && _listingEpoch == epoch) {
-        setState(() {
-          failed = true;
-          error = caught;
-        });
-      }
-    }
-    if (mounted && _listingEpoch == epoch) {
-      setState(() => busy = false);
-      // Metadata is visible before these optional, bounded identity previews.
-      if (failed) return;
-      final previews =
-          listing?.items.where((item) => item.canPreview).take(5).toList() ??
-          const <NextcloudTrashItem>[];
-      for (final item in previews) {
-        if (!mounted || _listingEpoch != epoch || busy) break;
-        await _details(item, automatic: true);
-      }
-    }
+  @override
+  void dispose() {
+    _session.dispose();
+    super.dispose();
   }
 
   Future<void> _mutate(NextcloudTrashItem item, bool permanent) async {
@@ -557,37 +481,15 @@ class _LinuxNextcloudTrashState
       destructive: permanent,
     );
     if (!confirmed || !mounted) return;
-    setState(() {
-      busy = true;
-      failed = false;
-    });
-    try {
-      final service = ref.read(nextcloudTrashServiceProvider(widget.accountId));
-      final result = permanent
-          ? await service.permanentlyDelete(item)
-          : await service.restore(item);
-      if (!mounted) return;
-      setState(
-        () =>
-            refreshPending = result == NextcloudMutationOutcome.refreshPending,
-      );
-      if (!refreshPending) await _load();
-    } on Object catch (caught) {
-      if (mounted) {
-        setState(() {
-          failed = true;
-          error = caught;
-        });
-      }
-    }
-    if (mounted) setState(() => busy = false);
+    if (!mounted) return;
+    await _session.mutate(item, permanent: permanent);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return PopScope(
-      canPop: !busy,
+      canPop: !_session.busy,
       child: BusyMaxDialogShell(
         key: const ValueKey('nextcloud-trash-dialog'),
         title: l10n.nextcloudTrash,
@@ -597,29 +499,32 @@ class _LinuxNextcloudTrashState
           cancelLabel: l10n.close,
           saveLabel: l10n.refresh,
           onCancel: () => Navigator.of(context).pop(),
-          cancelEnabled: !busy,
-          onSave: busy ? null : _load,
+          cancelEnabled: !_session.busy,
+          onSave: _session.busy ? null : _session.load,
         ),
         children: [
-          if (busy) const Center(child: YaruCircularProgressIndicator()),
-          if (failed) Text(localizedNextcloudCollectionError(l10n, error)),
-          if (refreshPending) Text(l10n.nextcloudRefreshPending),
-          if (listing?.retentionSeconds != null)
+          if (_session.busy)
+            const Center(child: YaruCircularProgressIndicator()),
+          if (_session.error != null)
+            Text(localizedNextcloudCollectionError(l10n, _session.error)),
+          if (_session.refreshPending) Text(l10n.nextcloudRefreshPending),
+          if (_session.listing?.retentionSeconds != null)
             Text(
-              listing!.retentionSeconds == 0
+              _session.listing!.retentionSeconds == 0
                   ? l10n.nextcloudTrashDisabled
                   : l10n.nextcloudTrashRetention(
-                      (listing!.retentionSeconds! / 86400).ceil(),
+                      (_session.listing!.retentionSeconds! / 86400).ceil(),
                     ),
             ),
-          if (listing?.items.isEmpty == true) Text(l10n.nextcloudTrashEmpty),
-          if (listing?.items.isNotEmpty == true)
+          if (_session.listing?.items.isEmpty == true)
+            Text(l10n.nextcloudTrashEmpty),
+          if (_session.listing?.items.isNotEmpty == true)
             SizedBox(
               height: MediaQuery.sizeOf(context).height * .5,
               child: ListView.builder(
-                itemCount: listing!.items.length,
+                itemCount: _session.listing!.items.length,
                 itemBuilder: (context, index) {
-                  final item = listing!.items[index];
+                  final item = _session.listing!.items[index];
                   return BusyMaxGroupedList(
                     filled: true,
                     children: [
@@ -658,7 +563,7 @@ class _LinuxNextcloudTrashState
                             item.href.toString(),
                           )),
                           title: l10n.show,
-                          leading: _loadingDetails.contains(item.href)
+                          leading: _session.loadingDetails(item.href)
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
@@ -666,8 +571,9 @@ class _LinuxNextcloudTrashState
                                 )
                               : const Icon(Icons.description_outlined),
                           enabled:
-                              !busy && !_loadingDetails.contains(item.href),
-                          onTap: () => _details(item),
+                              !_session.busy &&
+                              !_session.loadingDetails(item.href),
+                          onTap: () => _session.details(item),
                         ),
                       BusyMaxActionRow(
                         key: ValueKey((
@@ -676,7 +582,7 @@ class _LinuxNextcloudTrashState
                         )),
                         title: l10n.nextcloudRestore,
                         leading: const Icon(Icons.restore),
-                        enabled: !busy && !refreshPending && item.canRestore,
+                        enabled: _session.canMutate && item.canRestore,
                         onTap: () => _mutate(item, false),
                       ),
                       BusyMaxActionRow(
@@ -687,9 +593,7 @@ class _LinuxNextcloudTrashState
                         title: l10n.nextcloudPermanentDelete,
                         leading: const Icon(YaruIcons.trash),
                         enabled:
-                            !busy &&
-                            !refreshPending &&
-                            item.canPermanentlyDelete,
+                            _session.canMutate && item.canPermanentlyDelete,
                         onTap: () => _mutate(item, true),
                       ),
                     ],

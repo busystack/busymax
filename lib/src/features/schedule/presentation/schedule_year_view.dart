@@ -1,92 +1,20 @@
-import 'package:flutter/material.dart';
+import '../../../ui/common/schedule/schedule_year_view.dart' as shared;
+import 'schedule_linux_presentation.dart';
 
-import '../../../app/busymax_design.dart';
-import '../../../app/busymax_surface_colors.dart';
-import '../../../schedule/schedule_item.dart';
-import 'mini_calendar.dart';
+export '../../../ui/common/schedule/schedule_year_view.dart'
+    hide ScheduleYearView;
 
-class ScheduleYearView extends StatelessWidget {
+class ScheduleYearView extends shared.ScheduleYearView {
   const ScheduleYearView({
     super.key,
-    required this.selectedDate,
-    required this.items,
-    required this.firstWeekday,
-    required this.onDaySelected,
-    required this.onMonthSelected,
-    required this.onWeekSelected,
-    required this.onCreateAtDay,
-    this.compact = false,
-    this.backgroundColor,
-  });
-
-  final DateTime selectedDate;
-  final List<ScheduleItem> items;
-  final int firstWeekday;
-  final ValueChanged<DateTime> onDaySelected;
-  final ValueChanged<DateTime> onMonthSelected;
-  final ValueChanged<DateTime> onWeekSelected;
-  final ValueChanged<DateTime> onCreateAtDay;
-  final bool compact;
-  final Color? backgroundColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final markerColorsByDay = miniCalendarMarkerColorsForItems(context, items);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = _columnCount(constraints.maxWidth, compact: compact);
-        final horizontalPadding = BusyMaxSpacing.md * 2;
-        final columnGaps = BusyMaxSpacing.md * (columns - 1);
-        final monthWidth =
-            (constraints.maxWidth - horizontalPadding - columnGaps) / columns;
-
-        return ColoredBox(
-          color: backgroundColor ?? BusyMaxSurfaceColors.of(context).window,
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(BusyMaxSpacing.md),
-              child: Wrap(
-                spacing: BusyMaxSpacing.md,
-                runSpacing: BusyMaxSpacing.md,
-                children: [
-                  for (var index = 0; index < DateTime.monthsPerYear; index++)
-                    SizedBox(
-                      width: monthWidth,
-                      child: BusyMaxGroupedSurface(
-                        child: YearMonthMiniCalendar(
-                          displayedMonth: DateTime(
-                            selectedDate.year,
-                            index + 1,
-                          ),
-                          selectedDate: selectedDate,
-                          firstWeekday: firstWeekday,
-                          markerColorsByDay: markerColorsByDay,
-                          onDaySelected: onDaySelected,
-                          onMonthSelected: onMonthSelected,
-                          onWeekSelected: onWeekSelected,
-                          onDayDoubleTap: onCreateAtDay,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-int _columnCount(double width, {required bool compact}) {
-  if (width >= 900) {
-    return 4;
-  }
-  if (width >= 680) {
-    return 3;
-  }
-  if (width >= 520) {
-    return 2;
-  }
-  return 1;
+    required super.selectedDate,
+    required super.items,
+    required super.firstWeekday,
+    required super.onDaySelected,
+    required super.onMonthSelected,
+    required super.onWeekSelected,
+    required super.onCreateAtDay,
+    super.compact = false,
+    super.backgroundColor,
+  }) : super(presentation: const LinuxSchedulePresentation());
 }

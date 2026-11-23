@@ -1,4 +1,6 @@
-import '../../features/calendar/presentation/dav_event_reminders.dart';
+import '../../features/calendar/application/attendee_suggestion_session.dart';
+import '../../features/calendar/application/save_event_draft.dart';
+import '../../features/calendar/domain/event_reminders.dart';
 import '../../features/recurrence/domain/series_timing_change.dart';
 import '../../features/recurrence/presentation/recurrence_summary.dart';
 
@@ -26,7 +28,7 @@ import '../../features/calendar/domain/google_status_event.dart';
 import '../../features/calendar/presentation/google_status_event_labels.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
 import '../../core/time/provider_date_time.dart';
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../../google_calendar/google_calendar_models.dart';
 import '../../microsoft_calendar/microsoft_calendar_models.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
@@ -36,7 +38,6 @@ import '../../providers/busy_provider.dart';
 import '../common/busymax_glyph.dart';
 import '../common/editor_state_builder.dart';
 import 'windows_busymax_glyphs.dart';
-import 'windows_event_reminders.dart';
 import 'windows_guest_update_dialog.dart';
 import 'windows_recurrence_dialog.dart';
 import 'windows_time_zone_dialog.dart';
@@ -152,18 +153,7 @@ Future<bool> showWindowsEventEditorDialog(
     baseDate: start,
   );
   var recurrenceChanged = false;
-  var reminderMinutes = decodeWindowsEventReminderMinutes(
-    originalDraft?.reminders,
-  );
-  var davReminderRows = [
-    ...?davEventEditableReminderRows(originalDraft?.reminders),
-  ];
-  bool usesDavReminderRows() =>
-      (detail?.provider ?? selectedSource.provider).isDav &&
-      davEventRemindersHaveIdentities(originalDraft?.reminders);
-  if (usesDavReminderRows()) {
-    reminderMinutes = [for (final row in davReminderRows) row.minutes];
-  }
+  Object? reminders = originalDraft?.reminders;
   var remindersChanged = false;
   var attendees = [...?originalDraft?.attendees];
   var attendeesChanged = false;
@@ -226,7 +216,7 @@ Future<bool> showWindowsEventEditorDialog(
   final initialVisibility = visibility;
   String? guestError;
   List<BusyMaxContactSuggestion> guestSuggestions = const [];
-  var guestSuggestionGeneration = 0;
+  final suggestionSession = AttendeeSuggestionSession();
   StreamSubscription<void>? contactsChanges;
   var saving = false;
   var saved = false;
@@ -271,12 +261,17 @@ Future<bool> showWindowsEventEditorDialog(
             .read(busyMaxContactsControllerProvider)
             .changes
             .listen((_) {
-              guestSuggestionGeneration++;
+              suggestionSession.invalidate();
               if (dialogContext.mounted) {
                 setState(() => guestSuggestions = const []);
               }
             });
         final l10n = AppLocalizations.of(context);
+        final reminderEditor = EventReminderEditor(
+          detail?.provider ?? selectedSource.provider,
+          reminders,
+        );
+        final reminderMinutes = reminderEditor.minutes;
         final validEnd =
             EventEditorDraft.newEvent(
                   accountId: selectedSource.accountId,
@@ -367,15 +362,15 @@ Future<bool> showWindowsEventEditorDialog(
                                     eventLabelId = null;
                                     eventLabelChanged = true;
                                   }
-                                  guestSuggestionGeneration++;
+                                  suggestionSession.invalidate();
                                   guestSuggestions = const [];
                                   if (detail == null &&
                                       source.provider !=
                                           selectedSource.provider) {
-                                    davReminderRows = [
-                                      for (final minute in reminderMinutes)
-                                        DavEventReminderRow(minutes: minute),
-                                    ];
+                                    reminders = EventReminderEditor(
+                                      selectedSource.provider,
+                                      reminders,
+                                    ).forDestination(source.provider);
                                   }
                                   selectedSource = source;
                                   // Destination conversion belongs to the shared save
@@ -561,6 +556,8 @@ Future<bool> showWindowsEventEditorDialog(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              if (reminderEditor.hasUnsupportedRows)
+                                Text(l10n.unsupportedReminder),
                               for (
                                 var index = 0;
                                 index < reminderMinutes.length;
@@ -576,7 +573,7 @@ Future<bool> showWindowsEventEditorDialog(
                                           value: reminderMinutes[index],
                                           items: [
                                             for (final minutes
-                                                in windowsEventReminderValuesFor(
+                                                in eventReminderValuesFor(
                                                   reminderMinutes[index],
                                                 ))
                                               ComboBoxItem(
@@ -591,31 +588,8 @@ Future<bool> showWindowsEventEditorDialog(
                                               : (value) {
                                                   if (value == null) return;
                                                   setState(() {
-                                                    if (usesDavReminderRows()) {
-                                                      davReminderRows[index] =
-                                                          davReminderRows[index]
-                                                              .copyWith(
-                                                                minutes: value,
-                                                              );
-                                                      reminderMinutes = [
-                                                        for (final row
-                                                            in davReminderRows)
-                                                          row.minutes,
-                                                      ];
-                                                    } else {
-                                                      reminderMinutes =
-                                                          normalizeWindowsEventReminderMinutes(
-                                                            [
-                                                              ...reminderMinutes
-                                                                  .take(index),
-                                                              value,
-                                                              ...reminderMinutes
-                                                                  .skip(
-                                                                    index + 1,
-                                                                  ),
-                                                            ],
-                                                          );
-                                                    }
+                                                    reminders = reminderEditor
+                                                        .edit(index, value);
                                                     remindersChanged = true;
                                                   });
                                                 },
@@ -631,51 +605,25 @@ Future<bool> showWindowsEventEditorDialog(
                                         onPressed: saving
                                             ? null
                                             : () => setState(() {
-                                                if (usesDavReminderRows()) {
-                                                  davReminderRows.removeAt(
-                                                    index,
-                                                  );
-                                                }
-                                                reminderMinutes = [
-                                                  ...reminderMinutes.take(
-                                                    index,
-                                                  ),
-                                                  ...reminderMinutes.skip(
-                                                    index + 1,
-                                                  ),
-                                                ];
+                                                reminders = reminderEditor
+                                                    .remove(index);
                                                 remindersChanged = true;
                                               }),
                                       ),
                                     ],
                                   ),
                                 ),
-                              if (reminderMinutes.isEmpty ||
-                                  (selectedSource.provider !=
-                                          BusyProvider.microsoft &&
-                                      reminderMinutes.length <
-                                          windowsEventReminderMinuteOptions
-                                              .length))
+                              if (reminderEditor.canAdd)
                                 Button(
                                   onPressed: saving
                                       ? null
                                       : () => setState(() {
-                                          if (usesDavReminderRows()) {
-                                            davReminderRows.add(
-                                              DavEventReminderRow(
-                                                minutes:
-                                                    nextWindowsEventReminderMinute(
-                                                      reminderMinutes,
-                                                    ),
-                                              ),
-                                            );
-                                          }
-                                          reminderMinutes = [
-                                            ...reminderMinutes,
-                                            nextWindowsEventReminderMinute(
+                                          reminders = reminderEditor.edit(
+                                            null,
+                                            nextEventReminderMinute(
                                               reminderMinutes,
                                             ),
-                                          ];
+                                          );
                                           remindersChanged = true;
                                         }),
                                   child: Text(l10n.addReminder),
@@ -718,7 +666,12 @@ Future<bool> showWindowsEventEditorDialog(
                               child: Align(
                                 alignment: AlignmentDirectional.centerStart,
                                 child: Text(
-                                  _recurrenceLabel(l10n, recurrence.frequency),
+                                  recurrence.isSupported
+                                      ? _recurrenceLabel(
+                                          l10n,
+                                          recurrence.frequency,
+                                        )
+                                      : l10n.unsupportedRecurrencePreserved,
                                 ),
                               ),
                             ),
@@ -1385,46 +1338,29 @@ Future<bool> showWindowsEventEditorDialog(
                               onChanged: () {
                                 setState(() => guestError = null);
                                 final query = guestEmail.text.trim();
-                                final generation = ++guestSuggestionGeneration;
                                 final accountId = selectedSource.accountId;
                                 final sourceId = selectedSource.id;
-                                if (query.isEmpty) {
-                                  setState(() => guestSuggestions = const []);
-                                  return;
-                                }
                                 unawaited(() async {
-                                  try {
-                                    final suggestions = await ref
-                                        .read(busyMaxContactsControllerProvider)
-                                        .suggestAttendees(
-                                          query,
-                                          busyMaxAccountId: accountId,
-                                          excludedAddresses: {
-                                            for (final attendee in attendees)
-                                              attendee.email,
-                                          },
-                                        );
-                                    if (!dialogContext.mounted ||
-                                        generation !=
-                                            guestSuggestionGeneration ||
-                                        selectedSource.accountId != accountId ||
-                                        selectedSource.id != sourceId ||
-                                        guestEmail.text.trim() != query) {
-                                      return;
-                                    }
+                                  final suggestions = await suggestionSession
+                                      .search(
+                                        contacts: () => ref.read(
+                                          busyMaxContactsControllerProvider,
+                                        ),
+                                        query: query,
+                                        accountId: accountId,
+                                        attendees: attendees,
+                                        isCurrent: () =>
+                                            dialogContext.mounted &&
+                                            selectedSource.accountId ==
+                                                accountId &&
+                                            selectedSource.id == sourceId &&
+                                            guestEmail.text.trim() == query,
+                                      );
+                                  if (dialogContext.mounted &&
+                                      suggestions != null) {
                                     setState(
                                       () => guestSuggestions = suggestions,
                                     );
-                                  } on Object {
-                                    if (!dialogContext.mounted ||
-                                        generation !=
-                                            guestSuggestionGeneration ||
-                                        selectedSource.accountId != accountId ||
-                                        selectedSource.id != sourceId ||
-                                        guestEmail.text.trim() != query) {
-                                      return;
-                                    }
-                                    setState(() => guestSuggestions = const []);
                                   }
                                 }());
                               },
@@ -1437,11 +1373,7 @@ Future<bool> showWindowsEventEditorDialog(
                                   );
                                   return;
                                 }
-                                if (!attendees.any(
-                                  (item) =>
-                                      item.email.toLowerCase() ==
-                                      email.toLowerCase(),
-                                )) {
+                                if (!containsEventAttendee(attendees, email)) {
                                   setState(() {
                                     attendees = [
                                       ...attendees,
@@ -1450,7 +1382,7 @@ Future<bool> showWindowsEventEditorDialog(
                                     attendeesChanged = true;
                                   });
                                 }
-                                guestSuggestionGeneration++;
+                                suggestionSession.invalidate();
                                 guestEmail.clear();
                                 setState(() => guestSuggestions = const []);
                               },
@@ -1468,49 +1400,42 @@ Future<bool> showWindowsEventEditorDialog(
                                       )) {
                                         return;
                                       }
-                                      final capturedGeneration =
-                                          guestSuggestionGeneration;
                                       final capturedAccount =
                                           selectedSource.accountId;
                                       final capturedSource = selectedSource.id;
-                                      try {
-                                        if (!await ref
-                                            .read(
+                                      final accepted = await suggestionSession
+                                          .accept(
+                                            contacts: () => ref.read(
                                               busyMaxContactsControllerProvider,
-                                            )
-                                            .suggestionEligible(
-                                              suggestion,
-                                              busyMaxAccountId: capturedAccount,
-                                            )) {
-                                          return;
-                                        }
-                                      } on Object {
+                                            ),
+                                            accountId: capturedAccount,
+                                            suggestion: suggestion,
+                                            isCurrent: () =>
+                                                dialogContext.mounted &&
+                                                selectedSource.accountId ==
+                                                    capturedAccount &&
+                                                selectedSource.id ==
+                                                    capturedSource &&
+                                                guestSuggestions.contains(
+                                                  suggestion,
+                                                ) &&
+                                                (originalDraft
+                                                        ?.canManageAttendees ??
+                                                    true) &&
+                                                !saving &&
+                                                (selectedSource.provider !=
+                                                        BusyProvider
+                                                            .nextcloud ||
+                                                    selectedSource
+                                                            .davEffectivePermissions['canInvite'] ==
+                                                        true),
+                                          );
+                                      if (!accepted || !dialogContext.mounted) {
                                         return;
                                       }
-                                      if (!dialogContext.mounted ||
-                                          capturedGeneration !=
-                                              guestSuggestionGeneration ||
-                                          selectedSource.accountId !=
-                                              capturedAccount ||
-                                          selectedSource.id != capturedSource ||
-                                          !guestSuggestions.contains(
-                                            suggestion,
-                                          ) ||
-                                          !(originalDraft?.canManageAttendees ??
-                                              true) ||
-                                          saving ||
-                                          selectedSource.provider ==
-                                                  BusyProvider.nextcloud &&
-                                              selectedSource
-                                                      .davEffectivePermissions['canInvite'] ==
-                                                  false) {
-                                        return;
-                                      }
-                                      guestSuggestionGeneration++;
-                                      if (!attendees.any(
-                                        (item) =>
-                                            item.email.toLowerCase() ==
-                                            suggestion.email.toLowerCase(),
+                                      if (!containsEventAttendee(
+                                        attendees,
+                                        suggestion.email,
                                       )) {
                                         setState(() {
                                           attendees = [
@@ -1754,15 +1679,7 @@ Future<bool> showWindowsEventEditorDialog(
                                         recurrenceChanged &&
                                         !recurrence.repeats,
                                     reminders: remindersChanged
-                                        ? usesDavReminderRows()
-                                              ? davEventReminderPayload(
-                                                  davReminderRows,
-                                                )
-                                              : encodeWindowsEventReminderPayload(
-                                                  detail?.provider ??
-                                                      selectedSource.provider,
-                                                  reminderMinutes,
-                                                )
+                                        ? reminders
                                         : null,
                                     remindersChanged: remindersChanged,
                                     attendees: attendeesChanged
@@ -1943,107 +1860,101 @@ Future<bool> showWindowsEventEditorDialog(
                             }
                             guestUpdatePolicy = choice;
                           }
-                          final seriesTiming = await repository
-                              .prepareSeriesTimingChange(draft);
+                          final approved = await approveEventSeriesTiming(
+                            repository: () => repository,
+                            draft: draft,
+                            isActive: () => dialogContext.mounted,
+                            confirm: (change, following) async =>
+                                (await showDialog<bool>(
+                                  context: dialogContext,
+                                  builder: (confirmationContext) =>
+                                      ContentDialog(
+                                        title: Text(l10n.repeat),
+                                        content: Text(
+                                          seriesTimingConfirmationMessage(
+                                            confirmationContext,
+                                            change,
+                                            following: following,
+                                          ),
+                                        ),
+                                        actions: [
+                                          Button(
+                                            onPressed: () => Navigator.pop(
+                                              confirmationContext,
+                                              false,
+                                            ),
+                                            child: Text(l10n.cancel),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () => Navigator.pop(
+                                              confirmationContext,
+                                              true,
+                                            ),
+                                            child: Text(l10n.save),
+                                          ),
+                                        ],
+                                      ),
+                                )) ==
+                                true,
+                          );
                           if (!dialogContext.mounted) return;
-                          if (seriesTiming?.requiresConfirmation == true) {
-                            final confirmed = await showDialog<bool>(
-                              context: dialogContext,
-                              builder: (confirmationContext) => ContentDialog(
-                                title: Text(l10n.repeat),
-                                content: Text(
-                                  l10n.seriesPatternChangeConfirmation(
-                                    recurrenceRuleSummary(
-                                      confirmationContext,
-                                      seriesTiming!.previewRule(
-                                        following:
-                                            draft.recurringMutationScope ==
-                                            RecurringEventMutationScope
-                                                .thisAndFuture,
-                                        original: true,
-                                      ),
-                                      timeZone: seriesTiming.timeZone,
-                                    ),
-                                    recurrenceRuleSummary(
-                                      confirmationContext,
-                                      seriesTiming.previewRule(
-                                        following:
-                                            draft.recurringMutationScope ==
-                                            RecurringEventMutationScope
-                                                .thisAndFuture,
-                                      ),
-                                      timeZone: seriesTiming.timeZone,
-                                    ),
+                          if (approved == null) {
+                            setState(() => saving = false);
+                            return;
+                          }
+                          draft = approved;
+                          final settings = ref.read(
+                            appSettingsControllerProvider.notifier,
+                          );
+                          final outcome = await saveEventDraft(
+                            repository: repository,
+                            draft: draft,
+                            guestPolicy: guestUpdatePolicy,
+                            rememberDestination: () =>
+                                settings.rememberCalendar(
+                                  CreationDestination(
+                                    accountId: draft.accountId,
+                                    id: draft.sourceId,
                                   ),
                                 ),
-                                actions: [
-                                  Button(
-                                    onPressed: () => Navigator.pop(
-                                      confirmationContext,
-                                      false,
-                                    ),
-                                    child: Text(l10n.cancel),
-                                  ),
-                                  FilledButton(
-                                    onPressed: () => Navigator.pop(
-                                      confirmationContext,
-                                      true,
-                                    ),
-                                    child: Text(l10n.save),
-                                  ),
-                                ],
+                            requestSync: () {
+                              if (selectedSource.provider !=
+                                      BusyProvider.nextcloud &&
+                                  selectedSource.provider !=
+                                      BusyProvider.caldav) {
+                                return;
+                              }
+                              for (final id in {
+                                draft.accountId,
+                                if (detail != null) detail.accountId,
+                              }) {
+                                ref
+                                    .read(
+                                      pendingCalendarMutationSyncRequesterForAccountProvider(
+                                        id,
+                                      ),
+                                    )
+                                    .request();
+                              }
+                            },
+                          );
+                          if (context.mounted &&
+                              outcome == EventSaveOutcome.followUpPending) {
+                            unawaited(
+                              displayInfoBar(
+                                context,
+                                builder: (_, close) => InfoBar(
+                                  title: Text(l10n.pendingLocally),
+                                  severity: InfoBarSeverity.warning,
+                                  onClose: close,
+                                ),
                               ),
                             );
-                            if (confirmed != true) {
-                              if (dialogContext.mounted) {
-                                setState(() => saving = false);
-                              }
-                              return;
-                            }
-                            draft = draft.copyWith(
-                              seriesTimingApproval: seriesTiming!.signature,
-                            );
-                          }
-                          if (detail == null) {
-                            await repository.createLocalEvent(
-                              draft,
-                              guestUpdatePolicy: guestUpdatePolicy,
-                            );
-                            unawaited(
-                              ref
-                                  .read(appSettingsControllerProvider.notifier)
-                                  .rememberCalendar(
-                                    CreationDestination(
-                                      accountId: draft.accountId,
-                                      id: draft.sourceId,
-                                    ),
-                                  ),
-                            );
-                          } else {
-                            await repository.updateLocalEvent(
-                              draft,
-                              guestUpdatePolicy: guestUpdatePolicy,
-                            );
-                          }
-                          if (selectedSource.provider ==
-                                  BusyProvider.nextcloud ||
-                              selectedSource.provider == BusyProvider.caldav) {
-                            for (final accountId in {
-                              draft.accountId,
-                              if (detail != null) detail.accountId,
-                            }) {
-                              ref
-                                  .read(
-                                    pendingCalendarMutationSyncRequesterForAccountProvider(
-                                      accountId,
-                                    ),
-                                  )
-                                  .request();
-                            }
                           }
                           saved = true;
                           closeDialog();
                         } on Object catch (failure) {
+                          if (!dialogContext.mounted) return;
                           setState(() {
                             saving = false;
                             error = failure is SeriesTimingDecisionRequired
@@ -2074,7 +1985,7 @@ Future<bool> showWindowsEventEditorDialog(
       },
     ),
   );
-  guestSuggestionGeneration++;
+  suggestionSession.invalidate();
   final cancellation = contactsChanges?.cancel();
   if (cancellation != null) {
     unawaited(

@@ -1459,10 +1459,48 @@ class AppLocalizationsVi extends AppLocalizations {
   String get refreshAll => 'Làm mới tất cả';
 
   @override
-  String get listRefreshed => 'Đã làm mới danh sách.';
+  String get refreshAccount => 'Làm mới tài khoản';
 
   @override
-  String get allTasksRefreshed => 'Đã làm mới tất cả tài khoản.';
+  String get refreshCollection => 'Làm mới bộ sưu tập';
+
+  @override
+  String get syncPartiallyCompleted => 'Đã làm mới một phần';
+
+  @override
+  String get syncDeferred => 'Đã hoãn làm mới';
+
+  @override
+  String get syncPendingChanges => 'Có thay đổi cục bộ đang chờ';
+
+  @override
+  String get syncFailedLocalChanges =>
+      'Không thể đồng bộ một số thay đổi cục bộ';
+
+  @override
+  String get syncQueued => 'Đang chờ làm mới';
+
+  @override
+  String get syncNotYetRefreshed => 'Chưa đồng bộ';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'Làm mới lần cuối $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'Phạm vi kiểm tra sự kiện';
+
+  @override
+  String get scheduleCoveragePending =>
+      'Các sự kiện trong khoảng này đang được kiểm tra hoặc chưa được xác minh.';
+
+  @override
+  String get scheduleCoverageVerified =>
+      'Đã kiểm tra các sự kiện trong khoảng này.';
+
+  @override
+  String get listRefreshed => 'Đã làm mới danh sách.';
 
   @override
   String exportedFile(String path) {
@@ -2111,7 +2149,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'Tải lại toàn bộ dữ liệu từ mọi tài khoản đã kết nối. Chỉ sử dụng tùy chọn này để khắc phục sự cố đồng bộ hóa.';
+      'Tạo lại dữ liệu cơ sở để đồng bộ lịch và công việc cho các tài khoản đủ điều kiện nếu được hỗ trợ, đồng thời kiểm tra các đăng ký. Dùng để khắc phục sự cố đồng bộ hóa.';
 
   @override
   String get runInBackgroundWhenClosed => 'Tiếp tục chạy khi đóng cửa sổ';
@@ -2135,9 +2173,6 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'Yêu cầu biểu tượng khay hệ thống.';
-
-  @override
-  String get syncComplete => 'Đồng bộ hoàn tất.';
 
   @override
   String syncFailed(String error) {
@@ -4008,4 +4043,10 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Tệp đính kèm này không hợp lệ hoặc vượt quá giới hạn kích thước.';
+
+  @override
+  String get moveEvent => 'Di chuyển sự kiện';
+
+  @override
+  String get agendaLoadMoreDays => 'Tải thêm ngày';
 }

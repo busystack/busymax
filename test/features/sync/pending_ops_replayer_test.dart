@@ -3869,44 +3869,71 @@ void main() {
     expect(await database.select(database.pendingOps).get(), isEmpty);
   });
 
-  test('new task can move to another list before creation sync', () async {
-    await database.taskListsDao.upsertTaskList(_taskList('list-2'));
-    final repository = TasksRepository(
-      database: database,
-      accountId: 'account',
-      nowUtc: () => DateTime.utc(2026, 6, 4),
-    );
-    await repository.createTask(
-      'list-1',
-      const TaskCreateInput(title: 'Draft'),
-    );
-    final localTask = (await database.tasksDao.listTasks(
-      'account',
-      'list-1',
-    )).single;
-    await repository.moveTask(
-      TaskMoveInput(
-        sourceTaskListId: 'list-1',
-        taskId: localTask.id,
-        destinationTaskListId: 'list-2',
-      ),
-    );
+  for (final scoped in [false, true]) {
+    test(
+      'new task can move to another list before creation sync (scoped: $scoped)',
+      () async {
+        await database.taskListsDao.upsertTaskList(_taskList('list-2'));
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4),
+        );
+        await repository.createTask(
+          'list-1',
+          const TaskCreateInput(title: 'Draft'),
+        );
+        final localTask = (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single;
+        await repository.moveTask(
+          TaskMoveInput(
+            sourceTaskListId: 'list-1',
+            taskId: localTask.id,
+            destinationTaskListId: 'list-2',
+          ),
+        );
 
-    expect(
-      await PendingOpsReplayer(
-        database: database,
-        apiClient: apiClient,
-        accountId: 'account',
-        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
-      ).replayDueOps(),
-      2,
-    );
+        PendingOp? unrelated;
+        if (scoped) {
+          await database.taskListsDao.upsertTaskList(_taskList('list-3'));
+          await repository.createTask(
+            'list-3',
+            const TaskCreateInput(title: 'Unrelated'),
+          );
+          unrelated = (await database.select(database.pendingOps).get())
+              .singleWhere((op) => op.taskListId == 'list-3');
+        }
+        expect(
+          await PendingOpsReplayer(
+            database: database,
+            apiClient: apiClient,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+          ).replayDueOps(taskListId: scoped ? 'list-2' : null),
+          2,
+        );
 
-    expect(apiClient.calls, ['create_task:list-1', 'move_task:task-server']);
-    expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
-    final destination = await database.tasksDao.listTasks('account', 'list-2');
-    expect(destination.single.id, 'task-server');
-  });
+        expect(apiClient.calls, [
+          'create_task:list-1',
+          'move_task:task-server',
+        ]);
+        expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
+        final destination = await database.tasksDao.listTasks(
+          'account',
+          'list-2',
+        );
+        expect(destination.single.id, 'task-server');
+        if (scoped) {
+          expect(
+            await database.select(database.pendingOps).getSingle(),
+            unrelated,
+          );
+        }
+      },
+    );
+  }
 
   test(
     'new task moved and edited before creation sync has one destination row',

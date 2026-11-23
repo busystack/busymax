@@ -1,3 +1,5 @@
+import '../application/guest_availability.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -9,11 +11,10 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../calendar_providers/calendar_sync_dto.dart';
-import '../../../calendar_providers/cloud_calendar_client.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/time_format_scope.dart';
-import 'event_editor_draft.dart';
+import '../domain/event_editor_draft.dart';
 
 Future<void> showLinuxCloudAvailabilityDialog(
   BuildContext context, {
@@ -62,27 +63,16 @@ class _LinuxCloudAvailabilityDialogState
       _error = null;
     });
     try {
-      final client = ref.read(
-        calendarRemoteApiClientForAccountProvider(widget.draft.accountId),
-      );
-      final interval = widget.draft.cloudAvailabilityInterval(
+      final fetched = await loadCloudGuestAvailability(
+        client: ref.read(
+          calendarRemoteApiClientForAccountProvider(widget.draft.accountId),
+        ),
+        draft: widget.draft,
         calendarTimeZone: widget.calendarTimeZone,
       );
-      if (client is! DetailedFreeBusyClient || interval == null) {
-        throw StateError('Availability is unavailable.');
+      if (mounted && generation == _generation) {
+        _results = fetched.values.toList();
       }
-      final recipients = widget.draft.attendees
-          .where((attendee) => !attendee.self && !attendee.organizer)
-          .map((attendee) => attendee.email.trim())
-          .where((email) => email.isNotEmpty)
-          .toSet()
-          .toList();
-      final fetched = await (client as DetailedFreeBusyClient).freeBusyDetails(
-        calendarIds: recipients,
-        rangeStart: interval.start.toUtc(),
-        rangeEnd: interval.end.toUtc(),
-      );
-      if (mounted && generation == _generation) _results = fetched;
     } on Object catch (error) {
       if (mounted && generation == _generation) _error = error;
     } finally {

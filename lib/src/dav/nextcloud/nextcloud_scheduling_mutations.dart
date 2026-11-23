@@ -1,4 +1,4 @@
-import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/event_editor_draft.dart';
 import '../ical/ical_document.dart';
 import '../ical/ical_semantics.dart';
 import '../mutation/dav_mutation_patch.dart';

@@ -94,11 +94,23 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
           (v) => onChanged(value.copyWith(location: v)),
         ),
         Text(l.searchSources, style: Theme.of(context).textTheme.titleSmall),
-        for (final account in accounts) ...[
+        for (final account in accounts.where(
+          (account) =>
+              value.includesEvents &&
+                  sources.any(
+                    (source) =>
+                        source.accountId == account.id && !source.isDeleted,
+                  ) ||
+              value.includesTasks &&
+                  taskLists.any(
+                    (list) =>
+                        list.accountId == account.id && !list.pendingDelete,
+                  ),
+        )) ...[
           Padding(
             padding: const EdgeInsetsDirectional.only(top: 12, bottom: 4),
             child: Text(
-              account.displayLabel,
+              account.selectorLabel,
               style: Theme.of(context).textTheme.labelLarge,
             ),
           ),
@@ -181,7 +193,9 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
           DropdownMenuItem(value: v, child: Text(name(v))),
       ],
       onChanged: (v) {
-        if (v != null) changed(v);
+        if (v != null) {
+          changed(v);
+        }
       },
     ),
   );
@@ -207,7 +221,9 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
           firstDate: DateTime(1900),
           lastDate: DateTime(2200),
         );
-        if (picked == null) return;
+        if (picked == null) {
+          return;
+        }
         final from = start ? picked : value.customStart ?? value.referenceDate;
         final to = start ? value.customEnd ?? value.referenceDate : picked;
         onChanged(
@@ -242,7 +258,9 @@ class _SearchFilterTextState extends State<_SearchFilterText> {
   @override
   void didUpdateWidget(covariant _SearchFilterText oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_controller.text != widget.value) _controller.text = widget.value;
+    if (_controller.text != widget.value) {
+      _controller.text = widget.value;
+    }
   }
 
   @override

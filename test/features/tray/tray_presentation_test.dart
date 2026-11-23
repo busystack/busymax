@@ -168,6 +168,10 @@ void main() {
   test('uses the least fresh successful account synchronization', () {
     final presentation = _project(
       now: now,
+      accountRefreshTimes: {
+        'account': DateTime.utc(2026, 8, 29, 9, 50),
+        'second': DateTime.utc(2026, 8, 29, 8),
+      },
       accounts: [
         _account(lastSync: DateTime.utc(2026, 8, 29, 9, 50)),
         _account(id: 'second', lastSync: DateTime.utc(2026, 8, 29, 8)),
@@ -182,7 +186,7 @@ void main() {
       now: now,
       accounts: [
         _account(lastSync: DateTime.utc(2026, 8, 29, 9)),
-        _account(id: 'second'),
+        _account(id: 'second', lastSync: DateTime.utc(2026, 8, 29, 9)),
       ],
     );
     expect(neverSynced.lastSuccessfulSynchronizationUtc, isNull);
@@ -297,6 +301,9 @@ void main() {
         now: now,
         connectivity: connectivity,
         synchronizationRunning: syncing,
+        accountRefreshTimes: accounts == null
+            ? {'account': now.toUtc().subtract(const Duration(minutes: 5))}
+            : const {},
         accounts:
             accounts ??
             [
@@ -333,6 +340,7 @@ void main() {
 
 BusyMaxTrayPresentation _project({
   required DateTime now,
+  Map<String, DateTime> accountRefreshTimes = const {},
   List<AccountEntity>? accounts,
   List<CalendarSourceEntity>? calendarSources,
   List<TaskListEntity>? taskLists,
@@ -363,6 +371,7 @@ BusyMaxTrayPresentation _project({
     connectivity: connectivity,
     synchronizationRunning: synchronizationRunning,
     now: now,
+    accountRefreshTimes: accountRefreshTimes,
   );
 }
 
@@ -460,6 +469,7 @@ final _formatter = BusyMaxTrayPresentationFormatter(
     openTodayAgenda: 'Open today’s agenda',
     syncNow: 'Sync now',
     syncing: 'Syncing…',
+    syncIssue: 'Some accounts could not refresh',
     notConnected: 'Not connected',
     notYetSynced: 'Not yet synced',
     settings: 'Settings',

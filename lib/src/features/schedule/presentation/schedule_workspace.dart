@@ -1,3 +1,10 @@
+import '../../../platform/gtk_animation_settings_service.dart';
+import '../../sync/linux_sync_feedback.dart';
+import '../../sync/sync_request.dart';
+import '../../sync/domain_sync_schedule.dart';
+import '../../../schedule/schedule_creation_destinations.dart';
+import '../../../schedule/schedule_agenda_query.dart';
+
 import 'package:intl/intl.dart';
 
 import '../../sync/account_recovery_feedback.dart';
@@ -40,6 +47,7 @@ import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_event_rescheduling.dart';
 import '../../../ui/common/schedule/schedule_interactions.dart';
+import '../../calendar/application/save_event_draft.dart';
 import '../../calendar/domain/event_timing_policy.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
@@ -53,7 +61,7 @@ import '../../../schedule/schedule_view_mode.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 import '../../calendar/presentation/event_editor.dart';
-import '../../calendar/presentation/event_editor_draft.dart';
+import '../../calendar/domain/event_editor_draft.dart';
 import '../../calendar/presentation/event_guest_delivery_dialog.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/data/tasks_repository.dart';
@@ -217,7 +225,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _latestCanShowSidebar = false;
   var _latestAccounts = const <AccountEntity>[];
   var _latestWritableSources = const <CalendarSourceEntity>[];
-  var _latestVisibleTaskLists = const <TaskListEntity>[];
+  var _latestEligibleVisibleTaskLists = const <TaskListEntity>[];
   var _latestCanCreateTask = false;
   var _latestItems = const <ScheduleItem>[];
   final _itemAnchorContexts = <String, BuildContext>{};
@@ -414,10 +422,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       ),
                     )
                     .toList();
-                final canCreateTask = visibleTaskLists.isNotEmpty;
+                final eligibleVisibleLists = visibleTaskLists
+                    .where(
+                      (list) => ref.watch(
+                        scheduleTaskListCreateEligibleProvider(list),
+                      ),
+                    )
+                    .toList();
+                final canCreateTask = eligibleVisibleLists.isNotEmpty;
                 _latestAccounts = accounts;
                 _latestWritableSources = writableSources;
-                _latestVisibleTaskLists = visibleTaskLists;
+                _latestEligibleVisibleTaskLists = eligibleVisibleLists;
                 _latestCanCreateTask = canCreateTask;
 
                 return FutureBuilder<_ScheduleItemsResult>(
@@ -529,6 +544,30 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       );
                     }
 
+                    final coverageFilters =
+                        searchActive && _searchCriteria != null
+                        ? _searchCriteria!.filters(_searchQuery)
+                        : ScheduleFilters(
+                            accountIds: accountIds.toSet(),
+                            sourceIds: visibility.visibleCalendarSourceIds,
+                            sourceFilterActive: true,
+                            includeCalendarEvents:
+                                _scope != ScheduleScope.tasks,
+                          );
+                    final coverageRange = searchActive
+                        ? _searchCriteria?.range ?? range
+                        : range;
+                    final cloudCoverage =
+                        snapshot.hasData &&
+                            !scheduleLoading &&
+                            coverageFilters.requiresCalendarCoverage
+                        ? ref
+                              .read(scheduleRepositoryProvider)
+                              .cloudCoverageCompleteFor(
+                                coverageRange,
+                                filters: coverageFilters,
+                              )
+                        : true;
                     final header = widget.notificationDeadline != null
                         ? _summaryHeader()
                         : ScheduleToolbar(
@@ -556,6 +595,27 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             createMenuController: _createMenuController,
                             onRefresh: () => unawaited(_refreshAll()),
                             canRefresh: accounts.isNotEmpty,
+                            showRefreshActivity: true,
+                            refreshInProgress: ref.watch(
+                              accountSyncActivityProvider.select(
+                                (activity) => activity.busy(allSyncScope),
+                              ),
+                            ),
+                            animateRefresh:
+                                ref
+                                    .watch(gtkAnimationsEnabledProvider)
+                                    .valueOrNull !=
+                                false,
+                            coverageComplete: cloudCoverage,
+                            onCoverageSettings: () => unawaited(
+                              context.push<void>('/settings?page=accounts'),
+                            ),
+                            onRetryCoverage: () => ref
+                                .read(scheduleRepositoryProvider)
+                                .retryCloudCoverage(
+                                  coverageRange,
+                                  coverageFilters,
+                                ),
                             canShowSidebar: canShowSidebar,
                             sidebarVisible:
                                 canShowSidebar && !_sidebarCollapsed,
@@ -583,6 +643,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         onPointerDown: _recordSchedulePointer,
                         child: _ScheduleBody(
                           isLoading: scheduleLoading,
+                          coverageComplete: cloudCoverage,
                           isUnavailable: scheduleUnavailable,
                           mode: displayMode,
                           range: displayRange,
@@ -715,54 +776,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 searchActive && _searchCriteria != null,
                             child: buildSidebar(),
                           );
-                          final coverageFilters =
-                              searchActive && _searchCriteria != null
-                              ? _searchCriteria!.filters(_searchQuery)
-                              : ScheduleFilters(
-                                  accountIds: accountIds.toSet(),
-                                  sourceIds:
-                                      visibility.visibleCalendarSourceIds,
-                                  sourceFilterActive: true,
-                                  includeCalendarEvents:
-                                      _scope != ScheduleScope.tasks,
-                                );
-                          final cloudCoverage =
-                              snapshot.hasData &&
-                                  !scheduleLoading &&
-                                  coverageFilters.requiresCalendarCoverage
-                              ? ref
-                                    .read(scheduleRepositoryProvider)
-                                    .cloudCoverageCompleteFor(
-                                      _searchCriteria?.range ?? range,
-                                      filters: coverageFilters,
-                                    )
-                              : true;
                           final frame = LinuxPageFrame(
                             header: header,
-                            body:
-                                widget.notificationDeadline == null &&
-                                    cloudCoverage != true
-                                ? Column(
-                                    children: [
-                                      ListTile(
-                                        leading: Icon(
-                                          cloudCoverage == null
-                                              ? Icons.sync
-                                              : Icons.cloud_off,
-                                        ),
-                                        title: Text(
-                                          cloudCoverage == null
-                                              ? context.l10n.scheduleLoading
-                                              : context
-                                                    .l10n
-                                                    .scheduleRangeIncomplete,
-                                        ),
-                                        dense: true,
-                                      ),
-                                      Expanded(child: main),
-                                    ],
-                                  )
-                                : main,
+                            body: main,
                             sidebarHeader: const BusyMaxLinuxBrandHeader(),
                             sidebarBody: widget.notificationDeadline == null
                                 ? sidebar
@@ -1132,7 +1148,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         ),
       );
     }
-    final currentItems = repository.listItems(
+    Future<List<ScheduleItem>> currentItems() => repository.listItems(
       range: range,
       filters: ScheduleFilters(
         query: _searchQuery,
@@ -1148,72 +1164,31 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       ),
     );
     if (searchActive || _mode != ScheduleViewMode.agenda) {
-      return _ScheduleItemsResult(items: await currentItems);
+      return _ScheduleItemsResult(items: await currentItems());
     }
 
-    final overdueTasks = repository.listOverdueTasks(
-      before: range.start,
-      limit: _agendaOverdueTaskLimit,
-      filters: ScheduleFilters(
-        accountIds: accountIds,
-        taskListKeys: taskListKeys,
-        taskListFilterActive: true,
-        includeTasks: _scope != ScheduleScope.events,
-        taskCompletion: ScheduleTaskCompletion.open,
-      ),
-    );
-    final noDateTasks = repository.listNoDateTasks(
-      limit: _agendaNoDateTaskLimit,
-      filters: ScheduleFilters(
-        accountIds: accountIds,
-        taskListKeys: taskListKeys,
-        taskListFilterActive: true,
-        includeTasks: _scope != ScheduleScope.events,
-        taskCompletion: ScheduleTaskCompletion.all,
-      ),
-    );
-    final datedItems = await currentItems;
-    final overduePage = await overdueTasks;
-    final noDatePage = await noDateTasks;
-    final items = await repository.includeTaskAncestors(
-      [...datedItems, ...overduePage.items, ...noDatePage.items],
-      filters: ScheduleFilters(
-        accountIds: accountIds,
-        taskListKeys: taskListKeys,
-        taskListFilterActive: true,
-        includeTasks: _scope != ScheduleScope.events,
-      ),
+    final page = await queryScheduleAgenda(
+      repository,
+      range: range,
+      accountIds: accountIds,
+      sourceIds: sourceIds,
+      taskListKeys: taskListKeys,
+      includeEvents: _scope != ScheduleScope.tasks,
+      includeTasks: _scope != ScheduleScope.events,
+      overdueLimit: _agendaOverdueTaskLimit,
+      noDateLimit: _agendaNoDateTaskLimit,
     );
     return _ScheduleItemsResult(
-      items: items,
-      hasMoreOverdueTasks: overduePage.hasMore,
-      hasMoreNoDateTasks: noDatePage.hasMore,
+      items: page.items,
+      hasMoreOverdueTasks: page.hasMoreOverdueTasks,
+      hasMoreNoDateTasks: page.hasMoreNoDateTasks,
     );
   }
 
   List<ScheduleItem> _agendaItems(
     List<ScheduleItem> items,
     ScheduleRange range,
-  ) {
-    final startDay = ScheduleProjection.day(range.start);
-    return items.where((item) {
-      final start = item.start;
-      if (start == null) {
-        return true;
-      }
-      if (item is CalendarScheduleItem) {
-        return ScheduleProjection.intersects(item, range);
-      }
-      if (item is TaskScheduleItem) {
-        final itemDay = ScheduleProjection.day(start);
-        if (itemDay.isBefore(startDay)) {
-          return !item.completed;
-        }
-        return start.isBefore(range.end);
-      }
-      return ScheduleProjection.intersects(item, range);
-    }).toList();
-  }
+  ) => scheduleAgendaItems(items, range);
 
   Future<List<TaskListEntity>> _taskListsForAccounts(
     List<AccountEntity> accounts,
@@ -1421,64 +1396,23 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     _workspaceFocusNode.requestFocus();
   }
 
-  void _previous() {
-    if (_searchActive) return;
-    if (_mode == ScheduleViewMode.agenda) {
-      return;
-    }
-    setState(() {
-      final target = switch (_mode) {
-        ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, -1),
-        ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, -7),
-        ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
-          _selectedDate,
-          -1,
-        ),
-        ScheduleViewMode.year => DateTime(
-          _selectedDate.year - 1,
-          _selectedDate.month,
-          _selectedDate.day,
-        ),
-        ScheduleViewMode.agenda => _selectedDate,
-      };
-      _selectedDate = target;
-      _navigationIntent = ScheduleNavigationIntent(
-        cause: ScheduleNavigationCause.adjacentPeriod,
-        target: target,
-        direction: -1,
-        generation: ++_navigationGeneration,
-      );
-      if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
-        _scope = ScheduleScope.all;
-      }
-    });
-  }
+  void _previous() => _movePeriod(-1);
+  void _next() => _movePeriod(1);
 
-  void _next() {
-    if (_searchActive) return;
-    if (_mode == ScheduleViewMode.agenda) {
-      return;
-    }
+  void _movePeriod(int direction) {
+    if (_searchActive || _mode == ScheduleViewMode.agenda) return;
     setState(() {
-      final target = switch (_mode) {
-        ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, 1),
-        ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, 7),
-        ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
-          _selectedDate,
-          1,
-        ),
-        ScheduleViewMode.year => DateTime(
-          _selectedDate.year + 1,
-          _selectedDate.month,
-          _selectedDate.day,
-        ),
-        ScheduleViewMode.agenda => _selectedDate,
-      };
+      final target = adjacentScheduleDate(
+        _selectedDate,
+        _mode,
+        direction,
+        retainDayInYear: true,
+      );
       _selectedDate = target;
       _navigationIntent = ScheduleNavigationIntent(
         cause: ScheduleNavigationCause.adjacentPeriod,
         target: target,
-        direction: 1,
+        direction: direction,
         generation: ++_navigationGeneration,
       );
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
@@ -2249,38 +2183,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     );
   }
 
-  Future<void> _saveEvent(
-    EventEditorDraft draft, {
-    String? originalAccountId,
-    CalendarGuestUpdatePolicy guestUpdatePolicy =
-        CalendarGuestUpdatePolicy.send,
-  }) async {
-    await ref
-        .read(calendarRepositoryProvider)
-        .updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
-    if (draft.eventId == null) {
-      unawaited(
-        ref
-            .read(appSettingsControllerProvider.notifier)
-            .rememberCalendar(
-              CreationDestination(
-                accountId: draft.accountId,
-                id: draft.sourceId,
-              ),
-            ),
-      );
-    }
-    final sourceAccountId = originalAccountId;
-    if (sourceAccountId != null && sourceAccountId != draft.accountId) {
-      unawaited(_syncMovedEvent(draft.accountId, sourceAccountId));
-    } else {
-      _requestCalendarMutationSync(draft.accountId);
-    }
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   Future<void> _rescheduleEvent(
     ScheduleRescheduleRequest request,
     bool Function() isActive,
@@ -2365,9 +2267,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           needsReconnect: account?.needsReconnect == true,
         );
       }
-      await ref
-          .read(accountSyncOperationsProvider)
-          .syncCalendar(accountId, full: false);
+      await withSyncTrigger(
+        SyncTrigger.localMutation,
+        () => ref
+            .read(accountSyncOperationsProvider)
+            .syncCalendar(accountId, full: false),
+      );
       return true;
     } on Object catch (error) {
       if (!mounted) {
@@ -2402,6 +2307,32 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       sources: editableSources,
       accounts: _latestAccounts,
       categorySuggestionsByAccount: _categorySuggestionsByAccount(),
+      submit: (edited, guestPolicy) async {
+        final settings = ref.read(appSettingsControllerProvider.notifier);
+        final outcome = await saveEventDraft(
+          repository: ref.read(calendarRepositoryProvider),
+          draft: edited,
+          guestPolicy: guestPolicy,
+          rememberDestination: () => settings.rememberCalendar(
+            CreationDestination(
+              accountId: edited.accountId,
+              id: edited.sourceId,
+            ),
+          ),
+          requestSync: () {
+            if (draft.accountId == edited.accountId) {
+              _requestCalendarMutationSync(edited.accountId);
+            } else {
+              unawaited(_syncMovedEvent(edited.accountId, draft.accountId));
+            }
+          },
+        );
+        if (mounted && outcome == EventSaveOutcome.followUpPending) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(context.l10n.pendingLocally)));
+        }
+      },
     );
     if (!mounted || result == null) {
       return;
@@ -2414,27 +2345,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         guestUpdatePolicy: result.guestUpdatePolicy,
       );
       return;
-    }
-    final savedDraft = result.draft;
-    if (savedDraft != null) {
-      try {
-        await _saveEvent(
-          savedDraft,
-          originalAccountId: draft.accountId,
-          guestUpdatePolicy: result.guestUpdatePolicy,
-        );
-      } on Object catch (error) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error is UnsupportedError
-                  ? error.message ?? context.l10n.operationFailed
-                  : localizedNextcloudCollectionError(context.l10n, error),
-            ),
-          ),
-        );
-      }
     }
   }
 
@@ -2656,9 +2566,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     TaskListEntity? initialList;
     final routedListKey = _initialTaskListKey;
     if (routedListKey != null) {
-      for (final list in _latestVisibleTaskLists) {
+      for (final list in _latestEligibleVisibleTaskLists) {
         if (list.accountId == routedListKey.accountId &&
-            list.id == routedListKey.taskListId) {
+            list.id == routedListKey.taskListId &&
+            ref.read(scheduleTaskListCreateEligibleProvider(list))) {
           initialList = list;
           break;
         }
@@ -2674,7 +2585,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           return;
         }
         for (final list in routedAccountLists) {
-          if (list.id == routedListKey.taskListId) {
+          if (list.id == routedListKey.taskListId &&
+              ref.read(scheduleTaskListCreateEligibleProvider(list))) {
             initialList = list;
             break;
           }
@@ -2684,7 +2596,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (initialList == null) {
       final settings = ref.read(appSettingsControllerProvider);
       initialList = preferredCreationDestination(
-        _searchTaskLists.where((list) => !list.pendingDelete),
+        _searchTaskLists.where(
+          (list) => ref.read(scheduleTaskListCreateEligibleProvider(list)),
+        ),
         selected: settings.defaultTaskList,
         lastUsed: settings.lastUsedTaskList,
         destinationOf: (list) =>
@@ -2855,40 +2769,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
   }
 
-  Future<void> _refreshAll() async {
-    try {
-      final accounts = await ref
-          .read(accountsRepositoryProvider)
-          .listSyncEligibleAccounts();
-      if (accounts.isEmpty) {
-        return;
-      }
-      await ref.read(allAccountsSyncRunnerProvider)();
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(context.l10n.allTasksRefreshed)));
-    } on Object catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.l10n.refreshFailed(
-              localizedSyncFailureMessage(
-                context.l10n,
-                error,
-                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-  }
+  Future<void> _refreshAll() => refreshFromLinux(context, ref, allSyncScope);
 
   void _retrySchedule() {
     ref.invalidate(accountsStreamProvider);
@@ -3058,6 +2939,7 @@ class _ScheduleItemsResult {
 class _ScheduleBody extends StatelessWidget {
   const _ScheduleBody({
     required this.isLoading,
+    required this.coverageComplete,
     required this.isUnavailable,
     required this.mode,
     required this.range,
@@ -3103,6 +2985,7 @@ class _ScheduleBody extends StatelessWidget {
   });
 
   final bool isLoading;
+  final bool? coverageComplete;
   final bool isUnavailable;
   final ScheduleViewMode mode;
   final ScheduleRange range;
@@ -3245,7 +3128,9 @@ class _ScheduleBody extends StatelessWidget {
           onChecklistItemCompletionChanged: onChecklistItemCompletionChanged,
           taskListMutationIntent: taskListMutationIntent,
           onTaskListMutationConsumed: onTaskListMutationConsumed,
-          emptyBuilder: searchActive
+          emptyBuilder: coverageComplete != true
+              ? (_) => const SizedBox.shrink()
+              : searchActive
               ? (context) => searchCriteria?.hasSources == false
                     ? Center(child: Text(context.l10n.searchNoSources))
                     : const ScheduleSearchEmptyState()

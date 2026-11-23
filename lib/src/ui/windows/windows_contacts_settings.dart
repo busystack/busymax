@@ -1,3 +1,4 @@
+import '../../contacts/dav_contacts_enrollment.dart';
 import 'windows_nextcloud_certificate_dialog.dart';
 import '../common/nextcloud_certificate_review.dart';
 import '../../l10n/l10n.dart';
@@ -48,7 +49,7 @@ class _WindowsContactsSettingsState
   );
 
   Future<void> _add(bool nextcloud) async {
-    final input = await showDialog<_DavInput>(
+    final input = await showDialog<DavContactsEnrollment>(
       context: context,
       builder: (_) => _DavDialog(nextcloud: nextcloud),
     );
@@ -70,13 +71,13 @@ class _WindowsContactsSettingsState
           ),
           id: id,
           label: input.label,
-          server: Uri.parse(input.server),
+          server: input.server,
         );
       } else {
         await controller.addCardDavContactsOnly(
           id: id,
           label: input.label,
-          server: Uri.parse(input.server),
+          server: input.server,
           username: input.username,
           password: input.password,
         );
@@ -221,11 +222,6 @@ class _WindowsContactsSettingsState
   }
 }
 
-final class _DavInput {
-  const _DavInput(this.label, this.server, this.username, this.password);
-  final String label, server, username, password;
-}
-
 class _DavDialog extends StatefulWidget {
   const _DavDialog({required this.nextcloud});
   final bool nextcloud;
@@ -249,25 +245,18 @@ class _DavDialogState extends State<_DavDialog> {
   }
 
   void _submit() {
-    final uri = Uri.tryParse(_server.text.trim());
-    if (uri == null ||
-        uri.scheme != 'https' ||
-        uri.host.isEmpty ||
-        _label.text.trim().isEmpty ||
-        !widget.nextcloud &&
-            (_username.text.isEmpty || _password.text.isEmpty)) {
+    final input = DavContactsEnrollment.parse(
+      label: _label.text,
+      server: _server.text,
+      username: _username.text,
+      password: _password.text,
+      nextcloud: widget.nextcloud,
+    );
+    if (input == null) {
       setState(() => _error = context.l10n.contactsReadPermissionDescription);
       return;
     }
-    Navigator.pop(
-      context,
-      _DavInput(
-        _label.text.trim(),
-        uri.toString(),
-        _username.text,
-        _password.text,
-      ),
-    );
+    Navigator.pop(context, input);
   }
 
   @override

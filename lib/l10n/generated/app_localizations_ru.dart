@@ -1473,10 +1473,47 @@ class AppLocalizationsRu extends AppLocalizations {
   String get refreshAll => 'Обновить всё';
 
   @override
-  String get listRefreshed => 'Список обновлён.';
+  String get refreshAccount => 'Обновить аккаунт';
 
   @override
-  String get allTasksRefreshed => 'Все аккаунты обновлены.';
+  String get refreshCollection => 'Обновить коллекцию';
+
+  @override
+  String get syncPartiallyCompleted => 'Обновление выполнено частично';
+
+  @override
+  String get syncDeferred => 'Обновление отложено';
+
+  @override
+  String get syncPendingChanges => 'Локальные изменения ожидают синхронизации';
+
+  @override
+  String get syncFailedLocalChanges =>
+      'Не удалось синхронизировать некоторые локальные изменения';
+
+  @override
+  String get syncQueued => 'Обновление в очереди';
+
+  @override
+  String get syncNotYetRefreshed => 'Синхронизации ещё не было';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'Последнее обновление $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'Проверка событий';
+
+  @override
+  String get scheduleCoveragePending =>
+      'События за этот период проверяются или ещё не были проверены.';
+
+  @override
+  String get scheduleCoverageVerified => 'События за этот период проверены.';
+
+  @override
+  String get listRefreshed => 'Список обновлён.';
 
   @override
   String exportedFile(String path) {
@@ -2129,7 +2166,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'Полностью загружает заново данные всех подключённых аккаунтов. Используйте эту функцию только для устранения проблем с синхронизацией.';
+      'Заново создаёт базовое состояние синхронизации календарей и задач доступных аккаунтов, если это поддерживается, и проверяет подписки. Используйте для устранения проблем синхронизации.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -2155,9 +2192,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'Требуется значок в области уведомлений.';
-
-  @override
-  String get syncComplete => 'Синхронизация завершена.';
 
   @override
   String syncFailed(String error) {
@@ -4058,4 +4092,10 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Это вложение недействительно или превышает допустимый размер.';
+
+  @override
+  String get moveEvent => 'Переместить событие';
+
+  @override
+  String get agendaLoadMoreDays => 'Загрузить следующие дни';
 }

@@ -2,7 +2,7 @@ import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_policy.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_mutations.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

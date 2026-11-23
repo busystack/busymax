@@ -22083,6 +22083,276 @@ class IcalImportReceiptsCompanion extends UpdateCompanion<IcalImportReceipt> {
   }
 }
 
+class $CreationReceiptsTable extends CreationReceipts
+    with TableInfo<$CreationReceiptsTable, CreationReceipt> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CreationReceiptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _creationIdMeta = const VerificationMeta(
+    'creationId',
+  );
+  @override
+  late final GeneratedColumn<String> creationId = GeneratedColumn<String>(
+    'creation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _resultIdMeta = const VerificationMeta(
+    'resultId',
+  );
+  @override
+  late final GeneratedColumn<String> resultId = GeneratedColumn<String>(
+    'result_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [kind, creationId, resultId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'creation_receipts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CreationReceipt> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('creation_id')) {
+      context.handle(
+        _creationIdMeta,
+        creationId.isAcceptableOrUnknown(data['creation_id']!, _creationIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_creationIdMeta);
+    }
+    if (data.containsKey('result_id')) {
+      context.handle(
+        _resultIdMeta,
+        resultId.isAcceptableOrUnknown(data['result_id']!, _resultIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {kind, creationId};
+  @override
+  CreationReceipt map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CreationReceipt(
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      creationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}creation_id'],
+      )!,
+      resultId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_id'],
+      ),
+    );
+  }
+
+  @override
+  $CreationReceiptsTable createAlias(String alias) {
+    return $CreationReceiptsTable(attachedDatabase, alias);
+  }
+}
+
+class CreationReceipt extends DataClass implements Insertable<CreationReceipt> {
+  final String kind;
+  final String creationId;
+  final String? resultId;
+  const CreationReceipt({
+    required this.kind,
+    required this.creationId,
+    this.resultId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['kind'] = Variable<String>(kind);
+    map['creation_id'] = Variable<String>(creationId);
+    if (!nullToAbsent || resultId != null) {
+      map['result_id'] = Variable<String>(resultId);
+    }
+    return map;
+  }
+
+  CreationReceiptsCompanion toCompanion(bool nullToAbsent) {
+    return CreationReceiptsCompanion(
+      kind: Value(kind),
+      creationId: Value(creationId),
+      resultId: resultId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resultId),
+    );
+  }
+
+  factory CreationReceipt.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CreationReceipt(
+      kind: serializer.fromJson<String>(json['kind']),
+      creationId: serializer.fromJson<String>(json['creationId']),
+      resultId: serializer.fromJson<String?>(json['resultId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'kind': serializer.toJson<String>(kind),
+      'creationId': serializer.toJson<String>(creationId),
+      'resultId': serializer.toJson<String?>(resultId),
+    };
+  }
+
+  CreationReceipt copyWith({
+    String? kind,
+    String? creationId,
+    Value<String?> resultId = const Value.absent(),
+  }) => CreationReceipt(
+    kind: kind ?? this.kind,
+    creationId: creationId ?? this.creationId,
+    resultId: resultId.present ? resultId.value : this.resultId,
+  );
+  CreationReceipt copyWithCompanion(CreationReceiptsCompanion data) {
+    return CreationReceipt(
+      kind: data.kind.present ? data.kind.value : this.kind,
+      creationId: data.creationId.present
+          ? data.creationId.value
+          : this.creationId,
+      resultId: data.resultId.present ? data.resultId.value : this.resultId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CreationReceipt(')
+          ..write('kind: $kind, ')
+          ..write('creationId: $creationId, ')
+          ..write('resultId: $resultId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(kind, creationId, resultId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CreationReceipt &&
+          other.kind == this.kind &&
+          other.creationId == this.creationId &&
+          other.resultId == this.resultId);
+}
+
+class CreationReceiptsCompanion extends UpdateCompanion<CreationReceipt> {
+  final Value<String> kind;
+  final Value<String> creationId;
+  final Value<String?> resultId;
+  final Value<int> rowid;
+  const CreationReceiptsCompanion({
+    this.kind = const Value.absent(),
+    this.creationId = const Value.absent(),
+    this.resultId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CreationReceiptsCompanion.insert({
+    required String kind,
+    required String creationId,
+    this.resultId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : kind = Value(kind),
+       creationId = Value(creationId);
+  static Insertable<CreationReceipt> custom({
+    Expression<String>? kind,
+    Expression<String>? creationId,
+    Expression<String>? resultId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (kind != null) 'kind': kind,
+      if (creationId != null) 'creation_id': creationId,
+      if (resultId != null) 'result_id': resultId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CreationReceiptsCompanion copyWith({
+    Value<String>? kind,
+    Value<String>? creationId,
+    Value<String?>? resultId,
+    Value<int>? rowid,
+  }) {
+    return CreationReceiptsCompanion(
+      kind: kind ?? this.kind,
+      creationId: creationId ?? this.creationId,
+      resultId: resultId ?? this.resultId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (creationId.present) {
+      map['creation_id'] = Variable<String>(creationId.value);
+    }
+    if (resultId.present) {
+      map['result_id'] = Variable<String>(resultId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CreationReceiptsCompanion(')
+          ..write('kind: $kind, ')
+          ..write('creationId: $creationId, ')
+          ..write('resultId: $resultId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $WebCalSubscriptionsTable extends WebCalSubscriptions
     with TableInfo<$WebCalSubscriptionsTable, WebCalSubscription> {
   @override
@@ -30309,6 +30579,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CalendarEventsTable calendarEvents = $CalendarEventsTable(this);
   late final $IcalImportReceiptsTable icalImportReceipts =
       $IcalImportReceiptsTable(this);
+  late final $CreationReceiptsTable creationReceipts = $CreationReceiptsTable(
+    this,
+  );
   late final $WebCalSubscriptionsTable webCalSubscriptions =
       $WebCalSubscriptionsTable(this);
   late final $CalendarEventAttendeesTable calendarEventAttendees =
@@ -30360,6 +30633,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     calendarSources,
     calendarEvents,
     icalImportReceipts,
+    creationReceipts,
     webCalSubscriptions,
     calendarEventAttendees,
     calendarEventReminders,
@@ -47875,6 +48149,185 @@ typedef $$IcalImportReceiptsTableProcessedTableManager =
       IcalImportReceipt,
       PrefetchHooks Function({bool calendarSourceId})
     >;
+typedef $$CreationReceiptsTableCreateCompanionBuilder =
+    CreationReceiptsCompanion Function({
+      required String kind,
+      required String creationId,
+      Value<String?> resultId,
+      Value<int> rowid,
+    });
+typedef $$CreationReceiptsTableUpdateCompanionBuilder =
+    CreationReceiptsCompanion Function({
+      Value<String> kind,
+      Value<String> creationId,
+      Value<String?> resultId,
+      Value<int> rowid,
+    });
+
+class $$CreationReceiptsTableFilterComposer
+    extends Composer<_$AppDatabase, $CreationReceiptsTable> {
+  $$CreationReceiptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get creationId => $composableBuilder(
+    column: $table.creationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultId => $composableBuilder(
+    column: $table.resultId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CreationReceiptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CreationReceiptsTable> {
+  $$CreationReceiptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get creationId => $composableBuilder(
+    column: $table.creationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultId => $composableBuilder(
+    column: $table.resultId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CreationReceiptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CreationReceiptsTable> {
+  $$CreationReceiptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get creationId => $composableBuilder(
+    column: $table.creationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resultId =>
+      $composableBuilder(column: $table.resultId, builder: (column) => column);
+}
+
+class $$CreationReceiptsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CreationReceiptsTable,
+          CreationReceipt,
+          $$CreationReceiptsTableFilterComposer,
+          $$CreationReceiptsTableOrderingComposer,
+          $$CreationReceiptsTableAnnotationComposer,
+          $$CreationReceiptsTableCreateCompanionBuilder,
+          $$CreationReceiptsTableUpdateCompanionBuilder,
+          (
+            CreationReceipt,
+            BaseReferences<
+              _$AppDatabase,
+              $CreationReceiptsTable,
+              CreationReceipt
+            >,
+          ),
+          CreationReceipt,
+          PrefetchHooks Function()
+        > {
+  $$CreationReceiptsTableTableManager(
+    _$AppDatabase db,
+    $CreationReceiptsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CreationReceiptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CreationReceiptsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CreationReceiptsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> kind = const Value.absent(),
+                Value<String> creationId = const Value.absent(),
+                Value<String?> resultId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CreationReceiptsCompanion(
+                kind: kind,
+                creationId: creationId,
+                resultId: resultId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String kind,
+                required String creationId,
+                Value<String?> resultId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CreationReceiptsCompanion.insert(
+                kind: kind,
+                creationId: creationId,
+                resultId: resultId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CreationReceiptsTable, CreationReceipt>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CreationReceiptsTable,
+                    CreationReceipt
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CreationReceiptsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CreationReceiptsTable,
+      CreationReceipt,
+      $$CreationReceiptsTableFilterComposer,
+      $$CreationReceiptsTableOrderingComposer,
+      $$CreationReceiptsTableAnnotationComposer,
+      $$CreationReceiptsTableCreateCompanionBuilder,
+      $$CreationReceiptsTableUpdateCompanionBuilder,
+      (
+        CreationReceipt,
+        BaseReferences<_$AppDatabase, $CreationReceiptsTable, CreationReceipt>,
+      ),
+      CreationReceipt,
+      PrefetchHooks Function()
+    >;
 typedef $$WebCalSubscriptionsTableCreateCompanionBuilder =
     WebCalSubscriptionsCompanion Function({
       required String id,
@@ -53086,6 +53539,8 @@ class $AppDatabaseManager {
       $$CalendarEventsTableTableManager(_db, _db.calendarEvents);
   $$IcalImportReceiptsTableTableManager get icalImportReceipts =>
       $$IcalImportReceiptsTableTableManager(_db, _db.icalImportReceipts);
+  $$CreationReceiptsTableTableManager get creationReceipts =>
+      $$CreationReceiptsTableTableManager(_db, _db.creationReceipts);
   $$WebCalSubscriptionsTableTableManager get webCalSubscriptions =>
       $$WebCalSubscriptionsTableTableManager(_db, _db.webCalSubscriptions);
   $$CalendarEventAttendeesTableTableManager get calendarEventAttendees =>

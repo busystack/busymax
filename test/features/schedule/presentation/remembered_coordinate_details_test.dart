@@ -10,7 +10,7 @@ import 'package:busymax/src/features/maps/application/external_location_launcher
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/features/schedule/application/saved_schedule_location.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
-import 'package:busymax/src/features/schedule/presentation/schedule_event_block.dart';
+import 'package:busymax/src/ui/common/schedule/schedule_event_block.dart';
 import 'package:busymax/src/ical/ical_import_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';

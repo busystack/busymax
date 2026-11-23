@@ -3,9 +3,31 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/app_bootstrap.dart';
+import '../features/accounts/data/accounts_repository.dart';
+import '../providers/busy_provider.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/task_lists/data/task_lists_repository.dart';
 import 'schedule_sidebar_order.dart';
+
+String? scheduleAccountSecondaryLabel(AccountEntity account) {
+  final secondaryLabel = account.secondaryLabel;
+  if (secondaryLabel != null && secondaryLabel.isNotEmpty) {
+    return secondaryLabel;
+  }
+  if (account.provider != BusyProvider.nextcloud) return null;
+
+  final authority = Uri.tryParse(account.authority);
+  if (authority == null || authority.host.isEmpty) return null;
+  final scheme = authority.scheme.toLowerCase();
+  final hasDefaultPort =
+      (scheme == 'https' && authority.port == 443) ||
+      (scheme == 'http' && authority.port == 80);
+  if (!authority.hasPort || hasDefaultPort) return authority.host;
+  final host = authority.host.contains(':')
+      ? '[${authority.host}]'
+      : authority.host;
+  return '$host:${authority.port}';
+}
 
 final sidebarCalendarSourcesProvider = StreamProvider.autoDispose
     .family<List<CalendarSourceEntity>, String>(

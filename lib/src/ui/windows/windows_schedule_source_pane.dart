@@ -1,10 +1,14 @@
+import '../../features/sync/sync_request.dart';
+import '../../features/sync/sync_activity_icon.dart';
+import 'windows_sync_feedback.dart';
+import '../../l10n/nextcloud_collection_error_description.dart';
+import '../../schedule/schedule_task_list_actions.dart';
 import '../../l10n/dav_collection_error_description.dart';
 
 import 'dart:async';
 
 import 'windows_nextcloud_dialogs.dart';
 import 'windows_dav_account_dialogs.dart';
-import '../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -257,6 +261,7 @@ class _WindowsScheduleSourcePaneState
                         source.id,
                       )),
                       icon: BusyMaxGlyph.calendar,
+                      scope: calendarSyncScope(source.accountId, source.id),
                       iconColor: _calendarSourceColor(source),
                       title: source.summary,
                       checked: widget.visibleCalendarSourceIds.contains(
@@ -274,6 +279,7 @@ class _WindowsScheduleSourcePaneState
                         list.id,
                       )),
                       icon: BusyMaxGlyph.task,
+                      scope: taskListSyncScope(list.accountId, list.id),
                       title: list.title,
                       checked: widget.visibleTaskListKeys.contains(
                         ScheduleTaskListKey(
@@ -362,7 +368,15 @@ class _WindowsScheduleSourcePaneState
     CalendarSourceEntity source,
   ) {
     final l10n = AppLocalizations.of(context);
+    final scope = calendarSyncScope(source.accountId, source.id);
     return [
+      MenuFlyoutItem(
+        text: Text(l10n.refreshCalendar),
+        leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+        onPressed: ref.watch(accountSyncActivityProvider).busy(scope)
+            ? null
+            : () => unawaited(refreshWindowsScope(context, ref, scope)),
+      ),
       if ((source.provider == BusyProvider.nextcloud ||
               source.provider == BusyProvider.caldav) &&
           source.davCollectionId != null)
@@ -442,17 +456,25 @@ class _WindowsScheduleSourcePaneState
                 )),
               )
               .valueOrNull;
-    final canRename = account.provider == BusyProvider.microsoft
-        ? list.canRenameOrDeleteForMicrosoft
-        : list.davCollectionId != null
-        ? davCapabilities?.supportsListRename ?? false
-        : true;
-    final canDelete = account.provider == BusyProvider.microsoft
-        ? list.canRenameOrDeleteForMicrosoft
-        : list.davCollectionId != null
-        ? davCapabilities?.supportsListDelete ?? false
-        : true;
+    final canRename = canRenameScheduleTaskList(
+      account.provider,
+      list,
+      davCapabilities,
+    );
+    final canDelete = canDeleteScheduleTaskList(
+      account.provider,
+      list,
+      davCapabilities,
+    );
+    final scope = taskListSyncScope(list.accountId, list.id);
     return [
+      MenuFlyoutItem(
+        text: Text(l10n.refreshList),
+        leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+        onPressed: ref.watch(accountSyncActivityProvider).busy(scope)
+            ? null
+            : () => unawaited(refreshWindowsScope(context, ref, scope)),
+      ),
       if ((account.provider == BusyProvider.nextcloud ||
               account.provider == BusyProvider.caldav) &&
           list.davCollectionId != null)
@@ -695,17 +717,13 @@ class _WindowsScheduleSourcePaneState
     try {
       await operation();
       if (mounted) widget.onSourcesChanged();
-    } on DavRefreshPending {
-      if (mounted) {
-        await _showMessage(AppLocalizations.of(context).davRefreshPending);
-      }
-    } on NextcloudRefreshPending {
-      if (mounted) {
-        await _showMessage(
-          AppLocalizations.of(context).nextcloudRefreshPending,
-        );
-      }
     } on Object catch (error) {
+      if (!mounted) return;
+      if (localizedCollectionRefreshPending(AppLocalizations.of(context), error)
+          case final warning?) {
+        await _showMessage(warning);
+        return;
+      }
       if (mounted) {
         await _showMessage(
           pendingChangesMessage != null &&
@@ -833,8 +851,20 @@ class _AccountHeader extends ConsumerWidget {
           ),
         ),
         DropDownButton(
-          title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
+          title: SyncActivityIcon(
+            scope: accountSyncScope(account.id),
+            refresh: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh), size: 16),
+            warning: const Icon(FluentIcons.warning, size: 16),
+            child: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
+          ),
           items: [
+            MenuFlyoutItem(
+              text: Text(AppLocalizations.of(context).refreshAccount),
+              leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+              onPressed: () => unawaited(
+                refreshWindowsScope(context, ref, accountSyncScope(account.id)),
+              ),
+            ),
             ...movementItems,
             if (account.provider == BusyProvider.nextcloud)
               MenuFlyoutItem(
@@ -875,6 +905,7 @@ class _VisibilityRow extends StatelessWidget {
   const _VisibilityRow({
     super.key,
     required this.icon,
+    required this.scope,
     required this.title,
     required this.checked,
     required this.onChanged,
@@ -883,6 +914,7 @@ class _VisibilityRow extends StatelessWidget {
   });
 
   final BusyMaxGlyph icon;
+  final SyncScope scope;
   final Color? iconColor;
   final String title;
   final bool checked;
@@ -903,7 +935,20 @@ class _VisibilityRow extends StatelessWidget {
               onChanged: (value) => onChanged(value ?? false),
             ),
             const SizedBox(width: 8),
-            Icon(windowsBusyMaxGlyph(icon), size: 16, color: iconColor),
+            SyncActivityIcon(
+              scope: scope,
+              refresh: Icon(
+                windowsBusyMaxGlyph(BusyMaxGlyph.refresh),
+                size: 16,
+                color: iconColor,
+              ),
+              warning: Icon(FluentIcons.warning, size: 16, color: iconColor),
+              child: Icon(
+                windowsBusyMaxGlyph(icon),
+                size: 16,
+                color: iconColor,
+              ),
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),

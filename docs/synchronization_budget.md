@@ -71,3 +71,62 @@ OAuth configurations, access/refresh tokens or signing private keys. Separate
 Tasks from Calendar's project and per-user/project limits; see
 [Calendar quota guidance](https://developers.google.com/workspace/calendar/api/guides/quota).
 Two OAuth clients inside one project do not demonstrate project-quota isolation.
+
+## Explicit refresh scopes and completion
+
+Refresh calendar and Refresh list use the account and local collection identity.
+For Google and Microsoft calendars, the engine uses the stored source's
+provider identity and its normal baseline cursor or snapshot. Calendar
+inventory discovery stays in the account-wide path. The displayed schedule can
+independently request month snapshots using separate source/month cursors. The
+coverage control retries the current range and filters without waiting for the
+repository's automatic failure throttle. It joins an in-flight check and can
+reuse fresh, verified months. Cached items remain visible during the check.
+
+A selected task list uses an authoritative, paginated snapshot. List metadata
+can exist without a task baseline, and the Google Tasks domain checkpoint is
+shared by all lists. Targeted reads leave that checkpoint and the passive
+schedule untouched. Only a completed authoritative list snapshot reconciles
+missing tasks. Checklists are retrieved through the existing Microsoft client.
+
+DAV sync uses one remote collection and one cursor per physical collection.
+Selecting either projection of a mixed VEVENT/VTODO collection pulls that
+collection once and updates both projections where enabled. Required discovery
+continues to commit complete account inventory. Due writes are selected from the
+durable queues, including moves that touch the target and required predecessors.
+A dependency that cannot run remains queued. DAV readback also checks
+collections changed by a successful mutation. The readable Nextcloud scheduling
+inbox remains available for Calendar and account refresh. A Calendar or Tasks
+domain pull selects the physical collections enrolled for that domain. A mixed
+collection updates both enabled projections through the same physical
+synchronization. Domain mutation dispatch replays the requested component type
+and its prerequisites, then reads back affected collections. It leaves
+ordinary collection pulls and account-wide completion history to refresh.
+
+Explicit subscription refresh bypasses ordinary due time and local failure
+backoff. It keeps validators bound to their origin, and a valid HTTP 304 counts
+as a successful check. A skipped check or missing credential has a separate
+outcome. Full recovery rebaselines supported Calendar, Tasks and DAV content and
+checks subscriptions using their regular HTTP validation.
+
+Requested scope, origin and recovery strategy are independent. The same
+in-process request joins while it is queued or executing. A different source,
+origin or strategy retains its own completion future and shares the same
+account and cross-engine locks. Account-wide completion is stored in the
+synchronization schedule table under an independent history key. Historical
+provider account fields are excluded from this value. Disabled domains are
+excluded from the required scope, and deferred work cannot record account-wide
+success. A narrow task import preserves a prior incomplete account import
+marker until a covering import succeeds. Linux, Android and Windows Settings
+use the same account status. A partial or deferred refresh retains the prior
+verified account-wide completion time. A collection warning clears after a
+confirmed pull for that collection, including during a partial account or
+domain refresh. An untouched collection keeps its warning. Settings reads
+failed local operations and queued changes from the durable replay queue and
+reports task-list inventory errors for the affected account. Provider failures
+still surface through the existing recovery actions.
+
+Android publishes executing scopes through the existing platform channel.
+The native plugin owns each engine's activity in memory and drops it on detach
+or worker cleanup. The visible engine reconciles that snapshot and invalidates
+external database state on resume.

@@ -1506,10 +1506,47 @@ class AppLocalizationsPl extends AppLocalizations {
   String get refreshAll => 'Odśwież wszystko';
 
   @override
-  String get listRefreshed => 'Odświeżono listę.';
+  String get refreshAccount => 'Odśwież konto';
 
   @override
-  String get allTasksRefreshed => 'Odświeżono wszystkie konta.';
+  String get refreshCollection => 'Odśwież kolekcję';
+
+  @override
+  String get syncPartiallyCompleted => 'Odświeżanie zakończone częściowo';
+
+  @override
+  String get syncDeferred => 'Odświeżanie odłożone';
+
+  @override
+  String get syncPendingChanges => 'Oczekujące zmiany lokalne';
+
+  @override
+  String get syncFailedLocalChanges =>
+      'Nie udało się zsynchronizować niektórych zmian lokalnych';
+
+  @override
+  String get syncQueued => 'Odświeżanie w kolejce';
+
+  @override
+  String get syncNotYetRefreshed => 'Jeszcze nie synchronizowano';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'Ostatnio odświeżono $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'Zakres sprawdzenia wydarzeń';
+
+  @override
+  String get scheduleCoveragePending =>
+      'Trwa sprawdzanie wydarzeń w tym okresie lub jeszcze ich nie sprawdzono.';
+
+  @override
+  String get scheduleCoverageVerified => 'Sprawdzono wydarzenia w tym okresie.';
+
+  @override
+  String get listRefreshed => 'Odświeżono listę.';
 
   @override
   String exportedFile(String path) {
@@ -2254,7 +2291,7 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'Ponownie wczytaj wszystkie dane z każdego połączonego konta. Używaj tej opcji wyłącznie do rozwiązywania problemów z synchronizacją.';
+      'Odtwarza stan bazowy synchronizacji kalendarzy i zadań na kwalifikujących się kontach, jeśli jest to obsługiwane, i sprawdza subskrypcje. Służy do rozwiązywania problemów z synchronizacją.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -2280,9 +2317,6 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'Wymaga ikony w zasobniku systemowym.';
-
-  @override
-  String get syncComplete => 'Synchronizacja zakończona.';
 
   @override
   String syncFailed(String error) {
@@ -4198,4 +4232,10 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Ten załącznik jest nieprawidłowy lub przekracza limit rozmiaru.';
+
+  @override
+  String get moveEvent => 'Przenieś wydarzenie';
+
+  @override
+  String get agendaLoadMoreDays => 'Wczytaj więcej dni';
 }

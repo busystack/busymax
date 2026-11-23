@@ -605,6 +605,7 @@ class TaskDetailsDraft {
   TaskCreateInput toCreateInput(
     TaskCollectionCapabilities capabilities, {
     required String localTimeZone,
+    String? creationId,
   }) {
     if (!hasValidTaskUrlFor(capabilities) ||
         scheduleIssueFor(capabilities) != TaskScheduleIssue.none ||
@@ -650,6 +651,7 @@ class TaskDetailsDraft {
 
     return TaskCreateInput(
       title: trimmedTitle,
+      creationId: creationId,
       notes: notes.trim().isEmpty ? null : notes,
       dueUtc: dueDate == null ? null : DateTime.tryParse(dueDate!),
       categories: categories,

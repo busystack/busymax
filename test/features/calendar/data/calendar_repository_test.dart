@@ -7,7 +7,7 @@ import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/data/calendar_event_detail.dart';
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
 import 'package:busymax/src/features/calendar/domain/google_status_event.dart';

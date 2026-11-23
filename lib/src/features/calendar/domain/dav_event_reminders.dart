@@ -93,13 +93,17 @@ List<DavEventReminderRow>? davEventEditableReminderRows(Object? value) {
       for (final minute in minutes) DavEventReminderRow(minutes: minute as int),
     ];
   }
+  if (value['overrides'] case final List overrides) {
+    return [
+      for (final entry in overrides)
+        if (entry case {'method': 'popup', 'minutes': final int minutes}
+            when minutes >= 0)
+          DavEventReminderRow(minutes: minutes),
+    ];
+  }
   return null;
 }
 
 Object davEventReminderPayload(List<DavEventReminderRow> rows) => {
   'davEditableRows': [for (final row in rows) row.toJson()],
 };
-
-bool davEventRemindersHaveIdentities(Object? value) =>
-    value is Map &&
-    (value['alarms'] is List || value['davEditableRows'] is List);

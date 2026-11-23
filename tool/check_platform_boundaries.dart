@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/ast/ast.dart';
+
 const _linuxOnlyPackages = <String>[
   'package:yaru/',
   'package:ubuntu_localizations/',
@@ -22,10 +25,19 @@ const _desktopOnlyPackages = <String>[
   'package:yaru_window/',
 ];
 
-final _importPattern = RegExp(
-  r'''^\s*(?:import|export)\s+['"]([^'"]+)['"]''',
-  multiLine: true,
-);
+Iterable<String> _dependencies(String source) sync* {
+  final parsed = parseString(content: source, throwIfDiagnostics: false);
+  for (final directive in parsed.unit.directives) {
+    if (directive is UriBasedDirective) {
+      if (directive.uri.stringValue case final String uri) yield uri;
+    }
+    if (directive is NamespaceDirective) {
+      for (final configuration in directive.configurations) {
+        if (configuration.uri.stringValue case final String uri) yield uri;
+      }
+    }
+  }
+}
 
 void main() {
   final root = Directory.current;
@@ -70,8 +82,7 @@ List<String> findPlatformBoundaryViolations(Directory root) {
         !isLinux &&
         !relative.contains('/presentation/');
 
-    for (final match in _importPattern.allMatches(source)) {
-      final import = match.group(1)!;
+    for (final import in _dependencies(source)) {
       if ((isWindows || isCommonPlatform) &&
           _linuxOnlyPackages.any(import.startsWith)) {
         failures.add('$relative imports Linux-only $import');
@@ -126,13 +137,15 @@ void _checkReachability(
     final file = queue.removeLast();
     if (!visited.add(file.path) || !file.existsSync()) continue;
     final relative = _relative(root.path, file.path);
-    for (final match in _importPattern.allMatches(file.readAsStringSync())) {
-      final import = match.group(1)!;
+    for (final import in _dependencies(file.readAsStringSync())) {
+      final resolved = _resolveLocalImport(root, file, import);
+      final dependency = resolved == null
+          ? import
+          : _relative(root.path, resolved.path);
       if (_desktopOnlyPackages.any(import.startsWith) ||
-          _isDesktopSourceImport(import)) {
+          _isDesktopSourceImport(dependency)) {
         failures.add('$label: $relative reaches desktop-only $import');
       }
-      final resolved = _resolveLocalImport(root, file, import);
       if (resolved != null) queue.add(resolved);
     }
   }
@@ -183,13 +196,15 @@ void _checkWindowsReachability(Directory root, List<String> failures) {
     final file = queue.removeLast();
     if (!visited.add(file.path) || !file.existsSync()) continue;
     final relative = _relative(root.path, file.path);
-    for (final match in _importPattern.allMatches(file.readAsStringSync())) {
-      final import = match.group(1)!;
+    for (final import in _dependencies(file.readAsStringSync())) {
+      final resolved = _resolveLocalImport(root, file, import);
+      final dependency = resolved == null
+          ? import
+          : _relative(root.path, resolved.path);
       if (_linuxOnlyPackages.any(import.startsWith) ||
-          _isLinuxSourceImport(import)) {
+          _isLinuxSourceImport(dependency)) {
         failures.add('Windows graph: $relative reaches $import');
       }
-      final resolved = _resolveLocalImport(root, file, import);
       if (resolved != null) queue.add(resolved);
     }
   }
@@ -201,8 +216,9 @@ File? _resolveLocalImport(Directory root, File source, String import) {
       '${root.path}/lib/${import.substring('package:busymax/'.length)}',
     );
   }
-  if (import.startsWith('dart:') || import.startsWith('package:')) return null;
-  return File(Uri.file(source.path).resolve(import).toFilePath());
+  final uri = Uri.tryParse(import);
+  if (uri == null || uri.hasScheme || uri.hasAuthority) return null;
+  return File(Uri.file(source.absolute.path).resolveUri(uri).toFilePath());
 }
 
 bool _isDesktopSourceImport(String import) {
@@ -213,7 +229,8 @@ bool _isDesktopSourceImport(String import) {
       normalized.contains('/ui/windows/') ||
       normalized.contains('/platform/linux/') ||
       normalized.contains('/platform/windows/') ||
-      normalized.contains('/app/windows/');
+      normalized.contains('/app/windows/') ||
+      normalized.contains('/linux/');
 }
 
 bool _isLinuxSourceImport(String import) {

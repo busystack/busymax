@@ -1,3 +1,5 @@
+import '../features/sync/sync_request.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -15,6 +17,7 @@ import '../platform/gtk_animation_settings_service.dart';
 import '../platform/linux_first_weekday_source.dart';
 import '../platform/native_style.dart';
 import '../platform/common/desktop_services.dart';
+import '../l10n/tray_presentation_strings.dart';
 import '../l10n/locale_resolution.dart';
 import '../l10n/time_format_scope.dart';
 import '../l10n/week_preferences_scope.dart';
@@ -320,7 +323,9 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
         ref.watch(gtkAnimationsEnabledProvider).valueOrNull ?? true;
     ref.watch(networkAvailabilityProvider);
     ref.watch(syncSchedulerProvider);
-    ref.watch(syncSchedulerRunningProvider);
+    ref.watch(
+      accountSyncActivityProvider.select((activity) => activity.anyRunning),
+    );
     ref.watch(networkReconnectSyncCoordinatorProvider);
     ref.watch(notificationSchedulerProvider);
     ref.watch(dueTodayNotificationProvider);
@@ -384,34 +389,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
                 systemUses24Hour: MediaQuery.alwaysUse24HourFormatOf(context),
               ),
             );
-            final trayFormatter = BusyMaxTrayPresentationFormatter(
-              BusyMaxTrayPresentationStrings(
-                showBusyMax: l10n.trayShowBusyMax,
-                newEvent: l10n.trayNewEvent,
-                newTask: l10n.trayNewTask,
-                today: l10n.trayToday,
-                allDay: l10n.trayAllDay,
-                now: l10n.trayNow,
-                calendarEvent: l10n.trayCalendarEvent,
-                untitledEvent: l10n.trayUntitledEvent,
-                nothingElseToday: l10n.trayNothingElseToday,
-                openTodayAgenda: l10n.trayOpenTodayAgenda,
-                syncNow: l10n.traySyncNow,
-                syncing: l10n.traySyncing,
-                notConnected: l10n.trayNotConnected,
-                notYetSynced: l10n.trayNotYetSynced,
-                settings: l10n.traySettings,
-                quitBusyMax: l10n.trayQuitBusyMax,
-                offline: l10n.networkOffline,
-                offlineDescription: l10n.networkOfflineDescription,
-                formatTime: clock.format,
-                tasksDueToday: l10n.trayTasksDueToday,
-                lastSyncedJustNow: l10n.trayLastSyncedJustNow,
-                lastSyncedMinutesAgo: l10n.trayLastSyncedMinutesAgo,
-                lastSyncedHoursAgo: l10n.trayLastSyncedHoursAgo,
-                lastSyncedDaysAgo: l10n.trayLastSyncedDaysAgo,
-              ),
-            );
+            final trayFormatter = localizedTrayFormatter(l10n, clock);
             _trayPresentationFormatter = trayFormatter;
             _configureNativeSurfaceTheme(context);
             _configureBackgroundServices(ref, settings, trayFormatter);
@@ -529,9 +507,10 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
       final startMinimized = _startupPolicy.takeStartMinimized(settings);
       _setHideOnClose(
         windowService,
-        settings.runInBackgroundWhenClosed &&
-            trayEnabled &&
-            (_trayService?.available ?? false),
+        DesktopStartupPolicy.hidesOnClose(
+          runInBackgroundWhenClosed: settings.runInBackgroundWhenClosed,
+          trayAvailable: trayEnabled && (_trayService?.available ?? false),
+        ),
       );
       if (_trayService != null) {
         unawaited(_trayService!.refreshPresentation());
@@ -601,7 +580,9 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
         openEvent: (event) => _openTrayEvent(windowService, event),
         openTasksDueToday: () => _openTrayTasksDueToday(windowService),
         openTodayAgenda: () => _openMainAgenda(windowService),
-        synchronize: () => ref.read(syncSchedulerProvider).runNow(),
+        synchronize: () async {
+          await ref.read(manualSyncRunnerProvider)(allSyncScope);
+        },
         openSettings: () => _openTraySettings(windowService),
         quitBusyMax: () => _requestQuit(windowService),
       ),
@@ -742,15 +723,15 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     }
     _setHideOnClose(
       windowService,
-      latestSettings.runInBackgroundWhenClosed && tray.available,
+      DesktopStartupPolicy.hidesOnClose(
+        runInBackgroundWhenClosed: latestSettings.runInBackgroundWhenClosed,
+        trayAvailable: tray.available,
+      ),
     );
-    if (!startMinimizedToTray) {
-      return;
-    }
-    if (tray.available) {
-      await windowService.hideWindow();
-    } else {
+    if (!tray.available) {
       await windowService.showWindow();
+    } else if (startMinimizedToTray) {
+      await windowService.hideWindow();
     }
   }
 }

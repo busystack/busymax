@@ -12,6 +12,8 @@ import '../tasks/domain/task_remote_client.dart';
 import '../tasks/domain/task_remote_models.dart';
 import 'pending_ops_replayer.dart';
 import 'collection_id_replacement.dart';
+import 'scoped_pending_replay.dart';
+import 'sync_request.dart';
 
 class SyncEngine {
   SyncEngine({
@@ -23,6 +25,7 @@ class SyncEngine {
     CollectionIdReplacement? onTaskListIdReplaced,
     Uuid uuid = const Uuid(),
     DateTime Function()? nowUtc,
+    CollectionActivity? trackCollection,
   }) : _database = database,
        _apiClient = apiClient,
        _accountId = accountId,
@@ -30,6 +33,7 @@ class SyncEngine {
        _onConflictBlocked = onConflictBlocked,
        _onTaskListIdReplaced = onTaskListIdReplaced,
        _uuid = uuid,
+       _trackCollection = trackCollection,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
@@ -39,6 +43,14 @@ class SyncEngine {
   final Future<void> Function(String summary)? _onConflictBlocked;
   final CollectionIdReplacement? _onTaskListIdReplaced;
   final Uuid _uuid;
+  final CollectionActivity? _trackCollection;
+  final _affectedCollectionIds = <String>{};
+  Set<String> get affectedCollectionIds =>
+      Set.unmodifiable(_affectedCollectionIds);
+  final _completedCollectionIds = <String>{};
+  Set<String> get completedCollectionIds =>
+      Set.unmodifiable(_completedCollectionIds);
+
   final DateTime Function() _nowUtc;
   bool _remoteImportWroteData = false;
   bool get remoteImportWroteData => _remoteImportWroteData;
@@ -62,6 +74,76 @@ class SyncEngine {
     database: _database,
     nowUtc: _nowUtc,
   ).rebuildUpcomingTaskNotifications(_accountId);
+
+  Future<SyncDisposition> refreshList(
+    String taskListId, {
+    void Function(String)? onAffected,
+    CollectionWriteActivity? trackWrite,
+  }) async {
+    _affectedCollectionIds.clear();
+    _completedCollectionIds.clear();
+    _remoteImportWroteData = false;
+    var id = taskListId;
+    final initial = await _taskList(id);
+    if (initial == null || initial.serverMissing) {
+      return SyncDisposition.missing;
+    }
+    if (initial.pendingDelete) return SyncDisposition.disabled;
+    var deferred = false;
+    try {
+      try {
+        await PendingOpsReplayer(
+          database: _database,
+          apiClient: _apiClient,
+          accountId: _accountId,
+          nowUtc: _nowUtc,
+          onConflictBlocked: _onConflictBlocked,
+          onTaskListIdReplaced: (oldId, newId) async {
+            if (id == oldId) id = newId;
+            onAffected?.call(newId);
+            await _onTaskListIdReplaced?.call(oldId, newId);
+          },
+        ).replayDueOps(
+          taskListId: id,
+          trackOperation: (op, work) {
+            final ids = {
+              ?op.taskListId,
+              if (pendingReplayPayload(op)['destinationTasklist']
+                  case final String destination)
+                destination,
+            };
+            for (final id in ids) {
+              onAffected?.call(id);
+            }
+            return trackWrite?.call(ids, work) ?? work();
+          },
+        );
+      } on ScopedSyncDeferred {
+        deferred = true;
+      }
+      final list = await _taskList(id);
+      if (list == null || list.serverMissing) return SyncDisposition.missing;
+      if (id.startsWith('local-tasklist-') ||
+          (deferred && list.localDirty && list.lastSyncedAtUtc == null)) {
+        return SyncDisposition.deferred;
+      }
+      // A metadata row does not prove that this list has a task baseline.
+      // A complete snapshot also leaves the account-wide updatedMin untouched.
+      onAffected?.call(id);
+      final tasks = await _pullTasks(id, updatedMin: null);
+      await _markMissingTasks({id: tasks});
+      if (!deferred) _completedCollectionIds.add(id);
+      return deferred ? SyncDisposition.deferred : SyncDisposition.completed;
+    } finally {
+      await maintainCachedReminders();
+    }
+  }
+
+  Future<TaskList?> _taskList(String id) =>
+      (_database.select(_database.taskLists)..where(
+            (row) => row.accountId.equals(_accountId) & row.id.equals(id),
+          ))
+          .getSingleOrNull();
 
   Future<void> fullSync() {
     return _runSync(mode: 'full', updatedMin: null, markMissingTasks: true);
@@ -101,6 +183,8 @@ class SyncEngine {
     required DateTime? updatedMin,
     required bool markMissingTasks,
   }) async {
+    _affectedCollectionIds.clear();
+    _completedCollectionIds.clear();
     _remoteImportWroteData = false;
     final runId = _uuid.v4();
     final startedAt = _now();
@@ -130,15 +214,26 @@ class SyncEngine {
         final listIds = await _pullTaskLists();
         await _reconcileTaskListMembership(listIds);
         taskListsSeen = listIds.length;
-        final tasksByList = <String, Set<String>>{};
         for (final taskListId in listIds) {
-          final taskIds = await _pullTasks(taskListId, updatedMin: updatedMin);
-          tasksByList[taskListId] = taskIds;
-          tasksSeen += taskIds.length;
-        }
+          _affectedCollectionIds.add(taskListId);
+          Future<void> pull() async {
+            final taskIds = await _pullTasks(
+              taskListId,
+              updatedMin: updatedMin,
+            );
+            tasksSeen += taskIds.length;
+            if (markMissingTasks) {
+              await _markMissingTasks({taskListId: taskIds});
+            }
+          }
 
-        if (markMissingTasks) {
-          await _markMissingTasks(tasksByList);
+          final track = _trackCollection;
+          if (track == null) {
+            await pull();
+          } else {
+            await track(taskListId, pull);
+          }
+          _completedCollectionIds.add(taskListId);
         }
       } finally {
         // Keep reminders consistent even when a later page or list fails.
@@ -149,7 +244,6 @@ class SyncEngine {
       }
 
       final finishedAt = _now();
-      await _updateAccountSyncCompletion(mode, finishedAt);
       await _database.syncRunsDao.finishRun(
         id: runId,
         finishedAtUtc: DateTime.parse(finishedAt),
@@ -386,35 +480,26 @@ class SyncEngine {
   Future<void> _markMissingTasks(
     Map<String, Set<String>> seenTaskIdsByList,
   ) async {
-    for (final entry in seenTaskIdsByList.entries) {
-      final seenTaskIds = entry.value;
-      final tasks = await _database.tasksDao.listTasks(_accountId, entry.key);
-      for (final task in tasks) {
-        if (!seenTaskIds.contains(task.id) && !task.localDirty) {
+    await _database.transaction(() async {
+      for (final entry in seenTaskIdsByList.entries) {
+        final tasks = await _database.tasksDao.listTasks(_accountId, entry.key);
+        for (final task in tasks) {
+          if (entry.value.contains(task.id) ||
+              task.localDirty ||
+              await _hasLocalPendingTaskMutation(entry.key, task.id)) {
+            continue;
+          }
           await (_database.update(_database.tasks)..where(
                 (row) =>
                     row.accountId.equals(_accountId) &
                     row.taskListId.equals(entry.key) &
-                    row.id.equals(task.id),
+                    row.id.equals(task.id) &
+                    row.localDirty.equals(false),
               ))
               .write(const TasksCompanion(serverMissing: Value(true)));
         }
       }
-    }
-  }
-
-  Future<void> _updateAccountSyncCompletion(String mode, String timestamp) {
-    final update = _database.update(_database.accounts)
-      ..where((row) => row.id.equals(_accountId));
-    return update.write(
-      AccountsCompanion(
-        lastSuccessfulSyncAtUtc: Value(timestamp),
-        lastFullSyncAtUtc: mode == 'full'
-            ? Value(timestamp)
-            : const Value.absent(),
-        updatedAtUtc: Value(timestamp),
-      ),
-    );
+    });
   }
 
   String _now() => _nowUtc().toIso8601String();

@@ -1469,10 +1469,48 @@ class AppLocalizationsFi extends AppLocalizations {
   String get refreshAll => 'Päivitä kaikki';
 
   @override
-  String get listRefreshed => 'Luettelo päivitetty.';
+  String get refreshAccount => 'Päivitä tili';
 
   @override
-  String get allTasksRefreshed => 'Kaikki tilit päivitetty.';
+  String get refreshCollection => 'Päivitä kokoelma';
+
+  @override
+  String get syncPartiallyCompleted => 'Päivitys valmistui osittain';
+
+  @override
+  String get syncDeferred => 'Päivitystä lykättiin';
+
+  @override
+  String get syncPendingChanges => 'Paikallisia muutoksia odottaa';
+
+  @override
+  String get syncFailedLocalChanges =>
+      'Joitakin paikallisia muutoksia ei voitu synkronoida';
+
+  @override
+  String get syncQueued => 'Päivitys jonossa';
+
+  @override
+  String get syncNotYetRefreshed => 'Ei vielä synkronoitu';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return 'Päivitetty viimeksi $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => 'Tapahtumien kattavuus';
+
+  @override
+  String get scheduleCoveragePending =>
+      'Tämän ajanjakson tapahtumia tarkistetaan tai niitä ei ole vielä tarkistettu.';
+
+  @override
+  String get scheduleCoverageVerified =>
+      'Tämän ajanjakson tapahtumat on tarkistettu.';
+
+  @override
+  String get listRefreshed => 'Luettelo päivitetty.';
 
   @override
   String exportedFile(String path) {
@@ -2121,7 +2159,7 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      'Lataa kaikkien yhdistettyjen tilien tiedot kokonaan uudelleen. Käytä tätä vain synkronointiongelmien vianmääritykseen.';
+      'Muodostaa tuettujen kalenterien ja tehtävien synkronoinnin lähtötilan uudelleen kelpoisille tileille ja tarkistaa tilaukset. Käytä tätä synkronointiongelmien vianmääritykseen.';
 
   @override
   String get runInBackgroundWhenClosed =>
@@ -2146,9 +2184,6 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'Vaatii ilmoitusalueen kuvakkeen.';
-
-  @override
-  String get syncComplete => 'Synkronointi valmis.';
 
   @override
   String syncFailed(String error) {
@@ -4051,4 +4086,10 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get attachmentInvalidOrTooLarge =>
       'Tämä liite on virheellinen tai ylittää kokorajan.';
+
+  @override
+  String get moveEvent => 'Siirrä tapahtuma';
+
+  @override
+  String get agendaLoadMoreDays => 'Lataa lisää päiviä';
 }

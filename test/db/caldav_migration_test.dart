@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/db/migrations.dart';
 import 'package:drift/native.dart';
 import 'package:drift/drift.dart' show Value;
 
@@ -97,7 +98,7 @@ void main() {
         expect(
           (await db.customSelect('PRAGMA user_version').getSingle())
               .data['user_version'],
-          25,
+          latestSchemaVersion,
         );
         expect(
           (await db
@@ -265,7 +266,7 @@ void main() {
         expect(
           (await db.customSelect('PRAGMA user_version').getSingle())
               .data['user_version'],
-          25,
+          latestSchemaVersion,
         );
         await db.close();
       },
@@ -339,7 +340,7 @@ void main() {
         expect(
           (await db.customSelect('PRAGMA user_version').getSingle())
               .data['user_version'],
-          25,
+          latestSchemaVersion,
         );
         expect(
           await db.customSelect('PRAGMA foreign_key_check').get(),
@@ -499,7 +500,7 @@ void main() {
         expect(
           (await db.customSelect('PRAGMA user_version').getSingle())
               .data['user_version'],
-          25,
+          latestSchemaVersion,
         );
         for (final table in tables) {
           expect(
@@ -547,7 +548,7 @@ class _InterruptedDatabase extends AppDatabase {
 
   @override
   Future<void> customStatement(String statement, [List<Object?>? args]) async {
-    if (statement == 'PRAGMA user_version = 25') {
+    if (statement == 'PRAGMA user_version = $latestSchemaVersion') {
       throw StateError('Interrupted before commit');
     }
     await super.customStatement(statement, args);

@@ -1,9 +1,15 @@
+import 'dart:async';
+
+import 'package:busymax/src/features/sync/sync_request.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+
 import 'dart:convert';
 
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 
 import 'package:flutter/services.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:flutter/material.dart' as material;
@@ -32,6 +38,57 @@ import '../../support/recording_notification_backend.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  for (final linux in [false, true]) {
+    testWidgets(
+      '${linux ? 'Linux' : 'Windows'} Refresh all submits manual ordinary work and settles quietly',
+      (tester) async {
+        final db = AppDatabase.memoryForTests();
+        addTearDown(db.close);
+        final calendar = CalendarRepository(database: db);
+        await _seed(db, calendar);
+        final release = Completer<void>();
+        final requests = <SyncRequest>[];
+        await _mount(
+          tester,
+          db,
+          calendar,
+          linux: linux,
+          refresh: (scope, {strategy = SyncStrategy.ordinary}) async {
+            final request = (
+              scope: scope,
+              origin: SyncTrigger.manual,
+              strategy: strategy,
+            );
+            requests.add(request);
+            await release.future;
+            return SyncOutcome(request, SyncDisposition.completed);
+          },
+        );
+        await tester.pumpAndSettle();
+        expect(requests, isEmpty);
+        final coverage = find.byKey(const ValueKey('schedule-coverage-status'));
+        final location = tester.getRect(coverage);
+        if (linux) {
+          await tester.tap(
+            find.byKey(const ValueKey('schedule-refresh-button')),
+          );
+        } else {
+          await tester.tap(find.byTooltip('See more'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Refresh all'));
+        }
+        await tester.pump();
+        expect(requests.single.scope, allSyncScope);
+        expect(requests.single.strategy, SyncStrategy.ordinary);
+        release.complete();
+        await tester.pumpAndSettle();
+        expect(tester.getRect(coverage), location);
+        expect(find.byType(material.SnackBar), findsNothing);
+        expect(find.text('All accounts refreshed'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
   for (final preference in [
     'none',
     'invalid-default',
@@ -143,6 +200,28 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+  testWidgets('Linux Schedule rejects a visible read-only DAV task list', (
+    tester,
+  ) async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    final calendar = CalendarRepository(database: db);
+    await _seed(db, calendar, provider: BusyProvider.nextcloud);
+    await _mount(
+      tester,
+      db,
+      calendar,
+      linux: true,
+      davCapabilities: nextcloudTaskCollectionCapabilities.asReadOnly(),
+    );
+    await tester.pumpAndSettle();
+    final toolbar = tester.widget<ScheduleToolbar>(
+      find.byType(ScheduleToolbar),
+    );
+    expect(toolbar.canCreateTask, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets(
     'Windows creation availability follows destination additions and removals',
     (tester) async {
@@ -549,6 +628,7 @@ Future<ProviderContainer> _mount(
   CalendarRepository calendar, {
   ScheduleWorkspaceCommand? command,
   bool linux = false,
+  ManualSyncRunner? refresh,
   ScheduleScope scope = ScheduleScope.all,
   TaskCollectionCapabilities davCapabilities =
       nextcloudTaskCollectionCapabilities,
@@ -558,6 +638,7 @@ Future<ProviderContainer> _mount(
   addTearDown(tester.view.reset);
   final container = ProviderContainer(
     overrides: [
+      if (refresh != null) manualSyncRunnerProvider.overrideWithValue(refresh),
       databaseProvider.overrideWithValue(db),
       davTaskCollectionCapabilitiesProvider.overrideWith(
         (ref, key) => Stream.value(davCapabilities),

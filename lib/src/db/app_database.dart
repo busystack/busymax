@@ -40,6 +40,7 @@ part 'daos/tasks_dao.dart';
     CalendarSources,
     CalendarEvents,
     IcalImportReceipts,
+    CreationReceipts,
     WebCalSubscriptions,
     CalendarEventAttendees,
     CalendarEventReminders,

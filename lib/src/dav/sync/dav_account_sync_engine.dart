@@ -1,10 +1,14 @@
-import 'dart:async';
+import '../../features/sync/domain_sync_schedule.dart';
+
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
+import '../../calendar_providers/calendar_mutation.dart';
+import '../../features/sync/scoped_pending_replay.dart';
+import '../../features/sync/sync_request.dart';
 import '../../core/secrets/secret_store.dart';
 import '../../db/app_database.dart';
 import '../../features/sync/account_sync_operations.dart';
@@ -18,6 +22,7 @@ import '../discovery/dav_discovery_service.dart';
 import '../http/dav_http_transport.dart';
 import '../mutation/dav_conditional_mutation_service.dart';
 import '../mutation/dav_pending_operations.dart';
+import '../mutation/dav_pending_operation_selection.dart';
 import '../mutation/dav_collection_administration.dart';
 import '../storage/dav_object_repository.dart';
 import '../storage/dav_collection_capabilities.dart';
@@ -46,6 +51,8 @@ final class DavAccountSyncResult {
     required this.followUpCollectionsSynchronized,
     required this.affectedObjectIds,
     this.collectionCreationFailures = const {},
+    this.disposition = SyncDisposition.completed,
+    this.affectedCollectionIds = const {},
   });
 
   /// Nonblocking administration failures keyed by their durable operation ID.
@@ -53,6 +60,8 @@ final class DavAccountSyncResult {
   final Map<String, DavException> collectionCreationFailures;
   final bool discoveryRefreshed;
   final int collectionsSynchronized;
+  final SyncDisposition disposition;
+  final Set<String> affectedCollectionIds;
   final int pendingOperationsApplied;
   final int conflictsCreated;
   final int followUpCollectionsSynchronized;
@@ -116,30 +125,69 @@ final class DavAccountSyncEngine {
   final DateTime Function() _nowUtc;
   final String Function() _correlationIdFactory;
 
-  Future<DavAccountSyncResult>? _activeSync;
+  final _requests =
+      <
+        (
+          bool,
+          bool,
+          String?,
+          SyncScopeKind?,
+          SyncDomain?,
+          DavCancellationToken?,
+        ),
+        Future<DavAccountSyncResult>
+      >{};
+  Future<void> _tail = Future.value();
 
   Future<DavAccountSyncResult> synchronize({
     bool full = false,
+    String? collectionId,
+    SyncScopeKind? projection,
+    SyncDomain? domain,
+    bool dispatchOnly = false,
     DavCancellationToken? cancellationToken,
+    CollectionActivity? trackCollection,
   }) {
-    if (_activeSync != null) return _activeSync!;
-    final operation = _synchronize(
-      full: full,
-      cancellationToken: cancellationToken ?? DavCancellationToken(),
+    final key = (
+      full,
+      dispatchOnly,
+      collectionId,
+      projection,
+      domain,
+      cancellationToken,
     );
-    _activeSync = operation;
-    unawaited(
-      operation.then<void>(
-        (_) => _clearActive(operation),
-        onError: (_, _) => _clearActive(operation),
-      ),
-    );
-    return operation;
+    return _requests.putIfAbsent(key, () {
+      final operation = _tail
+          .then(
+            (_) => _synchronize(
+              full: full,
+              collectionId: collectionId,
+              projection: projection,
+              domain: domain,
+              dispatchOnly: dispatchOnly,
+              cancellationToken: cancellationToken ?? DavCancellationToken(),
+              trackCollection: trackCollection,
+            ),
+          )
+          .whenComplete(() {
+            _requests.remove(key);
+          });
+      _tail = operation.then<void>(
+        (_) {},
+        onError: (Object _, StackTrace _) {},
+      );
+      return operation;
+    });
   }
 
   Future<DavAccountSyncResult> _synchronize({
     required bool full,
+    required String? collectionId,
+    required SyncScopeKind? projection,
+    required SyncDomain? domain,
+    required bool dispatchOnly,
     required DavCancellationToken cancellationToken,
+    required CollectionActivity? trackCollection,
   }) async {
     final account = await (_database.select(
       _database.accounts,
@@ -149,6 +197,18 @@ final class DavAccountSyncEngine {
         kind: DavErrorKind.notFound,
         code: 'DavAccountRemoved',
         safeMessage: 'The DAV account is no longer available.',
+      );
+    }
+    if (domain == SyncDomain.calendar && !account.calendarsEnabled ||
+        domain == SyncDomain.tasks && !account.tasksEnabled) {
+      return const DavAccountSyncResult(
+        discoveryRefreshed: false,
+        collectionsSynchronized: 0,
+        pendingOperationsApplied: 0,
+        conflictsCreated: 0,
+        followUpCollectionsSynchronized: 0,
+        affectedObjectIds: {},
+        disposition: SyncDisposition.disabled,
       );
     }
     final provider = BusyProviderCodec.requireStorageValue(account.provider);
@@ -218,6 +278,7 @@ final class DavAccountSyncEngine {
     var discoveryRefreshed = false;
     var notificationProjectionsChanged = false;
     final affected = <String>{};
+    final affectedCollections = <String>{};
     final failures = <DavException>[];
 
     try {
@@ -225,7 +286,28 @@ final class DavAccountSyncEngine {
       // Permissions and delegated scheduling identities can change while
       // edits are offline. Refresh the complete inventory before replay; a
       // failed discovery keeps every queued operation and cached source.
-      final pendingCreations = provider == BusyProvider.caldav
+      final accountWide = collectionId == null && domain == null;
+      final scopedOperations = accountWide
+          ? null
+          : await scopedReplayIds(
+              _database,
+              _accountId,
+              (op) =>
+                  isDavPendingOperation(op) &&
+                  (collectionId != null
+                      ? op.davCollectionId == collectionId ||
+                            op.destinationCollectionId == collectionId
+                      : op.entityType ==
+                            (domain == SyncDomain.calendar ? 'event' : 'task')),
+              followsSelectedCopy: (op) =>
+                  isDavPendingOperation(op) &&
+                  pendingReplayPayload(
+                        op,
+                      )[calendarEventCopyConfirmationRequiredKey] ==
+                      true,
+            );
+      final pendingCreations =
+          !dispatchOnly && accountWide && provider == BusyProvider.caldav
           ? await (_database.select(_database.davCollectionCreations)..where(
                   (r) =>
                       r.accountId.equals(_accountId) &
@@ -234,27 +316,28 @@ final class DavAccountSyncEngine {
                 .get()
           : <DavCollectionCreation>[];
       final pendingDav =
-          (provider == BusyProvider.nextcloud ||
-              provider == BusyProvider.caldav) &&
-          (await (_database.select(_database.pendingOps)
-                    ..where(
-                      (r) =>
-                          r.accountId.equals(_accountId) &
-                          r.operationType.like('dav.%') &
-                          r.state.isIn(const [
-                            'pending',
-                            'retry',
-                            'in_progress',
-                            'permission_blocked',
-                          ]),
-                    )
-                    ..limit(1))
-                  .get())
-              .isNotEmpty;
+          scopedOperations?.isNotEmpty ??
+          ((provider == BusyProvider.nextcloud ||
+                  provider == BusyProvider.caldav) &&
+              (await (_database.select(_database.pendingOps)
+                        ..where(
+                          (r) =>
+                              r.accountId.equals(_accountId) &
+                              r.operationType.like('dav.%') &
+                              r.state.isIn(const [
+                                'pending',
+                                'retry',
+                                'in_progress',
+                                'permission_blocked',
+                              ]),
+                        )
+                        ..limit(1))
+                      .get())
+                  .isNotEmpty);
       if (full ||
           pendingDav ||
           pendingCreations.isNotEmpty ||
-          await _discoveryIsDue()) {
+          !dispatchOnly && await _discoveryIsDue()) {
         discoveryRefreshed = true;
         final discovery =
             await DavDiscoveryService(
@@ -329,7 +412,53 @@ final class DavAccountSyncEngine {
         discoveryRefreshed = true;
       }
 
-      final collections = await _selectedCollections();
+      final eligible = dispatchOnly
+          ? <DavCollection>[]
+          : await _selectedCollections(domain: domain);
+      final target = eligible
+          .where((row) => row.id == collectionId)
+          .firstOrNull;
+      final targetEvents =
+          account.calendarsEnabled &&
+          target?.eventProjectionEnabled == true &&
+          target?.eventsSelected == true;
+      final targetTasks =
+          account.tasksEnabled &&
+          target?.taskProjectionEnabled == true &&
+          target?.tasksSelected == true;
+      final enabled = switch (projection) {
+        SyncScopeKind.calendarSource => targetEvents,
+        SyncScopeKind.taskList => targetTasks,
+        _ => targetEvents || targetTasks,
+      };
+      if (collectionId != null && (target == null || !enabled)) {
+        final available = (await _availableCollections()).any(
+          (row) => row.id == collectionId,
+        );
+        return DavAccountSyncResult(
+          discoveryRefreshed: discoveryRefreshed,
+          collectionsSynchronized: 0,
+          pendingOperationsApplied: 0,
+          conflictsCreated: 0,
+          followUpCollectionsSynchronized: 0,
+          affectedObjectIds: const {},
+          disposition: available
+              ? SyncDisposition.disabled
+              : SyncDisposition.missing,
+        );
+      }
+      final collections = collectionId == null
+          ? eligible
+          : [
+              target!,
+              if (targetEvents)
+                ...eligible.where(
+                  (row) =>
+                      row.id != collectionId &&
+                      _isSchedulingInbox(account.provider, row),
+                ),
+            ];
+      affectedCollections.addAll(collections.map((row) => row.id));
       final initialResults = await _synchronizeCollections(
         collections,
         provider: provider,
@@ -339,6 +468,7 @@ final class DavAccountSyncEngine {
         transport: transport,
         objectRepository: objectRepository,
         forceRebaseline: full,
+        trackCollection: trackCollection,
         cancellationToken: cancellationToken,
       );
       for (final result in initialResults.results) {
@@ -392,18 +522,21 @@ final class DavAccountSyncEngine {
             discoveryRefreshed) {
           await replayer.revalidatePermissionsAfterDiscovery(
             blockedCollectionIds: initialResults.failedCollectionIds,
+            operationIds: scopedOperations,
           );
         }
         replay = await replayer.replayDueOperations(
           blockedCollectionIds: initialResults.failedCollectionIds,
+          operationIds: scopedOperations,
         );
         affected.addAll(replay.affectedObjectIds);
       }
 
+      affectedCollections.addAll(replay.mutatedCollectionIds);
       var followUpCount = 0;
       if (!replay.paused && replay.mutatedCollectionIds.isNotEmpty) {
         final currentById = {
-          for (final collection in await _selectedCollections())
+          for (final collection in await _availableCollections())
             collection.id: collection,
         };
         final followUp = <DavCollection>[
@@ -419,6 +552,7 @@ final class DavAccountSyncEngine {
           transport: transport,
           objectRepository: objectRepository,
           forceRebaseline: false,
+          trackCollection: trackCollection,
           cancellationToken: cancellationToken,
         );
         followUpCount = followUpResults.results.length;
@@ -490,8 +624,24 @@ final class DavAccountSyncEngine {
         }
         throw DavAccountSyncException(failures);
       }
-      if (!replay.paused) {
-        await _markSuccessful(full: full);
+      final hasPendingWrites = scopedOperations == null
+          ? (await (_database.select(_database.pendingOps)
+                      ..where(
+                        (row) =>
+                            row.accountId.equals(_accountId) &
+                            row.operationType.like('dav.%'),
+                      )
+                      ..limit(1))
+                    .get())
+                .isNotEmpty
+          : await hasScopedPendingReplay(_database, scopedOperations);
+      final deferred =
+          replay.paused ||
+          replay.retryCount != 0 ||
+          replay.conflictCount != 0 ||
+          hasPendingWrites;
+      if (!replay.paused && !dispatchOnly && accountWide) {
+        await _finishAccountPass(recordFull: full && !deferred);
       }
       if (affected.isNotEmpty || notificationProjectionsChanged) {
         await rebuildDavAffectedAccountNotifications(
@@ -509,6 +659,16 @@ final class DavAccountSyncEngine {
         followUpCollectionsSynchronized: followUpCount,
         affectedObjectIds: Set.unmodifiable(affected),
         collectionCreationFailures: Map.unmodifiable(creationFailures),
+        affectedCollectionIds: Set.unmodifiable(affectedCollections),
+        disposition: dispatchOnly
+            ? SyncDisposition.deferred
+            : deferred
+            ? (initialResults.results.isEmpty
+                  ? SyncDisposition.deferred
+                  : SyncDisposition.partial)
+            : collections.isEmpty && (domain != null || !discoveryRefreshed)
+            ? SyncDisposition.disabled
+            : SyncDisposition.completed,
       );
     } on DavAccountSyncException {
       rethrow;
@@ -647,32 +807,41 @@ final class DavAccountSyncEngine {
             _policy.inventoryMaxAge;
   }
 
-  Future<List<DavCollection>> _selectedCollections() async {
+  Future<List<DavCollection>> _selectedCollections({SyncDomain? domain}) async {
     final account = await (_database.select(
       _database.accounts,
     )..where((r) => r.id.equals(_accountId))).getSingle();
-    final collections =
-        await (_database.select(_database.davCollections)..where(
-              (row) =>
-                  row.accountId.equals(_accountId) &
-                  row.deleted.equals(false) &
-                  row.serverMissing.equals(false),
-            ))
-            .get();
-    return collections
+    return (await _availableCollections())
         .where(
           (collection) =>
-              (collection.eventProjectionEnabled &&
-                  collection.eventsSelected) ||
-              (collection.taskProjectionEnabled && collection.tasksSelected) ||
-              (account.provider == 'nextcloud' &&
-                  collectionCapabilitiesFromStored(collection).canRead &&
-                  (jsonDecode(collection.resourceTypesJson) as List).contains(
-                    '{urn:ietf:params:xml:ns:caldav}schedule-inbox',
-                  )),
+              (domain != SyncDomain.tasks &&
+                  account.calendarsEnabled &&
+                  ((collection.eventProjectionEnabled &&
+                          collection.eventsSelected) ||
+                      _isSchedulingInbox(account.provider, collection))) ||
+              (domain != SyncDomain.calendar &&
+                  account.tasksEnabled &&
+                  collection.taskProjectionEnabled &&
+                  collection.tasksSelected),
         )
         .toList();
   }
+
+  bool _isSchedulingInbox(String provider, DavCollection collection) =>
+      provider == 'nextcloud' &&
+      collectionCapabilitiesFromStored(collection).canRead &&
+      (jsonDecode(collection.resourceTypesJson) as List).contains(
+        '{urn:ietf:params:xml:ns:caldav}schedule-inbox',
+      );
+
+  Future<List<DavCollection>> _availableCollections() =>
+      (_database.select(_database.davCollections)..where(
+            (row) =>
+                row.accountId.equals(_accountId) &
+                row.deleted.equals(false) &
+                row.serverMissing.equals(false),
+          ))
+          .get();
 
   Future<_CollectionBatchResult> _synchronizeCollections(
     List<DavCollection> collections, {
@@ -684,6 +853,7 @@ final class DavAccountSyncEngine {
     required DavObjectRepository objectRepository,
     required bool forceRebaseline,
     required DavCancellationToken cancellationToken,
+    required CollectionActivity? trackCollection,
   }) async {
     if (collections.isEmpty) return const _CollectionBatchResult();
     var nextIndex = 0;
@@ -698,31 +868,39 @@ final class DavAccountSyncEngine {
         final collection = collections[nextIndex];
         nextIndex += 1;
         try {
-          final remote = DavCollectionHttpClient(
-            transport: transport,
-            profile: profile,
-            accountAuthority: authority,
-            accountId: _accountId,
-            collectionId: collection.id,
-            collectionUri: Uri.parse(collection.requestUri),
-            credential: credential,
-          );
-          final result =
-              await DavSyncEngine(
-                database: _database,
-                objectRepository: objectRepository,
-                remoteClient: remote,
-                accountId: _accountId,
-                collectionId: collection.id,
-                provider: provider,
-                limits: _syncLimits,
-                nowUtc: _nowUtc,
-              ).synchronize(
-                correlationId: _correlationIdFactory(),
-                cancellationToken: cancellationToken,
-                forceRebaseline: forceRebaseline,
-              );
-          results.add(result);
+          Future<void> pull() async {
+            final remote = DavCollectionHttpClient(
+              transport: transport,
+              profile: profile,
+              accountAuthority: authority,
+              accountId: _accountId,
+              collectionId: collection.id,
+              collectionUri: Uri.parse(collection.requestUri),
+              credential: credential,
+            );
+            final result =
+                await DavSyncEngine(
+                  database: _database,
+                  objectRepository: objectRepository,
+                  remoteClient: remote,
+                  accountId: _accountId,
+                  collectionId: collection.id,
+                  provider: provider,
+                  limits: _syncLimits,
+                  nowUtc: _nowUtc,
+                ).synchronize(
+                  correlationId: _correlationIdFactory(),
+                  cancellationToken: cancellationToken,
+                  forceRebaseline: forceRebaseline,
+                );
+            results.add(result);
+          }
+
+          if (trackCollection == null) {
+            await pull();
+          } else {
+            await trackCollection(collection.id, pull);
+          }
         } on DavException catch (error) {
           failures.add(error);
           failedCollectionIds.add(collection.id);
@@ -762,7 +940,7 @@ final class DavAccountSyncEngine {
     await _setConnectionState(state);
   }
 
-  Future<void> _markSuccessful({required bool full}) async {
+  Future<void> _finishAccountPass({required bool recordFull}) async {
     final blocked =
         await (_database.select(_database.pendingOps)
               ..where(
@@ -782,8 +960,7 @@ final class DavAccountSyncEngine {
               ? AccountConnectionState.connected.storageValue
               : AccountConnectionState.permissionChanged.storageValue,
         ),
-        lastSuccessfulSyncAtUtc: Value(now),
-        lastFullSyncAtUtc: full ? Value(now) : const Value.absent(),
+        lastFullSyncAtUtc: recordFull ? Value(now) : const Value.absent(),
         updatedAtUtc: Value(now),
       ),
     );
@@ -798,10 +975,6 @@ final class DavAccountSyncEngine {
         updatedAtUtc: Value(_nowUtc().toUtc().toIso8601String()),
       ),
     );
-  }
-
-  void _clearActive(Future<DavAccountSyncResult> operation) {
-    if (identical(_activeSync, operation)) _activeSync = null;
   }
 }
 

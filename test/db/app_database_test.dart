@@ -335,6 +335,12 @@ void main() {
     await database
         .into(database.pendingOps)
         .insert(_pendingOp(id: 'pending', createdAtUtc: _now));
+    await database.customStatement('DROP TABLE creation_receipts');
+    await database.customStatement('PRAGMA user_version = 25');
+    await database.close();
+
+    database = AppDatabase(NativeDatabase(file));
+    expect(await database.select(database.creationReceipts).get(), isEmpty);
     await database.close();
 
     database = AppDatabase(NativeDatabase(file));
@@ -346,7 +352,7 @@ void main() {
         .select(database.locationResolutions)
         .getSingle();
 
-    expect(latestSchemaVersion, 25);
+    expect(latestSchemaVersion, 26);
     expect(version.read<int>('user_version'), latestSchemaVersion);
     expect(event.locationLatitude, 49.2827);
     expect(event.locationLongitude, -123.1207);

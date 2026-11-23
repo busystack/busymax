@@ -1,47 +1,17 @@
-import 'package:flutter/material.dart';
+import '../../../ui/common/schedule/schedule_item_chip.dart' as shared;
+import 'schedule_linux_presentation.dart';
 
-import '../../../schedule/schedule_item.dart';
-import 'schedule_event_block.dart';
-import 'schedule_item_selection.dart';
-import 'schedule_task_chip.dart';
+export '../../../ui/common/schedule/schedule_item_chip.dart'
+    hide ScheduleItemChip;
 
-class ScheduleItemChip extends StatelessWidget {
+class ScheduleItemChip extends shared.ScheduleItemChip {
   const ScheduleItemChip({
     super.key,
-    required this.item,
-    required this.height,
-    this.width,
-    this.compact = true,
-    this.onTap,
-    this.onTaskCompletionChanged,
-  });
-
-  final ScheduleItem item;
-  final double height;
-  final double? width;
-  final bool compact;
-  final ScheduleItemTapCallback? onTap;
-  final ValueChanged<bool>? onTaskCompletionChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final item = this.item;
-    if (item is TaskScheduleItem) {
-      return ScheduleTaskChip(
-        item: item,
-        height: height,
-        width: width,
-        compact: compact,
-        onTap: onTap,
-        onCompletionChanged: onTaskCompletionChanged,
-      );
-    }
-    return ScheduleEventBlock(
-      item: item as CalendarScheduleItem,
-      height: height,
-      width: width,
-      compact: compact,
-      onTap: onTap,
-    );
-  }
+    required super.item,
+    required super.height,
+    super.width,
+    super.compact = true,
+    super.onTap,
+    super.onTaskCompletionChanged,
+  }) : super(presentation: const LinuxSchedulePresentation());
 }

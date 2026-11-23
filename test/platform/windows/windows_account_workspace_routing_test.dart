@@ -162,8 +162,11 @@ void main() {
           record.registration.clientId,
           record.registration.clientId,
         ]);
-        await tester.ensureVisible(find.text('Replace registration'));
-        await tester.tap(find.text('Replace registration'));
+        final replace = find.widgetWithText(Button, 'Replace registration');
+        await Scrollable.ensureVisible(tester.element(replace), alignment: .5);
+        await _pumpConnectionPage(tester);
+        expect(replace.hitTestable(), findsOneWidget);
+        await tester.tap(replace);
         await _pumpConnectionPage(tester);
         expect(
           find.byKey(const ValueKey('registration-methods-dialog')),
@@ -176,7 +179,12 @@ void main() {
           await tester.runAsync(() => fixture.persistence.generation(id)),
           2,
         );
-        await tester.tap(find.text('Replace registration'));
+        final retained = await tester.runAsync(
+          () => fixture.secrets.readCredential(id),
+        ) as BoundOAuthSecretRecord;
+        expect(retained.registration.clientId, record.registration.clientId);
+        expect(replace.hitTestable(), findsOneWidget);
+        await tester.tap(replace);
         await _pumpConnectionPage(tester);
         await tester.tap(find.byKey(const ValueKey('registration-busymax')));
         for (var i = 0; i < 40; i++) {

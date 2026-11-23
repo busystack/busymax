@@ -96,6 +96,9 @@
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.4.1" date="2026-11-14" type="development">
+      <description><p>Beta maintenance release.</p></description>
+    </release>
     <release version="0.4.0" date="2026-11-01" type="development">
       <description><p>Adds generic CalDAV accounts with calendar and task synchronization, collection management, and recovery. Expands Nextcloud discovery, scheduling, trash, federation, and private-certificate workflows.</p></description>
     </release>

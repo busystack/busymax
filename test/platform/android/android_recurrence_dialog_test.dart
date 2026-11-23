@@ -1,3 +1,4 @@
+import 'package:busymax/src/features/recurrence/domain/recurrence_editing.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/android/presentation/android_recurrence_dialog.dart';
 import 'package:busymax/src/features/recurrence/domain/event_recurrence_codec.dart';
@@ -56,8 +57,88 @@ void main() {
     },
   );
 
+  for (final pattern in [
+    'FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=1,15;COUNT=12',
+    'FREQ=MONTHLY;BYDAY=TU;BYSETPOS=2;COUNT=8',
+    'FREQ=YEARLY;BYMONTH=2,6;BYMONTHDAY=15;UNTIL=20291231T170000Z',
+    'FREQ=YEARLY;BYMONTH=11;BYDAY=FR;BYSETPOS=-2;COUNT=4',
+  ]) {
+    testWidgets(
+      'Android recurrence preserves the complete editable pattern $pattern',
+      (tester) async {
+        final base = DateTime(2026, 6, 8, 9);
+        final initial = EventRecurrenceCodec.decode(BusyProvider.google, [
+          'RRULE:$pattern',
+        ], baseDate: base);
+        expect(
+          EventRecurrenceCodec.canEncode(BusyProvider.google, initial),
+          isTrue,
+        );
+        RecurrenceRule? result;
+        await tester.pumpWidget(
+          MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () async =>
+                      result = await showAndroidRecurrenceDialog(
+                        context,
+                        initial: initial,
+                        baseDate: base,
+                        allDay: false,
+                        timeZone: 'America/Vancouver',
+                        limits: EventRecurrenceCodec.limitsFor(
+                          BusyProvider.google,
+                        ),
+                        providerLabel: 'Google',
+                      ),
+                  child: const Text('Edit pattern'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Edit pattern'));
+        await tester.pumpAndSettle();
+        if (initial.bySetPosition != null) {
+          expect(
+            tester
+                .widget<DropdownButtonFormField<int>>(
+                  find.byKey(ValueKey('ordinal-${initial.bySetPosition}')),
+                )
+                .initialValue,
+            initial.bySetPosition,
+          );
+        }
+        for (final month in initial.byMonth) {
+          final chip = find.widgetWithText(
+            FilterChip,
+            MaterialLocalizations.of(tester.element(find.byType(AlertDialog)))
+                .formatMonthYear(DateTime(2024, month))
+                .split(' ')
+                .first
+                .substring(0, 3),
+          );
+          if (chip.evaluate().isNotEmpty) {
+            expect(tester.widget<FilterChip>(chip).selected, isTrue);
+          }
+        }
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(result, initial);
+      },
+    );
+  }
+
   test('frequency seed is provider-safe and anchored to the start day', () {
-    final rule = androidRuleForFrequency(
+    final rule = const RecurrenceRule.none().withFrequency(
       RecurrenceFrequency.weekly,
       DateTime(2026, 6, 10),
     );
@@ -87,7 +168,7 @@ void main() {
             body: TextButton(
               onPressed: () async => result = await showAndroidRecurrenceDialog(
                 context,
-                initial: androidRuleForFrequency(
+                initial: const RecurrenceRule.none().withFrequency(
                   RecurrenceFrequency.weekly,
                   base,
                 ),

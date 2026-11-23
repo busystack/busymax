@@ -1415,10 +1415,45 @@ class AppLocalizationsJa extends AppLocalizations {
   String get refreshAll => 'すべて更新';
 
   @override
-  String get listRefreshed => 'リストを更新しました。';
+  String get refreshAccount => 'アカウントを更新';
 
   @override
-  String get allTasksRefreshed => 'すべてのアカウントを更新しました。';
+  String get refreshCollection => 'コレクションを更新';
+
+  @override
+  String get syncPartiallyCompleted => '更新が一部完了しました';
+
+  @override
+  String get syncDeferred => '更新が延期されました';
+
+  @override
+  String get syncPendingChanges => '未同期のローカル変更があります';
+
+  @override
+  String get syncFailedLocalChanges => '一部のローカル変更を同期できませんでした';
+
+  @override
+  String get syncQueued => '更新待ち';
+
+  @override
+  String get syncNotYetRefreshed => '未同期';
+
+  @override
+  String syncLastRefreshed(String date) {
+    return '最終更新 $date';
+  }
+
+  @override
+  String get scheduleCoverageStatus => '予定の確認状況';
+
+  @override
+  String get scheduleCoveragePending => 'この期間の予定を確認中か、まだ確認していません。';
+
+  @override
+  String get scheduleCoverageVerified => 'この期間の予定を確認しました。';
+
+  @override
+  String get listRefreshed => 'リストを更新しました。';
 
   @override
   String exportedFile(String path) {
@@ -2062,7 +2097,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get forceFullResyncDescription =>
-      '接続されているすべてのアカウントからデータを完全に再読み込みします。同期の問題を解決する場合にのみ使用してください。';
+      '対象アカウントのカレンダーとタスクの同期基準を、対応する場合に再構築し、購読カレンダーを確認します。同期の問題を解決するときに使用します。';
 
   @override
   String get runInBackgroundWhenClosed => 'ウィンドウを閉じてもバックグラウンドで実行を続ける';
@@ -2085,9 +2120,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get requiresTrayIcon => 'トレイアイコンが必要です。';
-
-  @override
-  String get syncComplete => '同期が完了しました。';
 
   @override
   String syncFailed(String error) {
@@ -3910,4 +3942,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get attachmentInvalidOrTooLarge => 'この添付ファイルは無効か、サイズの上限を超えています。';
+
+  @override
+  String get moveEvent => '予定を移動';
+
+  @override
+  String get agendaLoadMoreDays => 'さらに日付を読み込む';
 }
