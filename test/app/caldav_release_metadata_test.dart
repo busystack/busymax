@@ -27,12 +27,12 @@ void main() {
         RegExp(r'<release version="([^"]+)"'),
       );
 
-      expect(pubspecVersion, '0.4.1');
+      expect(pubspecVersion, '0.4.2');
       expect(snapVersion, pubspecVersion);
       expect(metainfoVersion, pubspecVersion);
-      expect(windowsRunner, contains('#define VERSION_AS_NUMBER 0,4,1,0'));
-      expect(windowsRunner, contains('#define VERSION_AS_STRING "0.4.1"'));
-      expect(androidBuild, contains('versionCode = 9'));
+      expect(windowsRunner, contains('#define VERSION_AS_NUMBER 0,4,2,0'));
+      expect(windowsRunner, contains('#define VERSION_AS_STRING "0.4.2"'));
+      expect(androidBuild, contains('versionCode = 10'));
       expect(androidBuild, contains('versionName = flutter.versionName'));
 
       for (final document in [snap, metainfo]) {
