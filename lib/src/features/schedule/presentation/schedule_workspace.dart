@@ -388,6 +388,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                 }
                 final firstWeekday = _firstWeekday(context);
                 final revealed = _revealedNotificationTarget;
+                final searchCriteria = _searchCriteria;
+                final effectiveSearch = searchCriteria == null
+                    ? null
+                    : visibility.maskSearch(searchCriteria);
                 final visibleSourceIds = {
                   ...visibility.visibleCalendarSourceIds,
                   if (revealed?.kind ==
@@ -396,14 +400,24 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     revealed!.sourceId!,
                 };
                 final visibleSources = sources
-                    .where((source) => visibleSourceIds.contains(source.id))
+                    .where(
+                      (source) => visibility.visibleCalendarSourceIds.contains(
+                        source.id,
+                      ),
+                    )
                     .toList();
                 final writableSources = writableCalendarSources(visibleSources);
                 final routedTaskListKey = _initialTaskListKey;
                 final visibleTaskListKeys = <ScheduleTaskListKey>{
-                  ...routedTaskListKey == null
-                      ? visibility.visibleTaskListKeys
-                      : <ScheduleTaskListKey>{routedTaskListKey},
+                  if (routedTaskListKey == null)
+                    ...visibility.visibleTaskListKeys
+                  else if (settings.isAccountVisibleInSchedule(
+                    routedTaskListKey.accountId,
+                  ))
+                    routedTaskListKey,
+                };
+                final queriedTaskListKeys = <ScheduleTaskListKey>{
+                  ...visibleTaskListKeys,
                   if (revealed?.kind == ScheduleWorkspaceCommandKind.openTask &&
                       revealed?.accountId != null &&
                       revealed?.sourceId != null)
@@ -440,9 +454,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     repository: ref.watch(scheduleRepositoryProvider),
                     range: range,
                     searchActive: searchActive,
+                    searchCriteria: effectiveSearch,
                     accountIds: accountIds.toSet(),
                     sourceIds: visibleSourceIds,
-                    taskListKeys: visibleTaskListKeys,
+                    taskListKeys: queriedTaskListKeys,
                   ),
                   builder: (context, snapshot) {
                     final itemsLoading =
@@ -458,10 +473,25 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         sourcesUnavailable ||
                         taskListsUnavailable ||
                         (snapshot.hasError && !snapshot.hasData);
+                    final snapshotItems =
+                        snapshot.data?.items ?? const <ScheduleItem>[];
+                    // A notification may reveal its target temporarily so the
+                    // anchored detail can open without revealing its collection.
+                    final availableItems = widget.notificationDeadline != null
+                        ? snapshotItems
+                        : snapshotItems
+                              .where(
+                                (item) =>
+                                    settings.isAccountVisibleInSchedule(
+                                      item.accountId,
+                                    ) ||
+                                    revealed?.matchesItem(item) == true,
+                              )
+                              .toList();
                     final scopedItems = searchActive
-                        ? snapshot.data?.items ?? const <ScheduleItem>[]
+                        ? availableItems
                         : ScheduleProjection.filterByScope(
-                            snapshot.data?.items ?? const <ScheduleItem>[],
+                            availableItems,
                             _scope,
                           );
                     final items =
@@ -545,8 +575,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     }
 
                     final coverageFilters =
-                        searchActive && _searchCriteria != null
-                        ? _searchCriteria!.filters(_searchQuery)
+                        searchActive && effectiveSearch != null
+                        ? effectiveSearch.filters(_searchQuery)
                         : ScheduleFilters(
                             accountIds: accountIds.toSet(),
                             sourceIds: visibility.visibleCalendarSourceIds,
@@ -747,7 +777,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               widget.notificationDeadline == null &&
                               canCreateTask,
                           searchActive: searchActive,
-                          searchCriteria: _searchCriteria,
+                          searchCriteria: effectiveSearch,
                           searchQuery: _searchQuery,
                           navigationIntent: _navigationIntent,
                           taskListMutationIntent: _taskListMutationIntent,
@@ -1064,7 +1094,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   Widget _searchFilterPanel({VoidCallback? refresh, bool sidebar = true}) =>
       ScheduleSearchFilters(
         value: _searchCriteria!,
-        accounts: _latestAccounts,
+        accounts: [
+          for (final account in _latestAccounts)
+            if (_searchVisibility?.hiddenAccountIds.contains(account.id) !=
+                true)
+              account,
+        ],
         sources: _searchSources,
         taskLists: _searchTaskLists,
         sidebar: sidebar,
@@ -1124,6 +1159,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     required ScheduleRepository repository,
     required ScheduleRange range,
     required bool searchActive,
+    required ScheduleSearchCriteria? searchCriteria,
     required Set<String> accountIds,
     required Set<String> sourceIds,
     required Set<ScheduleTaskListKey> taskListKeys,
@@ -1139,7 +1175,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       );
     }
     if (searchActive) {
-      final criteria = _searchCriteria;
+      final criteria = searchCriteria;
       if (criteria == null) return const _ScheduleItemsResult(items: []);
       return _ScheduleItemsResult(
         items: await repository.listItems(

@@ -118,6 +118,7 @@ class AppSettings {
     required this.lastDueTodayNotificationDate,
     this.dueTodayNotificationTime = '09:00',
     required this.taskListScheduleVisibility,
+    this.accountScheduleVisibility = const {},
     required this.scheduleViewMode,
     this.androidScheduleViewMode,
     required this.scheduleDayStartMinute,
@@ -263,6 +264,7 @@ class AppSettings {
       lastDueTodayNotificationDate: json['lastDueTodayNotificationDate']
           ?.toString(),
       taskListScheduleVisibility: _boolMap(json['taskListScheduleVisibility']),
+      accountScheduleVisibility: _boolMap(json['accountScheduleVisibility']),
       sidebarOrder: ScheduleSidebarOrder.fromJson(json['sidebarOrder']),
       scheduleViewMode: _enumFromName(
         ScheduleViewMode.values,
@@ -304,6 +306,7 @@ class AppSettings {
   final String? lastDueTodayNotificationDate;
   final String dueTodayNotificationTime;
   final Map<String, bool> taskListScheduleVisibility;
+  final Map<String, bool> accountScheduleVisibility;
   final ScheduleSidebarOrder sidebarOrder;
   final ScheduleViewMode scheduleViewMode;
   final ScheduleViewMode? androidScheduleViewMode;
@@ -342,6 +345,7 @@ class AppSettings {
       'lastDueTodayNotificationDate': lastDueTodayNotificationDate,
       'dueTodayNotificationTime': dueTodayNotificationTime,
       'taskListScheduleVisibility': taskListScheduleVisibility,
+      'accountScheduleVisibility': accountScheduleVisibility,
       'sidebarOrder': sidebarOrder.toJson(),
       'scheduleViewMode': scheduleViewMode.name,
       'androidScheduleViewMode': androidScheduleViewMode?.name,
@@ -377,6 +381,7 @@ class AppSettings {
     String? lastDueTodayNotificationDate,
     String? dueTodayNotificationTime,
     Map<String, bool>? taskListScheduleVisibility,
+    Map<String, bool>? accountScheduleVisibility,
     ScheduleSidebarOrder? sidebarOrder,
     ScheduleViewMode? scheduleViewMode,
     Object? androidScheduleViewMode = _unset,
@@ -430,6 +435,8 @@ class AppSettings {
           : lastDueTodayNotificationDate ?? this.lastDueTodayNotificationDate,
       taskListScheduleVisibility:
           taskListScheduleVisibility ?? this.taskListScheduleVisibility,
+      accountScheduleVisibility:
+          accountScheduleVisibility ?? this.accountScheduleVisibility,
       sidebarOrder: sidebarOrder ?? this.sidebarOrder,
       scheduleViewMode: scheduleViewMode ?? this.scheduleViewMode,
       androidScheduleViewMode: identical(androidScheduleViewMode, _unset)
@@ -459,6 +466,9 @@ class AppSettings {
         )] ??
         true;
   }
+
+  bool isAccountVisibleInSchedule(String accountId) =>
+      accountScheduleVisibility[accountId] != false;
 }
 
 abstract class LocalSettingsStore {
@@ -797,6 +807,19 @@ class AppSettingsController extends StateNotifier<AppSettings> {
       return current.copyWith(taskListScheduleVisibility: next);
     });
   }
+
+  Future<void> setAccountVisibleInSchedule({
+    required String accountId,
+    required bool visible,
+  }) => _mutate((current) {
+    final next = Map<String, bool>.of(current.accountScheduleVisibility);
+    if (visible) {
+      next.remove(accountId);
+    } else {
+      next[accountId] = false;
+    }
+    return current.copyWith(accountScheduleVisibility: next);
+  });
 
   Future<void> _load() async {
     final loaded = await loadInitialAppSettings(_store);

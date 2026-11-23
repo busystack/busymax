@@ -525,6 +525,44 @@ class AppLocalizationsFi extends AppLocalizations {
   String get options => 'Valinnat';
 
   @override
+  String get showScheduleCalendar => 'Näytä kalenteri';
+
+  @override
+  String get hideScheduleCalendar => 'Piilota kalenteri';
+
+  @override
+  String get showScheduleTaskList => 'Näytä tehtäväluettelo';
+
+  @override
+  String get hideScheduleTaskList => 'Piilota tehtäväluettelo';
+
+  @override
+  String get showScheduleAccount => 'Näytä tili';
+
+  @override
+  String get hideScheduleAccount => 'Piilota tili';
+
+  @override
+  String get someAccountSourcesVisible => 'Osa kokoelmista näkyy';
+
+  @override
+  String get noAccountSourcesVisible =>
+      'Kaikki kokoelmat on piilotettu erikseen';
+
+  @override
+  String get accountHiddenInSchedule => 'Tili on piilotettu aikataulusta';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Näytä tili, jotta voit muuttaa kokoelmien näkyvyyttä';
+
+  @override
+  String get scheduleAccountSettings => 'Tilin asetukset';
+
+  @override
+  String get scheduleAccountUnavailable => 'Tili ei ole käytettävissä';
+
+  @override
   String get hide => 'Piilota';
 
   @override
@@ -1499,15 +1537,7 @@ class AppLocalizationsFi extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Tapahtumien kattavuus';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Tämän ajanjakson tapahtumia tarkistetaan tai niitä ei ole vielä tarkistettu.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Tämän ajanjakson tapahtumat on tarkistettu.';
+  String get scheduleCoverageWarning => 'Jotkin tapahtumat saattavat puuttua.';
 
   @override
   String get listRefreshed => 'Luettelo päivitetty.';

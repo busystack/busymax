@@ -52,7 +52,8 @@ abstract final class BusyMaxSizes {
   static const double iconLg = 22;
   static const double headerIconButton = kYaruTitleBarItemHeight;
   static const double headerIcon = kYaruIconSize;
-  static const double sidebarActionButton = headerIconButton;
+  static const double sidebarActionButton =
+      BusyMaxDimensions.sidebarActionWidth;
   static const double sidebarActionIcon = headerIcon;
   static const double popoverActionButton = kYaruTitleBarItemHeight;
   static const double popoverActionIcon = iconSm;
@@ -2708,6 +2709,7 @@ class BusyMaxMenuEntry<T> {
     this.selected = false,
     this.tooltip,
     this.destructive = false,
+    this.separatorBefore = false,
   });
 
   final T value;
@@ -2721,6 +2723,7 @@ class BusyMaxMenuEntry<T> {
   final bool selected;
   final String? tooltip;
   final bool destructive;
+  final bool separatorBefore;
 }
 
 enum BusyMaxMenuEntryRole { command, radio, toggle }
@@ -2932,6 +2935,7 @@ List<NativeMenuEntry> _nativeMenuEntries<T>(List<BusyMaxMenuEntry<T>> entries) {
         },
         selected: entry.selected,
         shortcut: entry.shortcut,
+        separatorBefore: entry.separatorBefore,
       ),
   ];
 }
@@ -2982,7 +2986,9 @@ Future<int?> _showBusyMaxFlutterMenu<T>({
     context: context,
     position: RelativeRect.fromRect(menuAnchor, Offset.zero & overlay.size),
     items: [
-      for (var index = 0; index < entries.length; index += 1)
+      for (var index = 0; index < entries.length; index += 1) ...[
+        if (index > 0 && entries[index].separatorBefore)
+          const PopupMenuDivider(),
         _BusyMaxPopupMenuItem<int>(
           value: index,
           enabled: entries[index].enabled,
@@ -3016,6 +3022,7 @@ Future<int?> _showBusyMaxFlutterMenu<T>({
             routeKey: index == 0 ? routeKey : null,
           ),
         ),
+      ],
     ],
     requestFocus: true,
   );

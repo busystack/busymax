@@ -3,7 +3,6 @@ import '../../../schedule/schedule_task_list_actions.dart';
 import '../../../schedule/schedule_provider_links.dart';
 export '../../../schedule/schedule_provider_links.dart';
 import '../../sync/sync_request.dart';
-import '../../sync/sync_activity_icon.dart';
 import '../../sync/linux_sync_feedback.dart';
 import '../../../platform/gtk_animation_settings_service.dart';
 import '../../../l10n/oauth_error_description.dart';
@@ -15,11 +14,11 @@ import '../../../dav/presentation/nextcloud_collection_dialog.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
-import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
@@ -27,11 +26,12 @@ import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../l10n/l10n.dart';
-import '../../../l10n/sync_outcome_description.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_sidebar_order.dart';
 import '../../../schedule/schedule_sidebar_sources.dart';
+import '../../../schedule/schedule_sidebar_visibility_icon.dart';
+import '../../../schedule/schedule_source_visibility.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
@@ -44,6 +44,8 @@ import '../../task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 import 'mini_calendar.dart';
+
+const _sidebarRowMargin = BusyMaxSpacing.sm;
 
 class ScheduleSidebar extends ConsumerWidget {
   const ScheduleSidebar({
@@ -106,44 +108,53 @@ class ScheduleSidebar extends ConsumerWidget {
           ),
           const Divider(height: 1),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
-              children: [
-                if (showAddAccount)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: BusyMaxSpacing.md,
-                      vertical: BusyMaxSpacing.sm,
-                    ),
-                    child: BusyMaxPushButton.standard(
-                      key: const ValueKey('schedule-add-account'),
-                      onPressed: onAddAccount,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(YaruIcons.plus, size: BusyMaxSizes.iconSm),
-                          const SizedBox(width: BusyMaxSpacing.sm),
-                          Flexible(child: Text(context.l10n.addAccount)),
-                        ],
+            child: ScrollbarTheme(
+              // Keep the expanded Yaru scrollbar inside the row margin.
+              data: ScrollbarTheme.of(context).copyWith(crossAxisMargin: 0),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  vertical: BusyMaxSpacing.sm,
+                ),
+                children: [
+                  if (showAddAccount)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: BusyMaxSpacing.md,
+                        vertical: BusyMaxSpacing.sm,
+                      ),
+                      child: BusyMaxPushButton.standard(
+                        key: const ValueKey('schedule-add-account'),
+                        onPressed: onAddAccount,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              YaruIcons.plus,
+                              size: BusyMaxSizes.iconSm,
+                            ),
+                            const SizedBox(width: BusyMaxSpacing.sm),
+                            Flexible(child: Text(context.l10n.addAccount)),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                for (final account in accounts.where(
-                  (account) => !account.isSubscription,
-                ))
-                  _AccountSourcesGroup(
-                    key: ValueKey(('schedule-account', account.id)),
-                    account: account,
-                    siblingIds: siblingIds,
-                  ),
-                if (accounts.any((account) => account.isSubscription))
-                  _SubscriptionSourcesGroup(
-                    accounts: [
-                      for (final account in accounts)
-                        if (account.isSubscription) account,
-                    ],
-                  ),
-              ],
+                  for (final account in accounts.where(
+                    (account) => !account.isSubscription,
+                  ))
+                    _AccountSourcesGroup(
+                      key: ValueKey(('schedule-account', account.id)),
+                      account: account,
+                      siblingIds: siblingIds,
+                    ),
+                  if (accounts.any((account) => account.isSubscription))
+                    _SubscriptionSourcesGroup(
+                      accounts: [
+                        for (final account in accounts)
+                          if (account.isSubscription) account,
+                      ],
+                    ),
+                ],
+              ),
             ),
           ),
         ],
@@ -170,139 +181,127 @@ class _SourceRow extends ConsumerWidget {
     final capabilities = source.capabilities;
     return _CompactSourceRow(
       title: source.summary,
-      leading: _SourceIcon(
-        icon: YaruIcons.calendar,
-        seed: source.id,
-        scope: calendarSyncScope(source.accountId, source.id),
+      leading: _CalendarScheduleVisibilityIcon(
+        source: source,
         colorHex: calendarSourceBackgroundColorHex(
           provider: source.provider,
           backgroundColor: source.backgroundColor,
           colorId: source.colorId,
         ),
       ),
-      trailing: _SourceRowActions(
-        visibilityButton: _SourceVisibilityButton(
-          value: source.selected && !source.hidden,
-          semanticLabel: source.summary,
-          onChanged: (value) {
-            ref
-                .read(calendarRepositoryProvider)
-                .setSourceSelected(source.id, value);
-          },
-        ),
-        menuButton: BusyMaxMenuButton<String>(
-          key: ValueKey(('calendar-options', source.id)),
-          tooltip: context.l10n.options,
-          highlightWhenOpen: false,
-          onSelected: (value) {
-            switch (value) {
-              case 'move-up' || 'move-down':
-                _moveSidebarItem(
+      trailing: BusyMaxMenuButton<String>(
+        key: ValueKey(('calendar-options', source.id)),
+        tooltip: context.l10n.options,
+        highlightWhenOpen: false,
+        triggerBuilder: _sidebarOptionsTrigger,
+        onSelected: (value) {
+          switch (value) {
+            case 'move-up' || 'move-down':
+              _moveSidebarItem(
+                ref,
+                SidebarOrderSection.calendars,
+                source.id,
+                value,
+                siblingIds,
+                accountId: account.id,
+              );
+            case 'refresh':
+              unawaited(
+                refreshFromLinux(
+                  context,
                   ref,
-                  SidebarOrderSection.calendars,
-                  source.id,
-                  value,
-                  siblingIds,
-                  accountId: account.id,
-                );
-              case 'refresh':
-                unawaited(
-                  refreshFromLinux(
-                    context,
-                    ref,
-                    calendarSyncScope(source.accountId, source.id),
-                  ),
-                );
-              case 'open':
-                if (providerWebUri != null) {
-                  unawaited(_openProviderWeb(providerWebUri));
-                }
-              case 'toggle-reminders':
-                unawaited(_setCalendarRemindersEnabled(context, ref, source));
-              case 'color':
-                unawaited(_changeCalendarColor(context, ref, source));
-              case 'collection-settings':
-                unawaited(
-                  showLinuxNextcloudCollectionDialog(
-                    context,
-                    accountId: source.accountId,
-                    collectionId: source.davCollectionId!,
-                  ),
-                );
-              case 'rename':
-                unawaited(_renameCalendar(context, ref, source));
-              case 'delete':
-                unawaited(_deleteCalendar(context, ref, source));
-            }
-          },
-          entries: [
-            if (source.provider == BusyProvider.nextcloud &&
-                source.davCollectionId != null)
-              BusyMaxMenuEntry(
-                value: 'collection-settings',
-                label: context.l10n.nextcloudCollectionSettings,
-                icon: Icons.settings_outlined,
-              ),
-            ..._movementEntries(context, source.id, siblingIds),
+                  calendarSyncScope(source.accountId, source.id),
+                ),
+              );
+            case 'open':
+              if (providerWebUri != null) {
+                unawaited(_openProviderWeb(providerWebUri));
+              }
+            case 'toggle-reminders':
+              unawaited(_setCalendarRemindersEnabled(context, ref, source));
+            case 'color':
+              unawaited(_changeCalendarColor(context, ref, source));
+            case 'collection-settings':
+              unawaited(
+                showLinuxNextcloudCollectionDialog(
+                  context,
+                  accountId: source.accountId,
+                  collectionId: source.davCollectionId!,
+                ),
+              );
+            case 'rename':
+              unawaited(_renameCalendar(context, ref, source));
+            case 'delete':
+              unawaited(_deleteCalendar(context, ref, source));
+          }
+        },
+        entries: [
+          if (source.provider == BusyProvider.nextcloud &&
+              source.davCollectionId != null)
             BusyMaxMenuEntry(
-              value: 'refresh',
-              label: context.l10n.refreshCalendar,
-              icon: YaruIcons.refresh,
-              enabled:
-                  account.isSyncEligible &&
-                  !ref
-                      .watch(accountSyncActivityProvider)
-                      .busy(calendarSyncScope(source.accountId, source.id)),
-              tooltip: account.needsReconnect
-                  ? accountReconnectRequiredSyncMessage
-                  : null,
+              value: 'collection-settings',
+              label: context.l10n.nextcloudCollectionSettings,
+              icon: Icons.settings_outlined,
             ),
-            if (providerWebUri != null)
-              BusyMaxMenuEntry(
-                value: 'open',
-                label: context.l10n.openInProvider,
-                icon: Icons.open_in_browser_outlined,
-              ),
+          ..._movementEntries(context, source.id, siblingIds),
+          BusyMaxMenuEntry(
+            value: 'refresh',
+            label: context.l10n.refreshCalendar,
+            icon: YaruIcons.refresh,
+            enabled:
+                account.isSyncEligible &&
+                !ref
+                    .watch(accountSyncActivityProvider)
+                    .busy(calendarSyncScope(source.accountId, source.id)),
+            tooltip: account.needsReconnect
+                ? accountReconnectRequiredSyncMessage
+                : null,
+          ),
+          if (providerWebUri != null)
             BusyMaxMenuEntry(
-              value: 'toggle-reminders',
-              label:
-                  '${context.l10n.eventReminders} — '
-                  '${source.remindersEnabled ? context.l10n.onState : context.l10n.off}',
-              icon: source.remindersEnabled
-                  ? Icons.notifications_outlined
-                  : Icons.notifications_off_outlined,
+              value: 'open',
+              label: context.l10n.openInProvider,
+              icon: Icons.open_in_browser_outlined,
             ),
-            BusyMaxMenuEntry(
-              value: 'color',
-              label: context.l10n.calendarColor,
-              icon: Icons.palette_outlined,
-              enabled: capabilities.canChangeCalendarColor,
-              tooltip: _calendarColorRestriction(context, source),
-            ),
-            BusyMaxMenuEntry(
-              value: 'rename',
-              label: capabilities.renameMode == CalendarRenameMode.personal
-                  ? context.l10n.setCustomCalendarName
-                  : context.l10n.rename,
-              icon: Icons.edit_outlined,
-              enabled: capabilities.canRenameCalendar,
-              tooltip: _calendarRenameRestriction(context, source),
-            ),
-            BusyMaxMenuEntry(
-              value: 'delete',
-              label:
-                  capabilities.removalMode == CalendarRemovalMode.removeFromList
-                  ? (source.provider == BusyProvider.nextcloud
-                        ? context.l10n.nextcloudRemoveShared
-                        : context.l10n.removeFromMyCalendars)
-                  : context.l10n.delete,
-              icon: YaruIcons.trash,
-              enabled: capabilities.canRemoveCalendar,
-              tooltip: _calendarDeleteRestriction(context, source),
-              destructive: true,
-            ),
-          ],
-        ),
+          BusyMaxMenuEntry(
+            value: 'toggle-reminders',
+            label:
+                '${context.l10n.eventReminders} — '
+                '${source.remindersEnabled ? context.l10n.onState : context.l10n.off}',
+            icon: source.remindersEnabled
+                ? Icons.notifications_outlined
+                : Icons.notifications_off_outlined,
+          ),
+          BusyMaxMenuEntry(
+            value: 'color',
+            label: context.l10n.calendarColor,
+            icon: Icons.palette_outlined,
+            enabled: capabilities.canChangeCalendarColor,
+            tooltip: _calendarColorRestriction(context, source),
+          ),
+          BusyMaxMenuEntry(
+            value: 'rename',
+            label: capabilities.renameMode == CalendarRenameMode.personal
+                ? context.l10n.setCustomCalendarName
+                : context.l10n.rename,
+            icon: Icons.edit_outlined,
+            enabled: capabilities.canRenameCalendar,
+            tooltip: _calendarRenameRestriction(context, source),
+          ),
+          BusyMaxMenuEntry(
+            value: 'delete',
+            label:
+                capabilities.removalMode == CalendarRemovalMode.removeFromList
+                ? (source.provider == BusyProvider.nextcloud
+                      ? context.l10n.nextcloudRemoveShared
+                      : context.l10n.removeFromMyCalendars)
+                : context.l10n.delete,
+            icon: YaruIcons.trash,
+            enabled: capabilities.canRemoveCalendar,
+            tooltip: _calendarDeleteRestriction(context, source),
+            destructive: true,
+          ),
+        ],
       ),
     );
   }
@@ -327,15 +326,14 @@ class _CompactSourceRow extends StatelessWidget {
         minHeight: BusyMaxSizes.sidebarRowHeight,
       ),
       child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          start: BusyMaxSpacing.md,
-          end: BusyMaxSpacing.xs,
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: _sidebarRowMargin,
         ),
         child: Row(
           children: [
             if (leading != null) ...[
               leading!,
-              const SizedBox(width: BusyMaxSpacing.md),
+              const SizedBox(width: BusyMaxSpacing.sm),
             ],
             Expanded(
               child: Text(
@@ -354,64 +352,40 @@ class _CompactSourceRow extends StatelessWidget {
   }
 }
 
-class _SourceRowActions extends StatelessWidget {
-  const _SourceRowActions({
-    required this.visibilityButton,
-    required this.menuButton,
-  });
+Widget _sidebarVisibilityButton(
+  BuildContext context,
+  Widget icon,
+  String tooltip,
+  VoidCallback? onPressed,
+) => BusyMaxHeaderIconButton(
+  tooltip: tooltip,
+  icon: icon,
+  onPressed: onPressed,
+  fixedSize: const Size.square(BusyMaxSizes.sidebarActionButton),
+  iconSize: 26,
+  backgroundColor: busyMaxSubtleButtonBackground(context),
+  overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+);
 
-  final Widget visibilityButton;
-  final Widget menuButton;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [visibilityButton, menuButton],
-    );
-  }
-}
-
-class _SourceVisibilityButton extends StatelessWidget {
-  const _SourceVisibilityButton({
-    required this.value,
-    required this.semanticLabel,
-    required this.onChanged,
-  });
-
-  final bool value;
-  final String semanticLabel;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final sidebarBackground = BusyMaxSurfaceColors.of(context).sidebar;
-    final activeIconColor = colorScheme.onSurfaceVariant;
-    final inactiveIconColor = Color.lerp(
-      sidebarBackground,
-      activeIconColor,
-      0.42,
-    )!;
-    final iconColor = value ? activeIconColor : inactiveIconColor;
-    final tooltip = value ? context.l10n.hide : context.l10n.show;
-    return Semantics(
-      label: semanticLabel,
-      checked: value,
-      button: true,
-      onTap: () => onChanged(!value),
-      child: BusyMaxHeaderIconButton(
-        tooltip: tooltip,
-        iconSize: BusyMaxSizes.sidebarActionIcon,
-        icon: Icon(YaruIcons.checkmark, color: iconColor),
-        onPressed: () => onChanged(!value),
-        foregroundColor: iconColor,
-        backgroundColor: busyMaxSubtleButtonBackground(context),
-        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-      ),
-    );
-  }
-}
+Widget _sidebarOptionsTrigger(
+  BuildContext context,
+  BusyMaxMenuTriggerDetails trigger,
+) => trigger.anchor(
+  child: Semantics(
+    expanded: trigger.isOpen,
+    child: BusyMaxHeaderIconButton(
+      tooltip: context.l10n.options,
+      iconSize: BusyMaxSizes.sidebarActionIcon,
+      fixedSize: const Size.square(BusyMaxSizes.sidebarActionButton),
+      icon: const Icon(YaruIcons.view_more),
+      focusNode: trigger.focusNode,
+      onPressed: trigger.onPressed,
+      foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+      backgroundColor: busyMaxSubtleButtonBackground(context),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+    ),
+  ),
+);
 
 class _AccountSourcesGroup extends ConsumerStatefulWidget {
   const _AccountSourcesGroup({
@@ -478,28 +452,6 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
       taskListCreationRunning: _creatingTaskList,
     );
     final headerActions = <_AccountHeaderCollectionAction>[
-      _AccountHeaderCollectionAction(
-        action: AccountHeaderCollectionAction.refresh,
-        enabled:
-            account.hasConnectionIssue ||
-            account.isSyncEligible &&
-                networkAvailability != NetworkAvailability.offline,
-      ),
-      if (account.provider == BusyProvider.nextcloud)
-        _AccountHeaderCollectionAction(
-          action: AccountHeaderCollectionAction.trash,
-          enabled: networkAvailability != NetworkAvailability.offline,
-        ),
-      _AccountHeaderCollectionAction(
-        action: AccountHeaderCollectionAction.moveUp,
-        enabled: widget.siblingIds.indexOf(account.id) > 0,
-      ),
-      _AccountHeaderCollectionAction(
-        action: AccountHeaderCollectionAction.moveDown,
-        enabled:
-            widget.siblingIds.indexOf(account.id) <
-            widget.siblingIds.length - 1,
-      ),
       if (capabilities.supportsCalendarCreation)
         _AccountHeaderCollectionAction(
           action: AccountHeaderCollectionAction.newCalendar,
@@ -510,6 +462,36 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
           action: AccountHeaderCollectionAction.newTaskList,
           enabled: capabilities.taskListActionEnabled,
         ),
+      _AccountHeaderCollectionAction(
+        action: AccountHeaderCollectionAction.refresh,
+        separatorBefore:
+            capabilities.supportsCalendarCreation ||
+            capabilities.supportsTaskListCreation,
+        enabled:
+            account.hasConnectionIssue ||
+            account.isSyncEligible &&
+                networkAvailability != NetworkAvailability.offline,
+      ),
+      const _AccountHeaderCollectionAction(
+        action: AccountHeaderCollectionAction.settings,
+        enabled: true,
+      ),
+      if (account.provider == BusyProvider.nextcloud)
+        _AccountHeaderCollectionAction(
+          action: AccountHeaderCollectionAction.trash,
+          enabled: networkAvailability != NetworkAvailability.offline,
+        ),
+      _AccountHeaderCollectionAction(
+        action: AccountHeaderCollectionAction.moveUp,
+        separatorBefore: true,
+        enabled: widget.siblingIds.indexOf(account.id) > 0,
+      ),
+      _AccountHeaderCollectionAction(
+        action: AccountHeaderCollectionAction.moveDown,
+        enabled:
+            widget.siblingIds.indexOf(account.id) <
+            widget.siblingIds.length - 1,
+      ),
     ];
     final children = Column(
       children: [
@@ -609,6 +591,16 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
           ref,
           accountSyncScope(widget.account.id),
         );
+      case AccountHeaderCollectionAction.settings:
+        await context.push<void>(
+          Uri(
+            path: '/settings',
+            queryParameters: {
+              'page': 'accounts',
+              'accountDetail': widget.account.id,
+            },
+          ).toString(),
+        );
       case AccountHeaderCollectionAction.trash:
         await showLinuxNextcloudTrashDialog(
           context,
@@ -705,75 +697,65 @@ class _SubscriptionSourceRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return _CompactSourceRow(
       title: '${source.summary} · ${context.l10n.readOnlySharedCollection}',
-      leading: _SourceIcon(
-        icon: YaruIcons.calendar,
-        seed: source.id,
-        scope: calendarSyncScope(source.accountId, source.id),
+      leading: _CalendarScheduleVisibilityIcon(
+        source: source,
         colorHex: source.backgroundColor,
       ),
-      trailing: _SourceRowActions(
-        visibilityButton: _SourceVisibilityButton(
-          value: source.selected && !source.hidden,
-          semanticLabel: source.summary,
-          onChanged: (value) => ref
-              .read(calendarRepositoryProvider)
-              .setSourceSelected(source.id, value),
-        ),
-        menuButton: BusyMaxMenuButton<String>(
-          key: ValueKey(('subscription-options', source.id)),
-          tooltip: context.l10n.options,
-          highlightWhenOpen: false,
-          onSelected: (value) {
-            switch (value) {
-              case 'move-up' || 'move-down':
-                _moveSidebarItem(
+      trailing: BusyMaxMenuButton<String>(
+        key: ValueKey(('subscription-options', source.id)),
+        tooltip: context.l10n.options,
+        highlightWhenOpen: false,
+        triggerBuilder: _sidebarOptionsTrigger,
+        onSelected: (value) {
+          switch (value) {
+            case 'move-up' || 'move-down':
+              _moveSidebarItem(
+                ref,
+                SidebarOrderSection.subscriptions,
+                source.id,
+                value,
+                siblingIds,
+              );
+            case 'refresh':
+              unawaited(
+                refreshFromLinux(
+                  context,
                   ref,
-                  SidebarOrderSection.subscriptions,
-                  source.id,
-                  value,
-                  siblingIds,
-                );
-              case 'refresh':
-                unawaited(
-                  refreshFromLinux(
-                    context,
-                    ref,
-                    calendarSyncScope(source.accountId, source.id),
-                  ),
-                );
-              case 'rename':
-                unawaited(_renameSubscriptionSource(context, ref, source));
-              case 'color':
-                unawaited(_colorSubscriptionSource(context, ref, source));
-              case 'unsubscribe':
-                unawaited(_unsubscribeSource(context, ref, source));
-            }
-          },
-          entries: [
-            ..._movementEntries(context, source.id, siblingIds),
-            BusyMaxMenuEntry(
-              value: 'refresh',
-              label: context.l10n.refreshCalendar,
-              icon: YaruIcons.refresh,
-            ),
-            BusyMaxMenuEntry(
-              value: 'rename',
-              label: context.l10n.rename,
-              icon: Icons.edit_outlined,
-            ),
-            BusyMaxMenuEntry(
-              value: 'color',
-              label: context.l10n.calendarColor,
-              icon: Icons.palette_outlined,
-            ),
-            BusyMaxMenuEntry(
-              value: 'unsubscribe',
-              label: context.l10n.unsubscribe,
-              icon: YaruIcons.trash,
-              destructive: true,
-            ),
-          ],
-        ),
+                  calendarSyncScope(source.accountId, source.id),
+                ),
+              );
+            case 'rename':
+              unawaited(_renameSubscriptionSource(context, ref, source));
+            case 'color':
+              unawaited(_colorSubscriptionSource(context, ref, source));
+            case 'unsubscribe':
+              unawaited(_unsubscribeSource(context, ref, source));
+          }
+        },
+        entries: [
+          ..._movementEntries(context, source.id, siblingIds),
+          BusyMaxMenuEntry(
+            value: 'refresh',
+            label: context.l10n.refreshCalendar,
+            icon: YaruIcons.refresh,
+          ),
+          BusyMaxMenuEntry(
+            value: 'rename',
+            label: context.l10n.rename,
+            icon: Icons.edit_outlined,
+          ),
+          BusyMaxMenuEntry(
+            value: 'color',
+            label: context.l10n.calendarColor,
+            icon: Icons.palette_outlined,
+          ),
+          BusyMaxMenuEntry(
+            value: 'unsubscribe',
+            label: context.l10n.unsubscribe,
+            icon: YaruIcons.trash,
+            destructive: true,
+          ),
+        ],
       ),
     );
   }
@@ -809,28 +791,58 @@ class _AccountHeaderRow extends ConsumerWidget {
     final hasSecondaryLabel =
         secondaryLabel != null && secondaryLabel.isNotEmpty;
     final providerName = _accountProviderName(context, account.provider);
-    final activity = ref.watch(accountSyncActivityProvider);
-    final outcome = activity.outcome(accountSyncScope(account.id));
+    final visibility = ScheduleAccountVisibility.fromSources(
+      accountId: account.id,
+      settings: ref.watch(appSettingsControllerProvider),
+      calendars: account.calendarsEnabled
+          ? ref.watch(sidebarCalendarSourcesProvider(account.id)).valueOrNull ??
+                const <CalendarSourceEntity>[]
+          : const <CalendarSourceEntity>[],
+      taskLists:
+          ref.watch(sidebarTaskListsProvider(account.id)).valueOrNull ??
+          const <TaskListEntity>[],
+    );
+    final visible = visibility != ScheduleAccountVisibility.hidden;
     final accountSemanticsLabel = [
       providerName,
-      if (activity.accountRunning(account.id))
-        context.l10n.traySyncing
-      else if (outcome != null || activity.accountHasFailure(account.id))
-        syncOutcomeDescription(context.l10n, outcome?.disposition),
       account.displayLabel,
       if (hasSecondaryLabel) secondaryLabel,
       if (pending > 0)
         '${context.l10n.nextcloudFederationInvitations} ($pending)',
     ].join(', ');
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(
-        start: BusyMaxSpacing.md,
-        top: BusyMaxSpacing.sm,
-        end: BusyMaxSpacing.xs,
-        bottom: BusyMaxSpacing.xs,
+    final row = ConstrainedBox(
+      // Keep the original header height for accounts with a single-line label.
+      constraints: const BoxConstraints(
+        minHeight: BusyMaxSizes.headerIconButton,
       ),
       child: Row(
         children: [
+          ScheduleSidebarVisibilityIcon(
+            key: ValueKey(('account-visibility', account.id)),
+            scope: accountSyncScope(account.id),
+            label: '$providerName, ${account.displayLabel}',
+            actionLabel: scheduleAccountVisibilityAction(context, visibility),
+            accountVisibility: visibility,
+            visible: visible,
+            color: colorScheme.onSurfaceVariant,
+            animate:
+                ref.watch(gtkAnimationsEnabledProvider).valueOrNull != false,
+            buttonBuilder: _sidebarVisibilityButton,
+            warningIcon: YaruIcons.warning,
+            icon: _AccountProviderIndicator(
+              key: ValueKey(('account-provider-indicator', account.id)),
+              provider: account.provider,
+            ),
+            onPressed: () => unawaited(
+              ref
+                  .read(appSettingsControllerProvider.notifier)
+                  .setAccountVisibleInSchedule(
+                    accountId: account.id,
+                    visible: !visible,
+                  ),
+            ),
+          ),
+          const SizedBox(width: BusyMaxSpacing.sm),
           Expanded(
             child: Semantics(
               key: ValueKey(('account-identity', account.id)),
@@ -841,12 +853,19 @@ class _AccountHeaderRow extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      account.displayLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
                     if (hasSecondaryLabel)
                       Text(
-                        account.displayLabel,
+                        secondaryLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelLarge,
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: colorScheme.onSurfaceVariant),
                       ),
                     if (pending > 0)
                       Text(
@@ -855,116 +874,25 @@ class _AccountHeaderRow extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            hasSecondaryLabel
-                                ? secondaryLabel
-                                : account.displayLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: hasSecondaryLabel
-                                ? Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
-                                      )
-                                : Theme.of(context).textTheme.labelLarge,
-                          ),
-                        ),
-                        const SizedBox(width: BusyMaxSpacing.xs),
-                        SyncActivityIcon(
-                          scope: accountSyncScope(account.id),
-                          animate:
-                              ref
-                                  .watch(gtkAnimationsEnabledProvider)
-                                  .valueOrNull !=
-                              false,
-                          refresh: const Icon(YaruIcons.refresh, size: 16),
-                          warning: const Icon(YaruIcons.warning, size: 16),
-                          child: _AccountProviderIndicator(
-                            key: ValueKey((
-                              'account-provider-indicator',
-                              account.id,
-                            )),
-                            provider: account.provider,
-                            providerName: providerName,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
             ),
           ),
           const SizedBox(width: BusyMaxSpacing.xs),
-          if (actions.isNotEmpty) ...[
-            BusyMaxMenuButton<AccountHeaderCollectionAction>(
-              key: ValueKey(('account-collection-options', account.id)),
-              tooltip: context.l10n.options,
-              highlightWhenOpen: false,
-              triggerBuilder: (context, trigger) => trigger.anchor(
-                child: Semantics(
-                  expanded: trigger.isOpen,
-                  button: true,
-                  child: BusyMaxHeaderIconButton(
-                    tooltip: context.l10n.options,
-                    iconSize: BusyMaxSizes.sidebarActionIcon,
-                    icon: const Icon(YaruIcons.view_more),
-                    focusNode: trigger.focusNode,
-                    onPressed: trigger.onPressed,
-                    foregroundColor: colorScheme.onSurfaceVariant,
-                    backgroundColor: busyMaxSubtleButtonBackground(context),
-                    overlayColor: const WidgetStatePropertyAll(
-                      Colors.transparent,
-                    ),
-                  ),
-                ),
-              ),
-              onSelected: onActionSelected,
-              entries: [
-                for (final item in actions)
-                  BusyMaxMenuEntry(
-                    value: item.action,
-                    label: switch (item.action) {
-                      AccountHeaderCollectionAction.refresh =>
-                        context.l10n.refreshAccount,
-                      AccountHeaderCollectionAction.trash =>
-                        context.l10n.nextcloudTrash,
-                      AccountHeaderCollectionAction.newCalendar =>
-                        '${context.l10n.newCalendar}…',
-                      AccountHeaderCollectionAction.newTaskList =>
-                        '${context.l10n.newTaskList}…',
-                      AccountHeaderCollectionAction.moveUp =>
-                        context.l10n.moveUp,
-                      AccountHeaderCollectionAction.moveDown =>
-                        context.l10n.moveDown,
-                    },
-                    icon: switch (item.action) {
-                      AccountHeaderCollectionAction.refresh =>
-                        YaruIcons.refresh,
-                      AccountHeaderCollectionAction.trash => YaruIcons.trash,
-                      AccountHeaderCollectionAction.moveUp =>
-                        Icons.arrow_upward,
-                      AccountHeaderCollectionAction.moveDown =>
-                        Icons.arrow_downward,
-                      _ => YaruIcons.plus,
-                    },
-                    enabled: item.enabled,
-                  ),
-              ],
-            ),
-            const SizedBox(width: BusyMaxSpacing.xs),
-          ],
           BusyMaxHeaderIconButton(
             key: ValueKey(('account-collapse', account.id)),
             tooltip: expanded
                 ? MaterialLocalizations.of(context).expandedIconTapHint
                 : MaterialLocalizations.of(context).collapsedIconTapHint,
             iconSize: BusyMaxSizes.sidebarActionIcon,
+            fixedSize: const Size.square(BusyMaxSizes.sidebarActionButton),
             icon: Transform.rotate(
-              angle: expansionProgress * math.pi / 2,
+              angle:
+                  expansionProgress *
+                  math.pi /
+                  2 *
+                  (Directionality.of(context) == TextDirection.rtl ? -1 : 1),
               child: Icon(
                 BusyMaxGlyphs.collapsedFor(Directionality.of(context)),
                 size: 16,
@@ -975,45 +903,89 @@ class _AccountHeaderRow extends ConsumerWidget {
             backgroundColor: busyMaxSubtleButtonBackground(context),
             overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           ),
+          const SizedBox(width: BusyMaxSpacing.xs),
+          BusyMaxMenuButton<AccountHeaderCollectionAction>(
+            key: ValueKey(('account-collection-options', account.id)),
+            tooltip: context.l10n.options,
+            highlightWhenOpen: false,
+            triggerBuilder: _sidebarOptionsTrigger,
+            onSelected: onActionSelected,
+            entries: [
+              for (final item in actions)
+                BusyMaxMenuEntry(
+                  value: item.action,
+                  label: switch (item.action) {
+                    AccountHeaderCollectionAction.refresh =>
+                      context.l10n.refreshAccount,
+                    AccountHeaderCollectionAction.settings =>
+                      context.l10n.scheduleAccountSettings,
+                    AccountHeaderCollectionAction.trash =>
+                      context.l10n.nextcloudTrash,
+                    AccountHeaderCollectionAction.newCalendar =>
+                      '${context.l10n.newCalendar}…',
+                    AccountHeaderCollectionAction.newTaskList =>
+                      '${context.l10n.newTaskList}…',
+                    AccountHeaderCollectionAction.moveUp => context.l10n.moveUp,
+                    AccountHeaderCollectionAction.moveDown =>
+                      context.l10n.moveDown,
+                  },
+                  icon: switch (item.action) {
+                    AccountHeaderCollectionAction.refresh => YaruIcons.refresh,
+                    AccountHeaderCollectionAction.settings =>
+                      YaruIcons.settings,
+                    AccountHeaderCollectionAction.trash => YaruIcons.trash,
+                    AccountHeaderCollectionAction.moveUp => Icons.arrow_upward,
+                    AccountHeaderCollectionAction.moveDown =>
+                      Icons.arrow_downward,
+                    AccountHeaderCollectionAction.newCalendar =>
+                      YaruIcons.calendar_new,
+                    AccountHeaderCollectionAction.newTaskList =>
+                      YaruIcons.unordered_list_new,
+                  },
+                  separatorBefore: item.separatorBefore,
+                  enabled: item.enabled,
+                ),
+            ],
+          ),
         ],
       ),
+    );
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(
+        start: _sidebarRowMargin,
+        top: BusyMaxSpacing.sm,
+        end: _sidebarRowMargin,
+        bottom: BusyMaxSpacing.xs,
+      ),
+      child: row,
     );
   }
 }
 
 class _AccountProviderIndicator extends StatelessWidget {
-  const _AccountProviderIndicator({
-    super.key,
-    required this.provider,
-    required this.providerName,
-  });
+  const _AccountProviderIndicator({super.key, required this.provider});
 
   static const double _diameter = 16;
 
   final BusyProvider provider;
-  final String providerName;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Tooltip(
-      message: providerName,
-      excludeFromSemantics: true,
-      child: SizedBox.square(
-        dimension: _diameter,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: theme.colorScheme.surfaceContainerHighest,
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Center(
-            child: Text(
-              _accountProviderLetter(provider),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.w600,
-              ),
+    return SizedBox.square(
+      dimension: _diameter,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: theme.colorScheme.surfaceContainerHighest,
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Center(
+          child: Text(
+            scheduleAccountProviderLetter(provider),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -1021,15 +993,6 @@ class _AccountProviderIndicator extends StatelessWidget {
     );
   }
 }
-
-String _accountProviderLetter(BusyProvider provider) => switch (provider) {
-  BusyProvider.google => 'G',
-  BusyProvider.microsoft => 'M',
-  BusyProvider.nextcloud => 'N',
-  BusyProvider.appleICloud => 'A',
-  BusyProvider.webCal => 'W',
-  BusyProvider.caldav => 'C',
-};
 
 String _accountProviderName(BuildContext context, BusyProvider provider) =>
     switch (provider) {
@@ -1087,36 +1050,54 @@ class _AccountCalendarSources extends ConsumerWidget {
   }
 }
 
-class _SourceIcon extends ConsumerWidget {
-  const _SourceIcon({
-    required this.icon,
-    required this.scope,
-    this.seed,
-    this.colorHex,
-    this.color,
+class _CalendarScheduleVisibilityIcon extends ConsumerWidget {
+  const _CalendarScheduleVisibilityIcon({
+    required this.source,
+    required this.colorHex,
   });
 
-  final IconData icon;
-  final SyncScope scope;
-  final String? seed;
+  final CalendarSourceEntity source;
   final String? colorHex;
-  final Color? color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final resolvedColor =
-        color ??
+    final accountVisible = ref
+        .watch(appSettingsControllerProvider)
+        .isAccountVisibleInSchedule(source.accountId);
+    final visible =
+        accountVisible &&
+        source.selected &&
+        isScheduleCalendarAvailable(source);
+    final actionable = accountVisible && isScheduleCalendarAvailable(source);
+    final color =
         _colorFromHex(colorHex) ??
         ScheduleProjection.deterministicSourceColor(
-          seed ?? '',
+          source.id,
           Theme.of(context).colorScheme.brightness,
         );
-    return SyncActivityIcon(
-      scope: scope,
+    return ScheduleSidebarVisibilityIcon(
+      key: ValueKey(('calendar-visibility', source.id)),
+      scope: calendarSyncScope(source.accountId, source.id),
+      label: source.summary,
+      actionLabel: scheduleCollectionVisibilityAction(
+        context,
+        calendar: true,
+        accountVisible: accountVisible,
+        visible: visible,
+      ),
+      visible: visible,
+      color: color,
       animate: ref.watch(gtkAnimationsEnabledProvider).valueOrNull != false,
-      refresh: Icon(YaruIcons.refresh, size: 16, color: resolvedColor),
-      warning: Icon(YaruIcons.warning, size: 16, color: resolvedColor),
-      child: Icon(icon, size: 16, color: resolvedColor),
+      buttonBuilder: _sidebarVisibilityButton,
+      warningIcon: YaruIcons.warning,
+      icon: Icon(YaruIcons.calendar, size: 16, color: color),
+      onPressed: actionable
+          ? () => unawaited(
+              ref
+                  .read(calendarRepositoryProvider)
+                  .setSourceSelected(source.id, !visible),
+            )
+          : null,
     );
   }
 }
@@ -1137,10 +1118,11 @@ class _TaskListScheduleRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsControllerProvider);
     final providerWebUri = scheduleTaskProviderWebUri(account);
-    final visible = settings.isTaskListVisibleInSchedule(
-      list.accountId,
-      list.id,
-    );
+    final accountVisible = settings.isAccountVisibleInSchedule(list.accountId);
+    final visible =
+        accountVisible &&
+        settings.isTaskListVisibleInSchedule(list.accountId, list.id);
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
     final normalizedTitle = list.title.trim();
     final title = normalizedTitle.isEmpty
         ? context.l10n.sourceTaskList
@@ -1179,126 +1161,135 @@ class _TaskListScheduleRow extends ConsumerWidget {
     );
     return _CompactSourceRow(
       title: title,
-      leading: _SourceIcon(
-        icon: YaruIcons.task_list,
+      leading: ScheduleSidebarVisibilityIcon(
+        key: ValueKey(('task-list-visibility', list.accountId, list.id)),
         scope: taskListSyncScope(list.accountId, list.id),
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        label: title,
+        actionLabel: scheduleCollectionVisibilityAction(
+          context,
+          calendar: false,
+          accountVisible: accountVisible,
+          visible: visible,
+        ),
+        visible: visible,
+        color: color,
+        animate: ref.watch(gtkAnimationsEnabledProvider).valueOrNull != false,
+        buttonBuilder: _sidebarVisibilityButton,
+        warningIcon: YaruIcons.warning,
+        icon: Icon(YaruIcons.task_list, size: 16, color: color),
+        onPressed: accountVisible && !list.pendingDelete
+            ? () => unawaited(
+                ref
+                    .read(appSettingsControllerProvider.notifier)
+                    .setTaskListVisibleInSchedule(
+                      accountId: list.accountId,
+                      taskListId: list.id,
+                      visible: !visible,
+                    ),
+              )
+            : null,
       ),
-      trailing: _SourceRowActions(
-        visibilityButton: _SourceVisibilityButton(
-          value: visible,
-          semanticLabel: title,
-          onChanged: (value) {
-            ref
-                .read(appSettingsControllerProvider.notifier)
-                .setTaskListVisibleInSchedule(
-                  accountId: list.accountId,
-                  taskListId: list.id,
-                  visible: value,
-                );
-          },
-        ),
-        menuButton: BusyMaxMenuButton<String>(
-          key: ValueKey(('task-list-options', list.accountId, list.id)),
-          tooltip: context.l10n.options,
-          highlightWhenOpen: false,
-          onSelected: (value) {
-            switch (value) {
-              case 'move-up' || 'move-down':
-                _moveSidebarItem(
+      trailing: BusyMaxMenuButton<String>(
+        key: ValueKey(('task-list-options', list.accountId, list.id)),
+        tooltip: context.l10n.options,
+        highlightWhenOpen: false,
+        triggerBuilder: _sidebarOptionsTrigger,
+        onSelected: (value) {
+          switch (value) {
+            case 'move-up' || 'move-down':
+              _moveSidebarItem(
+                ref,
+                SidebarOrderSection.taskLists,
+                list.id,
+                value,
+                siblingIds,
+                accountId: account.id,
+              );
+            case 'refresh':
+              unawaited(
+                refreshFromLinux(
+                  context,
                   ref,
-                  SidebarOrderSection.taskLists,
-                  list.id,
-                  value,
-                  siblingIds,
-                  accountId: account.id,
-                );
-              case 'refresh':
-                unawaited(
-                  refreshFromLinux(
-                    context,
-                    ref,
-                    taskListSyncScope(list.accountId, list.id),
-                  ),
-                );
-              case 'open':
-                if (providerWebUri != null) {
-                  unawaited(_openProviderWeb(providerWebUri));
-                }
-              case 'toggle-reminders':
-                unawaited(_setTaskListRemindersEnabled(context, ref, list));
-              case 'rename':
-                if (canRename) unawaited(_renameTaskList(context, ref, list));
-              case 'collection-settings':
-                unawaited(
-                  showLinuxNextcloudCollectionDialog(
-                    context,
-                    accountId: list.accountId,
-                    collectionId: list.davCollectionId!,
-                  ),
-                );
-              case 'delete':
-                if (canDelete) unawaited(_deleteTaskList(context, ref, list));
-            }
-          },
-          entries: [
-            ..._movementEntries(context, list.id, siblingIds),
-            if (account.provider == BusyProvider.nextcloud &&
-                list.davCollectionId != null)
-              BusyMaxMenuEntry(
-                value: 'collection-settings',
-                label: context.l10n.nextcloudCollectionSettings,
-                icon: Icons.settings_outlined,
-              ),
+                  taskListSyncScope(list.accountId, list.id),
+                ),
+              );
+            case 'open':
+              if (providerWebUri != null) {
+                unawaited(_openProviderWeb(providerWebUri));
+              }
+            case 'toggle-reminders':
+              unawaited(_setTaskListRemindersEnabled(context, ref, list));
+            case 'rename':
+              if (canRename) unawaited(_renameTaskList(context, ref, list));
+            case 'collection-settings':
+              unawaited(
+                showLinuxNextcloudCollectionDialog(
+                  context,
+                  accountId: list.accountId,
+                  collectionId: list.davCollectionId!,
+                ),
+              );
+            case 'delete':
+              if (canDelete) unawaited(_deleteTaskList(context, ref, list));
+          }
+        },
+        entries: [
+          ..._movementEntries(context, list.id, siblingIds),
+          if (account.provider == BusyProvider.nextcloud &&
+              list.davCollectionId != null)
             BusyMaxMenuEntry(
-              value: 'refresh',
-              label: context.l10n.refreshList,
-              icon: YaruIcons.refresh,
-              enabled:
-                  account.isSyncEligible &&
-                  !ref
-                      .watch(accountSyncActivityProvider)
-                      .busy(taskListSyncScope(list.accountId, list.id)),
-              tooltip: account.needsReconnect
-                  ? accountReconnectRequiredSyncMessage
-                  : null,
+              value: 'collection-settings',
+              label: context.l10n.nextcloudCollectionSettings,
+              icon: Icons.settings_outlined,
             ),
-            if (providerWebUri != null)
-              BusyMaxMenuEntry(
-                value: 'open',
-                label: context.l10n.openInProvider,
-                icon: Icons.open_in_browser_outlined,
-              ),
+          BusyMaxMenuEntry(
+            value: 'refresh',
+            label: context.l10n.refreshList,
+            icon: YaruIcons.refresh,
+            enabled:
+                account.isSyncEligible &&
+                !ref
+                    .watch(accountSyncActivityProvider)
+                    .busy(taskListSyncScope(list.accountId, list.id)),
+            tooltip: account.needsReconnect
+                ? accountReconnectRequiredSyncMessage
+                : null,
+          ),
+          if (providerWebUri != null)
             BusyMaxMenuEntry(
-              value: 'toggle-reminders',
-              label:
-                  '${context.l10n.taskReminders} — '
-                  '${list.remindersEnabled ? context.l10n.onState : context.l10n.off}',
-              icon: list.remindersEnabled
-                  ? Icons.notifications_outlined
-                  : Icons.notifications_off_outlined,
+              value: 'open',
+              label: context.l10n.openInProvider,
+              icon: Icons.open_in_browser_outlined,
             ),
-            BusyMaxMenuEntry(
-              value: 'rename',
-              label: context.l10n.rename,
-              icon: Icons.edit_outlined,
-              enabled: canRename,
-              tooltip: renameRestriction,
-            ),
-            BusyMaxMenuEntry(
-              value: 'delete',
-              label:
-                  account.provider == BusyProvider.nextcloud &&
-                      list.isShared == true
-                  ? context.l10n.unshare
-                  : context.l10n.delete,
-              icon: YaruIcons.trash,
-              enabled: canDelete,
-              tooltip: deleteRestriction,
-              destructive: true,
-            ),
-          ],
-        ),
+          BusyMaxMenuEntry(
+            value: 'toggle-reminders',
+            label:
+                '${context.l10n.taskReminders} — '
+                '${list.remindersEnabled ? context.l10n.onState : context.l10n.off}',
+            icon: list.remindersEnabled
+                ? Icons.notifications_outlined
+                : Icons.notifications_off_outlined,
+          ),
+          BusyMaxMenuEntry(
+            value: 'rename',
+            label: context.l10n.rename,
+            icon: Icons.edit_outlined,
+            enabled: canRename,
+            tooltip: renameRestriction,
+          ),
+          BusyMaxMenuEntry(
+            value: 'delete',
+            label:
+                account.provider == BusyProvider.nextcloud &&
+                    list.isShared == true
+                ? context.l10n.unshare
+                : context.l10n.delete,
+            icon: YaruIcons.trash,
+            enabled: canDelete,
+            tooltip: deleteRestriction,
+            destructive: true,
+          ),
+        ],
       ),
     );
   }
@@ -1383,6 +1374,7 @@ String? _calendarDeleteRestriction(
 
 enum AccountHeaderCollectionAction {
   refresh,
+  settings,
   trash,
   newCalendar,
   newTaskList,
@@ -1435,8 +1427,10 @@ final class _AccountHeaderCollectionAction {
   const _AccountHeaderCollectionAction({
     required this.action,
     required this.enabled,
+    this.separatorBefore = false,
   });
 
+  final bool separatorBefore;
   final AccountHeaderCollectionAction action;
   final bool enabled;
 }

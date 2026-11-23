@@ -522,6 +522,43 @@ class AppLocalizationsEt extends AppLocalizations {
   String get options => 'Valikud';
 
   @override
+  String get showScheduleCalendar => 'Kuva kalender';
+
+  @override
+  String get hideScheduleCalendar => 'Peida kalender';
+
+  @override
+  String get showScheduleTaskList => 'Kuva ülesannete loend';
+
+  @override
+  String get hideScheduleTaskList => 'Peida ülesannete loend';
+
+  @override
+  String get showScheduleAccount => 'Kuva konto';
+
+  @override
+  String get hideScheduleAccount => 'Peida konto';
+
+  @override
+  String get someAccountSourcesVisible => 'Mõned kogud on nähtavad';
+
+  @override
+  String get noAccountSourcesVisible => 'Kõik kogud on eraldi peidetud';
+
+  @override
+  String get accountHiddenInSchedule => 'Konto on ajakavas peidetud';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Kogude nähtavuse muutmiseks kuva konto';
+
+  @override
+  String get scheduleAccountSettings => 'Konto seaded';
+
+  @override
+  String get scheduleAccountUnavailable => 'Konto pole saadaval';
+
+  @override
   String get hide => 'Peida';
 
   @override
@@ -1470,15 +1507,7 @@ class AppLocalizationsEt extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Sündmuste kaetus';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Selle ajavahemiku sündmusi kontrollitakse või pole veel kontrollitud.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Selle ajavahemiku sündmused on kontrollitud.';
+  String get scheduleCoverageWarning => 'Mõned sündmused võivad puududa.';
 
   @override
   String get listRefreshed => 'Loend on värskendatud.';

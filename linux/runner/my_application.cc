@@ -1495,6 +1495,7 @@ static void show_native_menu(NativeMenuHandlerData* data,
   size_t radio_entry_count = 0;
   size_t selected_radio_entry_count = 0;
   gboolean has_disabled_radio_entry = FALSE;
+  gboolean has_sections = FALSE;
   for (size_t index = 0; index < fl_value_get_length(entries); index++) {
     FlValue* entry = fl_value_get_list_value(entries, index);
     const gchar* label = fl_lookup_string_arg(entry, "label");
@@ -1503,6 +1504,7 @@ static void show_native_menu(NativeMenuHandlerData* data,
     const gchar* role = fl_lookup_string_arg(entry, "role");
     gboolean enabled = TRUE;
     gboolean selected = FALSE;
+    gboolean separator_before = FALSE;
     if (label == nullptr ||
         (icon != nullptr && fl_value_get_type(icon) != FL_VALUE_TYPE_STRING) ||
         (shortcut != nullptr &&
@@ -1510,14 +1512,17 @@ static void show_native_menu(NativeMenuHandlerData* data,
         (role != nullptr && g_strcmp0(role, "command") != 0 &&
          g_strcmp0(role, "radio") != 0 && g_strcmp0(role, "toggle") != 0) ||
         !fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled) ||
+        !fl_lookup_optional_bool_arg(entry, "separatorBefore", FALSE,
+                                     &separator_before) ||
         !fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected)) {
       respond_native_menu_argument_error(
           method_call,
           "each entry must contain a label, optional string icon and shortcut, "
-          "a command, radio, or toggle role, and optional boolean enabled and "
-          "selected values.");
+          "a command, radio, or toggle role, and optional boolean enabled, "
+          "selected, and separatorBefore values.");
       return;
     }
+    has_sections |= index > 0 && separator_before;
     const gboolean is_radio = g_strcmp0(role, "radio") == 0;
     const gboolean is_toggle = g_strcmp0(role, "toggle") == 0;
     if (selected && !is_radio && !is_toggle) {
@@ -1581,6 +1586,7 @@ static void show_native_menu(NativeMenuHandlerData* data,
         g_strdup_printf("%s.select", kNativeMenuActionNamespace);
   }
 
+  g_autoptr(GMenu) section = has_sections ? g_menu_new() : nullptr;
   for (size_t index = 0; index < fl_value_get_length(entries); index++) {
     FlValue* entry = fl_value_get_list_value(entries, index);
     const gchar* label = fl_lookup_string_arg(entry, "label");
@@ -1589,8 +1595,16 @@ static void show_native_menu(NativeMenuHandlerData* data,
     const gchar* role = fl_lookup_string_arg(entry, "role");
     gboolean enabled = TRUE;
     gboolean selected = FALSE;
+    gboolean separator_before = FALSE;
     fl_lookup_optional_bool_arg(entry, "enabled", TRUE, &enabled);
     fl_lookup_optional_bool_arg(entry, "selected", FALSE, &selected);
+    fl_lookup_optional_bool_arg(entry, "separatorBefore", FALSE,
+                                &separator_before);
+    if (section != nullptr && index > 0 && separator_before) {
+      g_menu_append_section(session->model, nullptr, G_MENU_MODEL(section));
+      g_clear_object(&section);
+      section = g_menu_new();
+    }
 
     g_autoptr(GMenuItem) item = g_menu_item_new(label, nullptr);
     if (g_strcmp0(role, "radio") == 0) {
@@ -1617,13 +1631,25 @@ static void show_native_menu(NativeMenuHandlerData* data,
       g_object_unref(action);
     }
     if (icon_name != nullptr && icon_name[0] != '\0') {
-      g_autoptr(GIcon) icon = g_themed_icon_new(icon_name);
+      g_autoptr(GIcon) icon = nullptr;
+      if (g_str_equal(icon_name, "busymax-task-list-add-symbolic")) {
+        // GTK themes use a bare plus for list-add-symbolic.
+        g_autoptr(GIcon) list = g_themed_icon_new("view-list-bullet-symbolic");
+        g_autoptr(GIcon) plus = g_themed_icon_new("list-add-symbolic");
+        g_autoptr(GEmblem) emblem = g_emblem_new(plus);
+        icon = g_emblemed_icon_new(list, emblem);
+      } else {
+        icon = g_themed_icon_new(icon_name);
+      }
       g_menu_item_set_icon(item, icon);
     }
     if (shortcut != nullptr && shortcut[0] != '\0') {
       set_menu_item_accelerator(item, shortcut);
     }
-    g_menu_append_item(session->model, item);
+    g_menu_append_item(section != nullptr ? section : session->model, item);
+  }
+  if (section != nullptr) {
+    g_menu_append_section(session->model, nullptr, G_MENU_MODEL(section));
   }
   if (selection_action != nullptr) {
     g_object_unref(selection_action);

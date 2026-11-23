@@ -4,7 +4,6 @@ import '../../l10n/l10n.dart';
 
 Future<void> showScheduleCoverage(
   BuildContext context,
-  bool? complete,
   Future<void> Function() retry, {
   VoidCallback? openSettings,
 }) async {
@@ -12,18 +11,14 @@ Future<void> showScheduleCoverage(
   final requested = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: Text(l10n.scheduleCoverageStatus),
-      content: Text(switch (complete) {
-        null => l10n.scheduleCoveragePending,
-        false => l10n.scheduleRangeIncomplete,
-        true => l10n.scheduleCoverageVerified,
-      }),
+      title: Text(l10n.scheduleCoverageWarning),
+      content: Text(l10n.scheduleRangeIncomplete),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext),
           child: Text(l10n.close),
         ),
-        if (complete == false && openSettings != null)
+        if (openSettings != null)
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
@@ -31,11 +26,10 @@ Future<void> showScheduleCoverage(
             },
             child: Text(l10n.settings),
           ),
-        if (complete != true)
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.retry),
-          ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: Text(l10n.retry),
+        ),
       ],
     ),
   );

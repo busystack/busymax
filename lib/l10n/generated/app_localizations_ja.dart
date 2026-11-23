@@ -501,6 +501,42 @@ class AppLocalizationsJa extends AppLocalizations {
   String get options => 'オプション';
 
   @override
+  String get showScheduleCalendar => 'カレンダーを表示';
+
+  @override
+  String get hideScheduleCalendar => 'カレンダーを非表示';
+
+  @override
+  String get showScheduleTaskList => 'タスクリストを表示';
+
+  @override
+  String get hideScheduleTaskList => 'タスクリストを非表示';
+
+  @override
+  String get showScheduleAccount => 'アカウントを表示';
+
+  @override
+  String get hideScheduleAccount => 'アカウントを非表示';
+
+  @override
+  String get someAccountSourcesVisible => '一部のコレクションが表示されています';
+
+  @override
+  String get noAccountSourcesVisible => 'すべてのコレクションが個別に非表示です';
+
+  @override
+  String get accountHiddenInSchedule => 'アカウントはスケジュールで非表示です';
+
+  @override
+  String get showAccountToChangeVisibility => 'コレクションの表示を切り替えるにはアカウントを表示してください';
+
+  @override
+  String get scheduleAccountSettings => 'アカウント設定';
+
+  @override
+  String get scheduleAccountUnavailable => 'アカウントを利用できません';
+
+  @override
   String get hide => '非表示';
 
   @override
@@ -1444,13 +1480,7 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => '予定の確認状況';
-
-  @override
-  String get scheduleCoveragePending => 'この期間の予定を確認中か、まだ確認していません。';
-
-  @override
-  String get scheduleCoverageVerified => 'この期間の予定を確認しました。';
+  String get scheduleCoverageWarning => '一部の予定が表示されていない可能性があります。';
 
   @override
   String get listRefreshed => 'リストを更新しました。';

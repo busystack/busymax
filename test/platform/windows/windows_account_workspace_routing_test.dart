@@ -15,6 +15,7 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/windows/windows_busymax_app.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:busymax/src/ui/windows/windows_schedule_day_week_view.dart';
@@ -35,6 +36,53 @@ void main() {
   setUpAll(() async {
     reader = await buildNativeRegistrationReader();
   });
+
+  testWidgets(
+    'Schedule account settings reveals and focuses the requested account',
+    (tester) async {
+      await _pumpRoutedApp(
+        tester,
+        seedDatabase: (database) async {
+          final repository = AccountsRepository(database: database);
+          for (final (id, name) in [
+            ('first', 'First account'),
+            ('requested', 'Requested account'),
+          ]) {
+            await repository.upsertSignedInAccount(
+              id: id,
+              provider: BusyProvider.google,
+              providerAccountId: id,
+              grantedScopes: 'calendar tasks',
+              displayName: name,
+            );
+          }
+        },
+      );
+      final row = find.byKey(const ValueKey(('schedule-account', 'requested')));
+      final options = find.descendant(
+        of: row,
+        matching: find.byType(DropDownButton),
+      );
+      await tester.ensureVisible(options);
+      await tester.tap(options);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Account settings'));
+      await tester.pumpAndSettle();
+      expect(
+        windowsAppRouter.state.uri.queryParameters['accountDetail'],
+        'requested',
+      );
+      expect(find.text('Requested account').hitTestable(), findsOneWidget);
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel,
+        'Requested account options',
+      );
+      await tester.tap(find.byKey(const ValueKey('windows-settings-back')));
+      await tester.pumpAndSettle();
+      expect(row, findsOneWidget);
+    },
+  );
+
   for (final choice in [
     (BusyProvider.google, DesktopConnectionMethod.busyMax),
     (BusyProvider.google, DesktopConnectionMethod.googleWorkspace),
@@ -544,6 +592,7 @@ Future<ProviderContainer> _pumpRoutedApp(
   String initialLocation = '/',
   bool withSubscription = false,
   DesktopConnectionFixture? connections,
+  Future<void> Function(AppDatabase)? seedDatabase,
 }) async {
   final database = connections?.database ?? AppDatabase.memoryForTests();
   final secrets = connections?.secrets ?? InMemorySecretStore();
@@ -559,6 +608,9 @@ Future<ProviderContainer> _pumpRoutedApp(
         localName: 'Last subscription',
       ),
     );
+  }
+  if (seedDatabase != null) {
+    await tester.runAsync(() => seedDatabase(database));
   }
   addTearDown(database.close);
   tester.view

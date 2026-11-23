@@ -410,8 +410,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     final coverageRange = _searchActive
         ? searchCriteria?.range ?? range
         : range;
-    final coverageFilters = _searchActive && searchCriteria != null
-        ? searchCriteria.filters(searchQuery)
+    final effectiveSearch = searchCriteria == null
+        ? null
+        : visibility.maskSearch(searchCriteria);
+    final coverageFilters = _searchActive && effectiveSearch != null
+        ? effectiveSearch.filters(searchQuery)
         : ScheduleFilters(
             accountIds: {for (final account in accounts) account.id},
             sourceIds: visibility.visibleCalendarSourceIds,
@@ -424,15 +427,16 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             filters: coverageFilters,
           )
         : true;
-    final presentation = _searchActive && searchCriteria != null
+    final presentation = _searchActive && effectiveSearch != null
         ? _buildSearchPresentation(
             future: _searchItemsFor(
               range: range,
               accounts: accounts,
-              criteria: searchCriteria,
+              criteria: effectiveSearch,
               query: searchQuery,
             ),
-            criteria: searchCriteria,
+            criteria: effectiveSearch,
+            hiddenAccountIds: visibility.hiddenAccountIds,
             query: searchQuery,
             locale: locale,
             mutationIntent: presentationMutationIntent,
@@ -447,6 +451,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               agendaTaskLimit: _agendaTaskLimit,
             ),
             mode: presentationMode,
+            hiddenAccountIds: visibility.hiddenAccountIds,
             selectedDate: presentationDate,
             firstWeekday: presentationFirstWeekday,
             range: range,
@@ -471,11 +476,14 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 accountInventoryResolved: _accountInventoryResolved,
                 calendarSources: sources,
                 taskLists: taskLists,
-                visibleCalendarSourceIds: visibility.visibleCalendarSourceIds,
-                visibleTaskListKeys: visibility.visibleTaskListKeys,
+                selectedCalendarSourceIds: {
+                  for (final source in sources)
+                    if (source.selected) source.id,
+                },
                 onDateSelected: _openDay,
                 onCalendarVisibilityChanged: _setCalendarVisible,
                 onTaskListVisibilityChanged: _setTaskListVisible,
+                onAccountSettings: _openAccountSettings,
                 onAddAccount: () =>
                     unawaited(context.push<void>('/settings?page=accounts')),
                 onSourcesChanged: _reload,
@@ -495,7 +503,6 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                     accounts: accounts,
                     sources: sources,
                     taskLists: taskLists,
-                    visibility: visibility,
                   ),
                 );
               }
@@ -559,136 +566,134 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             autofocus: true,
             child: ScaffoldPage(
               header: PageHeader(
-                title: Text(_periodTitle(l10n, locale, range)),
-                commandBar: Row(
-                  mainAxisSize: MainAxisSize.min,
+                title: Row(
                   children: [
-                    Tooltip(
-                      message: l10n.scheduleCoverageStatus,
-                      child: IconButton(
-                        key: const ValueKey('schedule-coverage-status'),
-                        icon: Icon(switch (coverageComplete) {
-                          false => FluentIcons.warning,
-                          null => FluentIcons.more,
-                          true => windowsBusyMaxGlyph(BusyMaxGlyph.calendar),
-                        }),
-                        onPressed: () => unawaited(
-                          _showCoverage(
-                            coverageComplete,
-                            () => repository.retryCloudCoverage(
-                              coverageRange,
-                              coverageFilters,
+                    Flexible(
+                      child: Text(
+                        _periodTitle(l10n, locale, range),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (coverageComplete == false)
+                      Tooltip(
+                        message: l10n.scheduleCoverageWarning,
+                        excludeFromSemantics: true,
+                        child: IconButton(
+                          key: const ValueKey('schedule-coverage-warning'),
+                          icon: Icon(
+                            FluentIcons.warning,
+                            size: 16,
+                            semanticLabel: l10n.scheduleCoverageWarning,
+                          ),
+                          onPressed: () => unawaited(
+                            _showCoverage(
+                              () => repository.retryCloudCoverage(
+                                coverageRange,
+                                coverageFilters,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: CommandBar(
-                        compactBreakpointWidth: BusyMaxBreakpoints.compact,
-                        primaryItems: [
-                          if (!showSourcePane)
-                            CommandBarButton(
-                              icon: Icon(
-                                windowsBusyMaxGlyph(BusyMaxGlyph.more),
-                              ),
-                              label: Text(
-                                _searchActive
-                                    ? l10n.searchFiltersAction
-                                    : l10n.showSidebar,
-                              ),
-                              onPressed: () {
-                                if (canShowSourcePane) {
-                                  setState(() {
-                                    _sourcePaneCollapsed = false;
-                                    _sourcePaneTransitionGeneration += 1;
-                                  });
-                                } else {
-                                  unawaited(
-                                    _showSourcesDialog(
-                                      accounts: accounts,
-                                      sources: sources,
-                                      taskLists: taskLists,
-                                      visibility: visibility,
-                                    ),
-                                  );
-                                }
-                              },
-                            ),
-                          if (!_searchActive)
-                            CommandBarButton(
-                              icon: Icon(
-                                windowsBusyMaxGlyph(BusyMaxGlyph.today),
-                              ),
-                              label: Text(l10n.today),
-                              onPressed: () => _selectDate(DateTime.now()),
-                            ),
-                          if (!_searchActive &&
-                              _mode != ScheduleViewMode.agenda) ...[
-                            CommandBarButton(
-                              icon: Icon(
-                                windowsBusyMaxGlyph(BusyMaxGlyph.previous),
-                              ),
-                              tooltip: l10n.shortcutPreviousPeriodDescription,
-                              onPressed: () => _movePeriod(-1),
-                            ),
-                            CommandBarButton(
-                              icon: Icon(
-                                windowsBusyMaxGlyph(BusyMaxGlyph.next),
-                              ),
-                              tooltip: l10n.shortcutNextPeriodDescription,
-                              onPressed: () => _movePeriod(1),
-                            ),
-                          ],
-                          CommandBarButton(
-                            icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
-                            label: Text(l10n.newEvent),
-                            key: const ValueKey('windows-new-event'),
-                            onPressed: _creationCalendar == null
-                                ? null
-                                : () => unawaited(_createEvent()),
-                          ),
-                        ],
-                        secondaryItems: [
-                          CommandBarButton(
-                            icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
-                            label: Text(l10n.newTask),
-                            onPressed: _creationTaskList == null
-                                ? null
-                                : () => unawaited(_createTask()),
-                          ),
-                          CommandBarButton(
-                            icon: SyncActivityIcon(
-                              scope: allSyncScope,
-                              refresh: Icon(
-                                windowsBusyMaxGlyph(BusyMaxGlyph.refresh),
-                              ),
-                              warning: const Icon(FluentIcons.warning),
-                              child: Icon(
-                                windowsBusyMaxGlyph(BusyMaxGlyph.refresh),
-                              ),
-                            ),
-                            label: Text(l10n.refreshAll),
-                            onPressed: () => unawaited(
-                              refreshWindowsScope(context, ref, allSyncScope),
-                            ),
-                          ),
-                          CommandBarButton(
-                            icon: Icon(
-                              windowsBusyMaxGlyph(BusyMaxGlyph.calendar),
-                            ),
-                            label: Text(l10n.importIcsFile),
-                            onPressed: () => unawaited(
-                              showWindowsIcsImportFlow(
-                                context,
-                                ref,
-                              ).then((_) => _reload()),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
+                ),
+                commandBar: SizedBox(
+                  width: double.infinity,
+                  child: CommandBar(
+                    compactBreakpointWidth: BusyMaxBreakpoints.compact,
+                    primaryItems: [
+                      if (!showSourcePane)
+                        CommandBarButton(
+                          icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
+                          label: Text(
+                            _searchActive
+                                ? l10n.searchFiltersAction
+                                : l10n.showSidebar,
+                          ),
+                          onPressed: () {
+                            if (canShowSourcePane) {
+                              setState(() {
+                                _sourcePaneCollapsed = false;
+                                _sourcePaneTransitionGeneration += 1;
+                              });
+                            } else {
+                              unawaited(
+                                _showSourcesDialog(
+                                  accounts: accounts,
+                                  sources: sources,
+                                  taskLists: taskLists,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      if (!_searchActive)
+                        CommandBarButton(
+                          icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.today)),
+                          label: Text(l10n.today),
+                          onPressed: () => _selectDate(DateTime.now()),
+                        ),
+                      if (!_searchActive &&
+                          _mode != ScheduleViewMode.agenda) ...[
+                        CommandBarButton(
+                          icon: Icon(
+                            windowsBusyMaxGlyph(BusyMaxGlyph.previous),
+                          ),
+                          tooltip: l10n.shortcutPreviousPeriodDescription,
+                          onPressed: () => _movePeriod(-1),
+                        ),
+                        CommandBarButton(
+                          icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.next)),
+                          tooltip: l10n.shortcutNextPeriodDescription,
+                          onPressed: () => _movePeriod(1),
+                        ),
+                      ],
+                      CommandBarButton(
+                        icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                        label: Text(l10n.newEvent),
+                        key: const ValueKey('windows-new-event'),
+                        onPressed: _creationCalendar == null
+                            ? null
+                            : () => unawaited(_createEvent()),
+                      ),
+                    ],
+                    secondaryItems: [
+                      CommandBarButton(
+                        icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
+                        label: Text(l10n.newTask),
+                        onPressed: _creationTaskList == null
+                            ? null
+                            : () => unawaited(_createTask()),
+                      ),
+                      CommandBarButton(
+                        icon: SyncActivityIcon(
+                          scope: allSyncScope,
+                          refresh: Icon(
+                            windowsBusyMaxGlyph(BusyMaxGlyph.refresh),
+                          ),
+                          warning: const Icon(FluentIcons.warning),
+                          child: Icon(
+                            windowsBusyMaxGlyph(BusyMaxGlyph.refresh),
+                          ),
+                        ),
+                        label: Text(l10n.refreshAll),
+                        onPressed: () => unawaited(
+                          refreshWindowsScope(context, ref, allSyncScope),
+                        ),
+                      ),
+                      CommandBarButton(
+                        icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
+                        label: Text(l10n.importIcsFile),
+                        onPressed: () => unawaited(
+                          showWindowsIcsImportFlow(
+                            context,
+                            ref,
+                          ).then((_) => _reload()),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               content: Row(
@@ -803,27 +808,20 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     );
   }
 
-  Future<void> _showCoverage(
-    bool? complete,
-    Future<void> Function() retry,
-  ) async {
+  Future<void> _showCoverage(Future<void> Function() retry) async {
     final l10n = AppLocalizations.of(context);
     final router = GoRouter.maybeOf(context);
     final requested = await showDialog<bool>(
       context: context,
       builder: (context) => ContentDialog(
-        title: Text(l10n.scheduleCoverageStatus),
-        content: Text(switch (complete) {
-          null => l10n.scheduleCoveragePending,
-          false => l10n.scheduleRangeIncomplete,
-          true => l10n.scheduleCoverageVerified,
-        }),
+        title: Text(l10n.scheduleCoverageWarning),
+        content: Text(l10n.scheduleRangeIncomplete),
         actions: [
           Button(
             onPressed: () => Navigator.pop(context),
             child: Text(l10n.close),
           ),
-          if (complete == false && router != null)
+          if (router != null)
             Button(
               onPressed: () {
                 Navigator.pop(context);
@@ -831,11 +829,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               },
               child: Text(l10n.settings),
             ),
-          if (complete != true)
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(l10n.retry),
-            ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.retry),
+          ),
         ],
       ),
     );
@@ -848,6 +845,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required String query,
     required String locale,
     required bool? coverageComplete,
+    required Set<String> hiddenAccountIds,
     required TaskListMutationIntent? mutationIntent,
   }) => FutureBuilder<List<ScheduleItem>>(
     key: const ValueKey('windows-search-presentation'),
@@ -865,7 +863,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           Expanded(
             child: _AgendaList(
               key: const ValueKey('windows-search-results'),
-              items: snapshot.data ?? const [],
+              items: [
+                for (final item in snapshot.data ?? const <ScheduleItem>[])
+                  if (!hiddenAccountIds.contains(item.accountId)) item,
+              ],
               locale: locale,
               onOpen: _showItemDetails,
               searchCriteria: criteria,
@@ -894,6 +895,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required String locale,
     required List<CalendarSourceEntity> sources,
     required bool? coverageComplete,
+    required Set<String> hiddenAccountIds,
     required ScheduleNavigationIntent? navigationIntent,
     required TaskListMutationIntent? mutationIntent,
   }) => FutureBuilder<List<ScheduleItem>>(
@@ -917,7 +919,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 mode: mode,
                 selectedDate: selectedDate,
                 range: range,
-                items: snapshot.data ?? const [],
+                items: [
+                  for (final item in snapshot.data ?? const <ScheduleItem>[])
+                    if (!hiddenAccountIds.contains(item.accountId)) item,
+                ],
                 coverageComplete: coverageComplete,
                 locale: locale,
                 onOpen: _showItemDetails,
@@ -1225,9 +1230,13 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     int? firstWeekday,
   }) {
     final currentFirstWeekday = firstWeekday ?? _firstWeekday;
+    final settings = ref.read(appSettingsControllerProvider);
     return WindowsScheduleSearchPane(
       value: _searchCriteria!.copyWith(firstWeekday: currentFirstWeekday),
-      accounts: accounts,
+      accounts: [
+        for (final account in accounts)
+          if (settings.isAccountVisibleInSchedule(account.id)) account,
+      ],
       sources: sources,
       taskLists: taskLists,
       onChanged: (value) {
@@ -1517,11 +1526,19 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     );
   }
 
+  void _openAccountSettings(String accountId) => unawaited(
+    context.push<void>(
+      Uri(
+        path: '/settings',
+        queryParameters: {'page': 'accounts', 'accountDetail': accountId},
+      ).toString(),
+    ),
+  );
+
   Future<void> _showSourcesDialog({
     required List<AccountEntity> accounts,
     required List<CalendarSourceEntity> sources,
     required List<TaskListEntity> taskLists,
-    required ScheduleSourceVisibility visibility,
   }) {
     if (_searchActive && _searchCriteria != null) {
       return showDialog<void>(
@@ -1555,8 +1572,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         ),
       );
     }
-    final visibleCalendars = {...visibility.visibleCalendarSourceIds};
-    final visibleTaskLists = {...visibility.visibleTaskListKeys};
+    final selectedCalendars = {
+      for (final source in sources)
+        if (source.selected) source.id,
+    };
     return showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -1572,8 +1591,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               accountInventoryResolved: _accountInventoryResolved,
               calendarSources: sources,
               taskLists: taskLists,
-              visibleCalendarSourceIds: visibleCalendars,
-              visibleTaskListKeys: visibleTaskLists,
+              selectedCalendarSourceIds: selectedCalendars,
               onDateSelected: (date) {
                 Navigator.pop(dialogContext);
                 _openDay(date);
@@ -1581,26 +1599,17 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               onCalendarVisibilityChanged: (source, visible) {
                 setDialogState(() {
                   if (visible) {
-                    visibleCalendars.add(source.id);
+                    selectedCalendars.add(source.id);
                   } else {
-                    visibleCalendars.remove(source.id);
+                    selectedCalendars.remove(source.id);
                   }
                 });
                 _setCalendarVisible(source, visible);
               },
-              onTaskListVisibilityChanged: (list, visible) {
-                final key = ScheduleTaskListKey(
-                  accountId: list.accountId,
-                  taskListId: list.id,
-                );
-                setDialogState(() {
-                  if (visible) {
-                    visibleTaskLists.add(key);
-                  } else {
-                    visibleTaskLists.remove(key);
-                  }
-                });
-                _setTaskListVisible(list, visible);
+              onTaskListVisibilityChanged: _setTaskListVisible,
+              onAccountSettings: (accountId) {
+                Navigator.pop(dialogContext);
+                _openAccountSettings(accountId);
               },
               onAddAccount: () {
                 Navigator.pop(dialogContext);

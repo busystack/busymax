@@ -17,6 +17,8 @@ abstract final class BusyMaxDimensions {
   static const double navigationCompactWidth = 48;
   static const double navigationOpenWidth = 240;
   static const double sourcePaneWidth = 264;
+  static const double sidebarActionWidth = 32;
+  static const double sidebarRowInset = 2;
   static const double editorWidth = 440;
   static const double contentMaximumWidth = 1120;
 }

@@ -66,8 +66,10 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(requests, isEmpty);
-        final coverage = find.byKey(const ValueKey('schedule-coverage-status'));
-        final location = tester.getRect(coverage);
+        final coverage = find.byKey(
+          const ValueKey('schedule-coverage-warning'),
+        );
+        expect(coverage, findsNothing);
         if (linux) {
           await tester.tap(
             find.byKey(const ValueKey('schedule-refresh-button')),
@@ -82,7 +84,7 @@ void main() {
         expect(requests.single.strategy, SyncStrategy.ordinary);
         release.complete();
         await tester.pumpAndSettle();
-        expect(tester.getRect(coverage), location);
+        expect(coverage, findsNothing);
         expect(find.byType(material.SnackBar), findsNothing);
         expect(find.text('All accounts refreshed'), findsNothing);
         await tester.pumpWidget(const SizedBox.shrink());

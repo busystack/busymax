@@ -481,6 +481,42 @@ class AppLocalizationsZh extends AppLocalizations {
   String get options => '选项';
 
   @override
+  String get showScheduleCalendar => '显示日历';
+
+  @override
+  String get hideScheduleCalendar => '隐藏日历';
+
+  @override
+  String get showScheduleTaskList => '显示任务列表';
+
+  @override
+  String get hideScheduleTaskList => '隐藏任务列表';
+
+  @override
+  String get showScheduleAccount => '显示账户';
+
+  @override
+  String get hideScheduleAccount => '隐藏账户';
+
+  @override
+  String get someAccountSourcesVisible => '部分集合可见';
+
+  @override
+  String get noAccountSourcesVisible => '所有集合均已单独隐藏';
+
+  @override
+  String get accountHiddenInSchedule => '账户已从日程中隐藏';
+
+  @override
+  String get showAccountToChangeVisibility => '显示账户后即可更改集合的可见性';
+
+  @override
+  String get scheduleAccountSettings => '账户设置';
+
+  @override
+  String get scheduleAccountUnavailable => '账户不可用';
+
+  @override
   String get hide => '隐藏';
 
   @override
@@ -1415,13 +1451,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => '日程检查状态';
-
-  @override
-  String get scheduleCoveragePending => '正在检查此范围内的日程，或尚未验证。';
-
-  @override
-  String get scheduleCoverageVerified => '已检查此范围内的日程。';
+  String get scheduleCoverageWarning => '部分日程可能未显示。';
 
   @override
   String get listRefreshed => '列表已刷新。';
@@ -4345,6 +4375,42 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get options => '选项';
 
   @override
+  String get showScheduleCalendar => '显示日历';
+
+  @override
+  String get hideScheduleCalendar => '隐藏日历';
+
+  @override
+  String get showScheduleTaskList => '显示任务列表';
+
+  @override
+  String get hideScheduleTaskList => '隐藏任务列表';
+
+  @override
+  String get showScheduleAccount => '显示账户';
+
+  @override
+  String get hideScheduleAccount => '隐藏账户';
+
+  @override
+  String get someAccountSourcesVisible => '部分集合可见';
+
+  @override
+  String get noAccountSourcesVisible => '所有集合均已单独隐藏';
+
+  @override
+  String get accountHiddenInSchedule => '账户已从日程中隐藏';
+
+  @override
+  String get showAccountToChangeVisibility => '显示账户后即可更改集合的可见性';
+
+  @override
+  String get scheduleAccountSettings => '账户设置';
+
+  @override
+  String get scheduleAccountUnavailable => '账户不可用';
+
+  @override
   String get hide => '隐藏';
 
   @override
@@ -5279,13 +5345,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get scheduleCoverageStatus => '日程检查状态';
-
-  @override
-  String get scheduleCoveragePending => '正在检查此范围内的日程，或尚未验证。';
-
-  @override
-  String get scheduleCoverageVerified => '已检查此范围内的日程。';
+  String get scheduleCoverageWarning => '部分日程可能未显示。';
 
   @override
   String get listRefreshed => '列表已刷新。';
@@ -8209,6 +8269,42 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get options => '選項';
 
   @override
+  String get showScheduleCalendar => '顯示行事曆';
+
+  @override
+  String get hideScheduleCalendar => '隱藏行事曆';
+
+  @override
+  String get showScheduleTaskList => '顯示工作清單';
+
+  @override
+  String get hideScheduleTaskList => '隱藏工作清單';
+
+  @override
+  String get showScheduleAccount => '顯示帳戶';
+
+  @override
+  String get hideScheduleAccount => '隱藏帳戶';
+
+  @override
+  String get someAccountSourcesVisible => '部分集合可見';
+
+  @override
+  String get noAccountSourcesVisible => '所有集合均已個別隱藏';
+
+  @override
+  String get accountHiddenInSchedule => '帳戶已從排程中隱藏';
+
+  @override
+  String get showAccountToChangeVisibility => '顯示帳戶後即可變更集合的可見性';
+
+  @override
+  String get scheduleAccountSettings => '帳戶設定';
+
+  @override
+  String get scheduleAccountUnavailable => '帳戶無法使用';
+
+  @override
   String get hide => '隱藏';
 
   @override
@@ -9143,13 +9239,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get scheduleCoverageStatus => '行程檢查狀態';
-
-  @override
-  String get scheduleCoveragePending => '正在檢查此範圍內的行程，或尚未驗證。';
-
-  @override
-  String get scheduleCoverageVerified => '已檢查此範圍內的行程。';
+  String get scheduleCoverageWarning => '部分行程可能未顯示。';
 
   @override
   String get listRefreshed => '清單已重新整理。';

@@ -523,6 +523,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String get options => 'Options';
 
   @override
+  String get showScheduleCalendar => 'Show calendar';
+
+  @override
+  String get hideScheduleCalendar => 'Hide calendar';
+
+  @override
+  String get showScheduleTaskList => 'Show task list';
+
+  @override
+  String get hideScheduleTaskList => 'Hide task list';
+
+  @override
+  String get showScheduleAccount => 'Show account';
+
+  @override
+  String get hideScheduleAccount => 'Hide account';
+
+  @override
+  String get someAccountSourcesVisible => 'Some collections are visible';
+
+  @override
+  String get noAccountSourcesVisible =>
+      'All collections are individually hidden';
+
+  @override
+  String get accountHiddenInSchedule => 'Account hidden from Schedule';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Show the account to change collection visibility';
+
+  @override
+  String get scheduleAccountSettings => 'Account settings';
+
+  @override
+  String get scheduleAccountUnavailable => 'Account unavailable';
+
+  @override
   String get hide => 'Hide';
 
   @override
@@ -1505,15 +1543,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Event coverage';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Events in this range are being checked or have yet to be verified.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Events in this range have been checked.';
+  String get scheduleCoverageWarning => 'Some events may be missing.';
 
   @override
   String get listRefreshed => 'List refreshed.';

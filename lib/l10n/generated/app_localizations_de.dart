@@ -527,6 +527,44 @@ class AppLocalizationsDe extends AppLocalizations {
   String get options => 'Optionen';
 
   @override
+  String get showScheduleCalendar => 'Kalender einblenden';
+
+  @override
+  String get hideScheduleCalendar => 'Kalender ausblenden';
+
+  @override
+  String get showScheduleTaskList => 'Aufgabenliste einblenden';
+
+  @override
+  String get hideScheduleTaskList => 'Aufgabenliste ausblenden';
+
+  @override
+  String get showScheduleAccount => 'Konto einblenden';
+
+  @override
+  String get hideScheduleAccount => 'Konto ausblenden';
+
+  @override
+  String get someAccountSourcesVisible => 'Einige Sammlungen sind eingeblendet';
+
+  @override
+  String get noAccountSourcesVisible =>
+      'Alle Sammlungen sind einzeln ausgeblendet';
+
+  @override
+  String get accountHiddenInSchedule => 'Konto im Zeitplan ausgeblendet';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Konto einblenden, um die Sichtbarkeit von Sammlungen zu ändern';
+
+  @override
+  String get scheduleAccountSettings => 'Kontoeinstellungen';
+
+  @override
+  String get scheduleAccountUnavailable => 'Konto nicht verfügbar';
+
+  @override
   String get hide => 'Ausblenden';
 
   @override
@@ -1483,15 +1521,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Terminabdeckung';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Termine in diesem Zeitraum werden geprüft oder wurden noch nicht überprüft.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Die Termine in diesem Zeitraum wurden überprüft.';
+  String get scheduleCoverageWarning => 'Einige Termine fehlen möglicherweise.';
 
   @override
   String get listRefreshed => 'Liste aktualisiert.';

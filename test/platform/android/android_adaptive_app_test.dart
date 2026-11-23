@@ -65,6 +65,7 @@ import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_visibility_icon.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -87,6 +88,115 @@ final _longScheduleDetailsNotes = List.generate(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'Schedule can hide an account or open its settings without collapsing it',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(420, 900);
+      addTearDown(tester.view.reset);
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        populated: true,
+      );
+      addTearDown(harness.dispose);
+      const accountId = 'google:populated';
+      await tester.tap(find.byIcon(Icons.view_sidebar_outlined).first);
+      await tester.pumpAndSettle();
+      final toggle = find.byKey(
+        const ValueKey(('account-visibility', accountId)),
+      );
+      final list = find.byKey(
+        const ValueKey(('task-list-visibility', accountId, 'visible-list')),
+      );
+      final calendar = find.byKey(
+        const ValueKey(('calendar-visibility', 'calendar')),
+      );
+      final options = find.byKey(
+        const ValueKey(('account-collection-options', accountId)),
+      );
+      final collapse = find.byKey(
+        const ValueKey(('account-collapse', accountId)),
+      );
+      final sheet = tester.getRect(find.byType(BottomSheet));
+      Finder tile(Finder leading) =>
+          find.ancestor(of: leading, matching: find.byType(ListTile)).first;
+      for (final (leading, title, menu) in [
+        (toggle, 'Calendar Account', options),
+        (
+          calendar,
+          'Populated calendar',
+          find.descendant(
+            of: tile(calendar),
+            matching: find.byTooltip('Options'),
+          ),
+        ),
+        (
+          list,
+          'Visible tasks',
+          find.descendant(of: tile(list), matching: find.byTooltip('Options')),
+        ),
+      ]) {
+        final leadingBounds = tester.getRect(leading);
+        final menuBounds = tester.getRect(menu);
+        final titleBounds = tester.getRect(
+          find.descendant(of: tile(leading), matching: find.text(title)),
+        );
+        expect(leadingBounds.size, const Size.square(48));
+        expect(menuBounds.size, leadingBounds.size);
+        expect(leadingBounds.left - sheet.left, 2);
+        expect(sheet.right - menuBounds.right, 2);
+        final sourceIcon = tester
+            .widget<ScheduleSidebarVisibilityIcon>(leading)
+            .icon;
+        final more = find.descendant(
+          of: menu,
+          matching: find.byIcon(Icons.more_vert),
+        );
+        expect(tester.getCenter(find.byWidget(sourceIcon)).dx - sheet.left, 18);
+        expect(sheet.right - tester.getCenter(more).dx, 18);
+        expect(titleBounds.left - leadingBounds.right, 8);
+      }
+      expect(tester.getRect(options).left - tester.getRect(collapse).right, 4);
+      expect(tester.getSize(toggle).shortestSide, greaterThanOrEqualTo(48));
+      expect(list, findsOneWidget);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(list, findsOneWidget);
+      expect(
+        tester.widget<ScheduleSidebarVisibilityIcon>(list).onPressed,
+        isNull,
+      );
+      expect(
+        harness.container
+            .read(appSettingsControllerProvider)
+            .isAccountVisibleInSchedule(accountId),
+        isFalse,
+      );
+      await tester.tap(options);
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.arrow_upward), findsWidgets);
+      expect(find.byIcon(Icons.arrow_downward), findsWidgets);
+      await tester.tap(find.text('Account settings'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<AndroidSettingsScreen>(find.byType(AndroidSettingsScreen))
+            .accountDetailId,
+        accountId,
+      );
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(toggle.hitTestable(), findsOneWidget);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<ScheduleSidebarVisibilityIcon>(list).visible,
+        isTrue,
+      );
+    },
+  );
 
   testWidgets(
     'task notification search restores the prior normal calendar date',
@@ -248,7 +358,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('${DateTime.now().year}'), findsWidgets);
       expect(find.textContaining('https://accounts.google.com'), findsNothing);
-      expect(find.byTooltip('Google'), findsOneWidget);
+      final provider = tester.widget<ScheduleSidebarVisibilityIcon>(
+        find.byKey(const ValueKey(('account-visibility', 'google:populated'))),
+      );
+      expect(provider.label, startsWith('Google,'));
+      expect((provider.icon as Icon).icon, Icons.g_mobiledata);
       expect(tester.takeException(), isNull);
       await harness.dispose();
     },

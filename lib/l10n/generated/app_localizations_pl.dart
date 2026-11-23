@@ -536,6 +536,44 @@ class AppLocalizationsPl extends AppLocalizations {
   String get options => 'Opcje';
 
   @override
+  String get showScheduleCalendar => 'Pokaż kalendarz';
+
+  @override
+  String get hideScheduleCalendar => 'Ukryj kalendarz';
+
+  @override
+  String get showScheduleTaskList => 'Pokaż listę zadań';
+
+  @override
+  String get hideScheduleTaskList => 'Ukryj listę zadań';
+
+  @override
+  String get showScheduleAccount => 'Pokaż konto';
+
+  @override
+  String get hideScheduleAccount => 'Ukryj konto';
+
+  @override
+  String get someAccountSourcesVisible => 'Niektóre kolekcje są widoczne';
+
+  @override
+  String get noAccountSourcesVisible =>
+      'Wszystkie kolekcje są ukryte indywidualnie';
+
+  @override
+  String get accountHiddenInSchedule => 'Konto jest ukryte w harmonogramie';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Pokaż konto, aby zmienić widoczność kolekcji';
+
+  @override
+  String get scheduleAccountSettings => 'Ustawienia konta';
+
+  @override
+  String get scheduleAccountUnavailable => 'Konto jest niedostępne';
+
+  @override
   String get hide => 'Ukryj';
 
   @override
@@ -1536,14 +1574,7 @@ class AppLocalizationsPl extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Zakres sprawdzenia wydarzeń';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Trwa sprawdzanie wydarzeń w tym okresie lub jeszcze ich nie sprawdzono.';
-
-  @override
-  String get scheduleCoverageVerified => 'Sprawdzono wydarzenia w tym okresie.';
+  String get scheduleCoverageWarning => 'Niektórych wydarzeń może brakować.';
 
   @override
   String get listRefreshed => 'Odświeżono listę.';

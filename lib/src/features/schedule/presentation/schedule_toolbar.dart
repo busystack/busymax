@@ -108,6 +108,22 @@ class ScheduleToolbar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 760;
+        final retryCoverage = onRetryCoverage;
+        final coverageWarning =
+            coverageComplete == false && retryCoverage != null
+            ? BusyMaxLinuxHeaderIconButton(
+                key: const ValueKey('schedule-coverage-warning'),
+                icon: BusyMaxLinuxHeaderIcon.warning,
+                tooltip: context.l10n.scheduleCoverageWarning,
+                onPressed: () => unawaited(
+                  showScheduleCoverage(
+                    context,
+                    retryCoverage,
+                    openSettings: onCoverageSettings,
+                  ),
+                ),
+              )
+            : null;
         return BusyMaxLinuxHeaderLayout(
           centerAllocation:
               BusyMaxLinuxHeaderCenterAllocation.fillBetweenControls,
@@ -173,16 +189,25 @@ class ScheduleToolbar extends StatelessWidget {
                           .searchFieldLabel,
                       onChanged: onSearchChanged!,
                       onClear: onClearSearch!,
+                      suffixAction: coverageWarning,
                     )
-                  : _fittingRangeTitle(
-                      context,
-                      localizedScheduleHeading(
-                        Localizations.localeOf(context).toLanguageTag(),
-                        mode,
-                        range,
-                        selectedDate,
-                        agendaLabel: context.l10n.viewAgenda,
-                      ),
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: _fittingRangeTitle(
+                            context,
+                            localizedScheduleHeading(
+                              Localizations.localeOf(context).toLanguageTag(),
+                              mode,
+                              range,
+                              selectedDate,
+                              agendaLabel: context.l10n.viewAgenda,
+                            ),
+                          ),
+                        ),
+                        ?coverageWarning,
+                      ],
                     ),
             ),
           ),
@@ -249,25 +274,6 @@ class ScheduleToolbar extends StatelessWidget {
                   },
                 ),
               ],
-              if (onRetryCoverage != null)
-                BusyMaxLinuxHeaderIconButton(
-                  key: const ValueKey('schedule-coverage-status'),
-                  icon: BusyMaxLinuxHeaderIcon.today,
-                  tooltip: context.l10n.scheduleCoverageStatus,
-                  iconBuilder: (normal) => switch (coverageComplete) {
-                    false => const Icon(Icons.warning_amber_rounded, size: 16),
-                    null => const Icon(Icons.more_horiz, size: 16),
-                    true => normal,
-                  },
-                  onPressed: () => unawaited(
-                    showScheduleCoverage(
-                      context,
-                      coverageComplete,
-                      onRetryCoverage!,
-                      openSettings: onCoverageSettings,
-                    ),
-                  ),
-                ),
               if (!searchActive && !compact)
                 BusyMaxLinuxHeaderIconButton(
                   key: const ValueKey('schedule-refresh-button'),

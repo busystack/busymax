@@ -523,6 +523,44 @@ class AppLocalizationsPt extends AppLocalizations {
   String get options => 'Options';
 
   @override
+  String get showScheduleCalendar => 'Show calendar';
+
+  @override
+  String get hideScheduleCalendar => 'Hide calendar';
+
+  @override
+  String get showScheduleTaskList => 'Show task list';
+
+  @override
+  String get hideScheduleTaskList => 'Hide task list';
+
+  @override
+  String get showScheduleAccount => 'Show account';
+
+  @override
+  String get hideScheduleAccount => 'Hide account';
+
+  @override
+  String get someAccountSourcesVisible => 'Some collections are visible';
+
+  @override
+  String get noAccountSourcesVisible =>
+      'All collections are individually hidden';
+
+  @override
+  String get accountHiddenInSchedule => 'Account hidden from Schedule';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Show the account to change collection visibility';
+
+  @override
+  String get scheduleAccountSettings => 'Account settings';
+
+  @override
+  String get scheduleAccountUnavailable => 'Account unavailable';
+
+  @override
   String get hide => 'Hide';
 
   @override
@@ -1505,15 +1543,7 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Event coverage';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Events in this range are being checked or have yet to be verified.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Events in this range have been checked.';
+  String get scheduleCoverageWarning => 'Some events may be missing.';
 
   @override
   String get listRefreshed => 'List refreshed.';
@@ -4602,6 +4632,44 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   String get options => 'Opções';
 
   @override
+  String get showScheduleCalendar => 'Mostrar calendário';
+
+  @override
+  String get hideScheduleCalendar => 'Ocultar calendário';
+
+  @override
+  String get showScheduleTaskList => 'Mostrar lista de tarefas';
+
+  @override
+  String get hideScheduleTaskList => 'Ocultar lista de tarefas';
+
+  @override
+  String get showScheduleAccount => 'Mostrar conta';
+
+  @override
+  String get hideScheduleAccount => 'Ocultar conta';
+
+  @override
+  String get someAccountSourcesVisible => 'Algumas coleções estão visíveis';
+
+  @override
+  String get noAccountSourcesVisible =>
+      'Todas as coleções estão ocultas individualmente';
+
+  @override
+  String get accountHiddenInSchedule => 'Conta oculta na agenda';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'Mostre a conta para alterar a visibilidade das coleções';
+
+  @override
+  String get scheduleAccountSettings => 'Definições da conta';
+
+  @override
+  String get scheduleAccountUnavailable => 'Conta indisponível';
+
+  @override
   String get hide => 'Ocultar';
 
   @override
@@ -5572,15 +5640,7 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   }
 
   @override
-  String get scheduleCoverageStatus => 'Cobertura de eventos';
-
-  @override
-  String get scheduleCoveragePending =>
-      'Os eventos deste intervalo estão a ser verificados ou ainda não foram verificados.';
-
-  @override
-  String get scheduleCoverageVerified =>
-      'Os eventos deste intervalo foram verificados.';
+  String get scheduleCoverageWarning => 'Podem faltar alguns eventos.';
 
   @override
   String get listRefreshed => 'Lista atualizada.';

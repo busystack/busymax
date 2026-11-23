@@ -8,6 +8,7 @@ import '../providers/busy_provider.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/task_lists/data/task_lists_repository.dart';
 import 'schedule_sidebar_order.dart';
+import 'schedule_source_visibility.dart';
 
 String? scheduleAccountSecondaryLabel(AccountEntity account) {
   final secondaryLabel = account.secondaryLabel;
@@ -64,8 +65,7 @@ List<CalendarSourceEntity> calendarSourcesShownInSidebar(
 }) => [
   for (final source in sources)
     if ((accountId == null || source.accountId == accountId) &&
-        !source.hidden &&
-        !source.isDeleted)
+        isScheduleCalendarAvailable(source))
       source,
 ];
 

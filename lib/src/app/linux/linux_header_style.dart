@@ -442,6 +442,22 @@ class _BusyMaxGtkHeaderFallbackPainter extends CustomPainter {
       return;
     }
     paint.style = PaintingStyle.stroke;
+    if (icon == BusyMaxLinuxHeaderIcon.warning) {
+      final triangle = Path()
+        ..moveTo(8, 2)
+        ..lineTo(14.5, 13.5)
+        ..lineTo(1.5, 13.5)
+        ..close();
+      canvas
+        ..drawPath(triangle, paint)
+        ..drawLine(const Offset(8, 6), const Offset(8, 8.5), paint)
+        ..drawCircle(
+          const Offset(8, 11),
+          0.75,
+          paint..style = PaintingStyle.fill,
+        );
+      return;
+    }
     canvas
       ..drawRect(const Rect.fromLTWH(2.5, 2.5, 11, 11), paint)
       ..drawLine(const Offset(4.5, 4.5), const Offset(11.5, 11.5), paint)
@@ -669,6 +685,7 @@ class BusyMaxLinuxHeaderSearchField extends StatefulWidget {
     required this.onChanged,
     required this.onClear,
     this.autofocus = true,
+    this.suffixAction,
   });
 
   /// Mirrors GtkEntry:max-width-chars as a natural-width hint. It is not a
@@ -692,6 +709,7 @@ class BusyMaxLinuxHeaderSearchField extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
   final bool autofocus;
+  final Widget? suffixAction;
 
   @override
   State<BusyMaxLinuxHeaderSearchField> createState() =>
@@ -987,6 +1005,7 @@ class _BusyMaxLinuxHeaderSearchFieldState
                                 ),
                               ),
                             ),
+                            ?widget.suffixAction,
                             if (!_isEmpty) ...[
                               const SizedBox(
                                 width:

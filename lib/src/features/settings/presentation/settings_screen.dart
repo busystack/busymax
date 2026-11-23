@@ -95,10 +95,12 @@ class SettingsScreen extends ConsumerStatefulWidget {
     this.initialPage = SettingsPage.system,
     this.reconnectAccountId,
     this.notificationAccountId,
+    this.accountDetailId,
   });
 
   final String? reconnectAccountId;
   final String? notificationAccountId;
+  final String? accountDetailId;
 
   final SettingsPage initialPage;
 
@@ -107,8 +109,17 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  late var _page = widget.initialPage;
-  ({String id, bool contactsOnly})? _accountDetails;
+  late var _page = widget.accountDetailId == null
+      ? widget.initialPage
+      : SettingsPage.accounts;
+  late ({String id, bool contactsOnly})? _accountDetails =
+      _requestedAccountDetails;
+
+  ({String id, bool contactsOnly})? get _requestedAccountDetails =>
+      switch (widget.accountDetailId) {
+        final id? => (id: id, contactsOnly: false),
+        null => null,
+      };
   final _contentScroll = ScrollController();
   final _headerBackFocus = FocusNode(debugLabel: 'settings-back');
   final _accountEntryFocus = <String, FocusNode>{};
@@ -187,7 +198,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         (_) => _openRequestedRecovery(),
       );
     }
-    if (oldWidget.initialPage != widget.initialPage &&
+    if (oldWidget.accountDetailId != widget.accountDetailId &&
+        widget.accountDetailId != null) {
+      _abandonAccountAuthorization();
+      _page = SettingsPage.accounts;
+      _accountDetails = _requestedAccountDetails;
+      _restoreAccountScroll(0, focus: _headerBackFocus);
+    } else if (oldWidget.initialPage != widget.initialPage &&
         _page != widget.initialPage) {
       _abandonAccountAuthorization();
       _accountDetails = null;
@@ -243,6 +260,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final target = _accountDetails;
       if (target != null &&
           !target.contactsOnly &&
+          target.id != widget.accountDetailId &&
           next.hasValue &&
           !next.isLoading &&
           !next.hasError &&
@@ -1116,7 +1134,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         uri
             .replace(
               queryParameters: {
-                ...uri.queryParameters,
+                ...(Map.of(uri.queryParameters)..remove('accountDetail')),
                 'page': settingsPageRouteValue(page),
               },
             )
@@ -1517,12 +1535,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     setState(() => _removingAccountIds.add(account.id));
     try {
+      final scheduleSettings = ref.read(appSettingsControllerProvider.notifier);
       final outcome = await removeBusyMaxAccount(
         accountId: account.id,
         provider: account.provider,
         revokeGoogleAuthorization: options.revokeGoogleAuthorization,
         auth: () => ref.read(authRepositoryProvider),
         dav: () => ref.read(davAccountOnboardingServiceProvider),
+        resetScheduleVisibility: () => scheduleSettings
+            .setAccountVisibleInSchedule(accountId: account.id, visible: true),
       );
       if (context.mounted) {
         final presenting =
@@ -2244,7 +2265,10 @@ class _AccountManagementSection extends ConsumerWidget {
         ],
         if (selectedAccountId != null &&
             !accounts.any((a) => a.id == selectedAccountId))
-          _AccountsLoadState(state: ref.watch(accountManagementStreamProvider)),
+          _AccountsLoadState(
+            state: ref.watch(accountManagementStreamProvider),
+            missingAccount: true,
+          ),
         for (final account in accounts.where((a) => a.id == selectedAccountId))
           _AccountSettingsGroup(
             key: ValueKey('account-detail-${account.id}'),
@@ -2552,8 +2576,9 @@ class _AccountManagementSection extends ConsumerWidget {
 }
 
 class _AccountsLoadState extends StatelessWidget {
-  const _AccountsLoadState({required this.state});
+  const _AccountsLoadState({required this.state, this.missingAccount = false});
   final AsyncValue<List<AccountEntity>> state;
+  final bool missingAccount;
   @override
   Widget build(BuildContext context) => state.hasError
       ? BusyMaxActionRow(
@@ -2565,6 +2590,8 @@ class _AccountsLoadState extends StatelessWidget {
           title: context.l10n.accountsLoading,
           leading: const YaruCircularProgressIndicator(),
         )
+      : missingAccount
+      ? BusyMaxActionRow(title: context.l10n.scheduleAccountUnavailable)
       : const SizedBox.shrink();
 }
 

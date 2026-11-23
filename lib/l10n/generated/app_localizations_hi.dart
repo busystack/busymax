@@ -524,6 +524,43 @@ class AppLocalizationsHi extends AppLocalizations {
   String get options => 'विकल्प';
 
   @override
+  String get showScheduleCalendar => 'कैलेंडर दिखाएँ';
+
+  @override
+  String get hideScheduleCalendar => 'कैलेंडर छिपाएँ';
+
+  @override
+  String get showScheduleTaskList => 'कार्य सूची दिखाएँ';
+
+  @override
+  String get hideScheduleTaskList => 'कार्य सूची छिपाएँ';
+
+  @override
+  String get showScheduleAccount => 'खाता दिखाएँ';
+
+  @override
+  String get hideScheduleAccount => 'खाता छिपाएँ';
+
+  @override
+  String get someAccountSourcesVisible => 'कुछ संग्रह दिखाई दे रहे हैं';
+
+  @override
+  String get noAccountSourcesVisible => 'सभी संग्रह अलग-अलग छिपाए गए हैं';
+
+  @override
+  String get accountHiddenInSchedule => 'खाता शेड्यूल में छिपा है';
+
+  @override
+  String get showAccountToChangeVisibility =>
+      'संग्रहों की दृश्यता बदलने के लिए खाता दिखाएँ';
+
+  @override
+  String get scheduleAccountSettings => 'खाता सेटिंग';
+
+  @override
+  String get scheduleAccountUnavailable => 'खाता उपलब्ध नहीं है';
+
+  @override
   String get hide => 'छिपाएँ';
 
   @override
@@ -1489,14 +1526,7 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
-  String get scheduleCoverageStatus => 'इवेंट कवरेज';
-
-  @override
-  String get scheduleCoveragePending =>
-      'इस अवधि के इवेंट की जाँच चल रही है या अब तक उनकी जाँच नहीं हुई है।';
-
-  @override
-  String get scheduleCoverageVerified => 'इस अवधि के इवेंट की जाँच हो गई है।';
+  String get scheduleCoverageWarning => 'हो सकता है कि कुछ इवेंट दिखाई न दें।';
 
   @override
   String get listRefreshed => 'सूची रीफ़्रेश हो गई।';
