@@ -69,7 +69,7 @@ import 'package:busymax/src/schedule/schedule_sidebar_visibility_icon.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

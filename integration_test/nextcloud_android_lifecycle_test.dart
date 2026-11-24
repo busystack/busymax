@@ -24,7 +24,7 @@ import 'package:busymax/src/dav/trust/nextcloud_certificate.dart';
 import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

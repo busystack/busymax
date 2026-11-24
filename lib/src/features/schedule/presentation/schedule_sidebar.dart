@@ -12,7 +12,7 @@ import 'dart:math' as math;
 
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
 
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';

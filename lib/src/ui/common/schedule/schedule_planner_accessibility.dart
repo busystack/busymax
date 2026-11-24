@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/semantics.dart';
 
 import '../../../features/schedule/presentation/schedule_item_selection.dart';

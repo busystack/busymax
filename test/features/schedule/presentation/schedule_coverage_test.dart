@@ -28,7 +28,7 @@ import 'package:busymax/src/ui/windows/windows_schedule_day_week_view.dart';
 import 'package:busymax/src/ui/windows/windows_schedule_page.dart';
 import 'package:busymax/src/ui/windows/windows_schedule_search_pane.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -332,7 +332,7 @@ def tool_gate(source, flutter):
     dart = flutter.parent / 'cache/dart-sdk/bin/dart'
     require(flutter.is_file() and dart.is_file(), 'Flutter and its bundled Dart executable are required.')
     run([dart, source / 'tool/verify_flutter_sdk.dart', '--flutter', flutter, '--dart', dart,
-         '--expected-flutter', '3.47.5', '--expected-dart', '3.13.4'], source)
+         '--expected-flutter', '3.50.1', '--expected-dart', '3.14.0'], source)
     require(run(['snapcraft', 'version'], source) == f'snapcraft {SNAPCRAFT_VERSION}',
             'Snapcraft version does not match the reviewed release toolchain.')
     for tool in ('git', 'cmake', 'g++', 'pkg-config', 'xvfb-run', 'unsquashfs', 'lxc'):
@@ -418,7 +418,7 @@ def build(options):
     step(['python3', 'tool/checkout_shared_dependencies.py'], 'Materializing exact pinned sibling dependencies')
     step([options.flutter.resolve(), 'pub', 'get', '--enforce-lockfile'], 'Resolving locked Flutter dependencies')
     step([options.flutter.resolve(), 'gen-l10n'], 'Generating localization')
-    step([dart, 'run', 'build_runner', 'build', '--delete-conflicting-outputs', '--force-jit'], 'Generating Drift sources')
+    step([dart, 'run', 'build_runner', 'build', '--force-jit'], 'Generating Drift sources')
     step(['git', 'diff', '--exit-code'], 'Verifying generated-source and lockfile consistency')
     step([dart, 'format', '--output=none', '--set-exit-if-changed', '.'], 'Checking source formatting')
     step([options.flutter.resolve(), 'analyze', '--no-pub'], 'Analyzing source')
@@ -470,7 +470,7 @@ def build(options):
     (output / f'{artifact.name}.sha256').write_text(f'{digest}  {artifact.name}\n')
     manifest = {'schema': 1, 'status': 'candidate', 'release_ready': False,
                 'version': options.version, 'revision': options.revision,
-                'sha256': digest, 'artifact': str(artifact), 'flutter': '3.47.5', 'dart': '3.13.4',
+                'sha256': digest, 'artifact': str(artifact), 'flutter': '3.50.1', 'dart': '3.14.0',
                 'snapcraft': SNAPCRAFT_VERSION, 'base': 'core24', 'grade': 'devel', 'confinement': 'strict',
                 'dependencies': json.loads((root / 'tool/shared_dependencies.json').read_text()),
                 'google_registration': 'busymaxManaged',

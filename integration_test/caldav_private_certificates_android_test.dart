@@ -8,7 +8,7 @@ import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/trust/nextcloud_trust_policy.dart';
 import 'package:busymax/src/ui/common/nextcloud_certificate_review.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';

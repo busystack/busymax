@@ -1,6 +1,6 @@
 import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:busymax/src/ui/common/schedule/schedule_year_view.dart';
 import 'package:busymax/src/ui/common/schedule/mini_calendar.dart';

@@ -3,7 +3,7 @@ import 'package:busymax/src/dav/auth/caldav_credential_input.dart';
 import 'package:busymax/src/dav/presentation/dav_account_dialogs.dart';
 import 'package:busymax/src/ui/windows/windows_dav_account_dialogs.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../test_localized_app.dart';

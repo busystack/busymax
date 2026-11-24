@@ -2,7 +2,7 @@ import '../../../schedule/schedule_item.dart';
 import 'schedule_item_selection.dart';
 import 'schedule_more_popover.dart';
 
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';

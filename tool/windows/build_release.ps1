@@ -59,7 +59,7 @@ function Invoke-BusyMaxSourceGeneration {
   & $flutterExecutable gen-l10n
   if ($LASTEXITCODE -ne 0) { throw 'Localization generation failed.' }
   & $dartExecutable run build_runner build `
-    --delete-conflicting-outputs --force-jit
+    --force-jit
   if ($LASTEXITCODE -ne 0) { throw 'Code generation failed.' }
   & $dartExecutable run tool/check_generated_sources.dart verify $snapshot
   Remove-Item -LiteralPath $snapshot

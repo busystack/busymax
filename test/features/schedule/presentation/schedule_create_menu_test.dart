@@ -1,6 +1,6 @@
 import 'package:busymax/src/features/schedule/presentation/schedule_create_menu.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 

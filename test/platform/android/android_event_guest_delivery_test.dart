@@ -1,7 +1,7 @@
 import 'package:busymax/src/android/presentation/android_event_actions.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../test_localized_app.dart';

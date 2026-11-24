@@ -8,7 +8,7 @@ import 'package:busymax/src/features/diagnostics/presentation/diagnostics_screen
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

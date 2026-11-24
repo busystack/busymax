@@ -6,7 +6,7 @@ import 'package:busymax/src/features/calendar/presentation/ical_import_flow.dart
 import 'package:busymax/src/ical/ical_import_service.dart';
 import 'package:busymax/src/ical/ical_ingestion.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
 

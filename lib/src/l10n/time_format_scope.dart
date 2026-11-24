@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart' show TimeOfDay;
+import 'package:busymax/src/ui/common/flutter_material.dart' show TimeOfDay;
 import 'package:flutter/widgets.dart';
 
 import 'l10n.dart';

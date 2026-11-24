@@ -12,7 +12,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_workspace.da
 import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
-import 'package:flutter/material.dart' as material;
+import 'package:busymax/src/ui/common/flutter_material.dart' as material;
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';

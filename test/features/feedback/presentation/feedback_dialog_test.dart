@@ -7,7 +7,7 @@ import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/feedback/presentation/feedback_dialog.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';

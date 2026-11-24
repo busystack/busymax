@@ -1,6 +1,6 @@
 import 'package:busymax/src/android/presentation/android_nextcloud_collection_screen.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

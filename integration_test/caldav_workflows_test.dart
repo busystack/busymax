@@ -12,7 +12,7 @@ import 'package:busymax/src/features/connectivity/network_connectivity_service.d
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/tasks/presentation/new_task_dialog.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';

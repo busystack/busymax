@@ -19,7 +19,7 @@ import 'package:busymax/src/schedule/schedule_search_match.dart';
 import 'package:busymax/src/schedule/schedule_sorting.dart';
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';

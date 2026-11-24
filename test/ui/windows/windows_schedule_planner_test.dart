@@ -4,7 +4,7 @@ import 'package:busymax/src/ui/windows/windows_schedule_page.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
-import 'package:flutter/material.dart' show TimeOfDay;
+import 'package:busymax/src/ui/common/flutter_material.dart' show TimeOfDay;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
 

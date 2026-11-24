@@ -2,7 +2,7 @@ import '../../features/recurrence/domain/recurrence_ordinal_choices.dart';
 import '../../l10n/localized_formatters.dart';
 import 'android_date_picker.dart';
 
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:intl/intl.dart';
 
 import '../../features/recurrence/domain/event_recurrence_codec.dart';

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../attachments/dav_attachment_providers.dart';

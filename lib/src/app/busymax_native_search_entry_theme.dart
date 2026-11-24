@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:yaru/theme.dart';
 
 import '../platform/gtk_font_service.dart';

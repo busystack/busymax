@@ -16,7 +16,7 @@ person/date responsible for each result.
 - [ ] v0.4.3 application resources report `0.4.3`. The owner supplies a separate
       four-part MSIX version greater than the previous distributed version;
       the CI-only `1.0.0.0` identity is not a production Store version.
-- [ ] A clean checkout uses Flutter 3.47.5 and its bundled Dart 3.13.4.
+- [ ] A clean checkout uses Flutter 3.50.1 and its bundled Dart 3.14.0.
 - [ ] Dependency resolution, localization generation, and Drift generation
       follow [Development](development.md) and leave committed outputs clean.
 - [ ] The non-writing formatting check, analyzer, normal tests, and

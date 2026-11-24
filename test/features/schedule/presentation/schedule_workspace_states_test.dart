@@ -14,7 +14,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_month_view.d
 import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

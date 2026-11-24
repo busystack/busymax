@@ -4,7 +4,7 @@ import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';

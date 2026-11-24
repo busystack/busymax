@@ -6,7 +6,7 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 

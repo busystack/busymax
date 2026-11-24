@@ -4,7 +4,7 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/android/presentation/android_date_picker.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,9 +27,9 @@ void main() {
             locale: locale,
             localizationsDelegates: const [
               AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
+              flutterMaterialLocalizationsDelegate,
               GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
+              flutterCupertinoLocalizationsDelegate,
             ],
             supportedLocales: const [Locale('en'), Locale('de')],
             builder: (context, child) => ValueListenableBuilder<int?>(
@@ -139,9 +139,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
+            flutterMaterialLocalizationsDelegate,
             GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
+            flutterCupertinoLocalizationsDelegate,
           ],
           supportedLocales: const [Locale('en')],
           builder: (context, child) => ValueListenableBuilder(
@@ -202,9 +202,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
+          flutterMaterialLocalizationsDelegate,
           GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
+          flutterCupertinoLocalizationsDelegate,
         ],
         home: Builder(
           builder: (context) => TextButton(

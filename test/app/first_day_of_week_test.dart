@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -107,9 +107,9 @@ void main() {
         locale: const Locale('de'),
         localizationsDelegates: const [
           AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
+          flutterMaterialLocalizationsDelegate,
           GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
+          flutterCupertinoLocalizationsDelegate,
         ],
         supportedLocales: const [Locale('de')],
         builder: (context, child) => BusyMaxWeekPreferencesScope(
@@ -141,9 +141,9 @@ void main() {
         MaterialApp(
           localizationsDelegates: const [
             AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
+            flutterMaterialLocalizationsDelegate,
             GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
+            flutterCupertinoLocalizationsDelegate,
           ],
           supportedLocales: const [Locale('en')],
           builder: (context, child) => ValueListenableBuilder<int?>(

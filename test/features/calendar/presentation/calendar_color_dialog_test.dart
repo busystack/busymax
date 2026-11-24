@@ -1,7 +1,7 @@
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:busymax/src/features/calendar/presentation/calendar_color_dialog.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../test_localized_app.dart';

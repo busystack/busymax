@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 

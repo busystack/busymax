@@ -8,7 +8,7 @@ import 'package:busymax/src/dav/ical/ical_task_alarm.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 
 import 'package:intl/intl.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

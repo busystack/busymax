@@ -69,7 +69,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.47.5'
+          flutter-version: '3.50.1'
           cache: true
 
       - name: Verify pinned Flutter and bundled Dart
@@ -81,8 +81,8 @@ jobs:
           "$dart_executable" tool/verify_flutter_sdk.dart \
             --flutter "$flutter_executable" \
             --dart "$dart_executable" \
-            --expected-flutter 3.47.5 \
-            --expected-dart 3.13.4
+            --expected-flutter 3.50.1 \
+            --expected-dart 3.14.0
           printf 'BUSYMAX_FLUTTER_EXECUTABLE=%s\n' "$flutter_executable" >> "$GITHUB_ENV"
           printf 'BUSYMAX_DART_EXECUTABLE=%s\n' "$dart_executable" >> "$GITHUB_ENV"
 
@@ -101,7 +101,7 @@ jobs:
       - name: Generate Drift code
         run: >-
           "$BUSYMAX_DART_EXECUTABLE" run build_runner build
-          --delete-conflicting-outputs --force-jit
+          --force-jit
 
       - name: Verify generated files are committed
         run: git diff --exit-code

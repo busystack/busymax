@@ -8,7 +8,7 @@ import 'package:busymax/src/ui/common/schedule/schedule_month_view.dart';
 import 'package:busymax/src/ui/common/schedule/clock_hours_painter.dart';
 import 'package:busymax/src/ui/common/schedule/schedule_interactions.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
 

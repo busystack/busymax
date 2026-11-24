@@ -5,7 +5,7 @@ import 'package:busymax/src/features/recurrence/presentation/recurrence_editor.d
 import 'package:busymax/src/l10n/app_locale.dart';
 import 'package:busymax/src/l10n/localized_formatters.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';

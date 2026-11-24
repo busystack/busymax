@@ -15,7 +15,7 @@ import 'package:busymax/src/platform/linux/linux_notification_backend.dart';
 import 'package:busymax/src/platform/linux_window_service.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 
 const _profile = String.fromEnvironment('BUSYMAX_NOTIFICATION_QA_PROFILE');
 

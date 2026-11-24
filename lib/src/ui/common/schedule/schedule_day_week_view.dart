@@ -3,7 +3,7 @@ import 'package:busymax/src/l10n/time_format_scope.dart';
 
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
 
 import '../../../app/app_settings.dart';

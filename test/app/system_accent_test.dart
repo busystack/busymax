@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:busymax/src/app/system_accent.dart';
 import 'package:dbus/dbus.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/theme.dart';
 
