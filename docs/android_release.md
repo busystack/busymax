@@ -38,8 +38,14 @@ Outputs are:
 - `build/android/android-artifact-inspection.txt`
 
 The script selects `lib/main_android.dart`, enables R8/resource shrinking, and
-fails if Microsoft public registration or production signing is absent. For CI
-or development only, `--test-signing --allow-unconfigured-providers` produces
+fails if Microsoft public registration or production signing is absent. It
+restores hosted packages from pub.dev into a fresh temporary cache with the
+lockfile enforced. If compilation or post-build integrity verification fails,
+it removes the selected release outputs, including Gradle's APK copy. Restore
+the normal development package configuration with `flutter pub get --enforce-lockfile`
+before returning to development.
+
+For CI or development only, `--test-signing --allow-unconfigured-providers` produces
 an explicitly labeled debug-identity release-mode artifact. That artifact is
 not a finished distribution build and its unavailable provider flows are
 expected to remain disabled.

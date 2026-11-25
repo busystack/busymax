@@ -81,9 +81,10 @@ Ctrl-C or SIGTERM stops the command's owned process session, gives it five
 seconds to terminate, then kills remaining processes and retains the workspace.
 
 The command checks all five version files before compiling; it never rewrites
-them. v0.4.3 uses Android code **11**. It restores dependencies with the
-lockfile enforced and verifies the Flutter SDK, Linux engine artifacts, and
-resolved packages before running the release checks. It
+them. v0.4.3 uses Android code **11**. It restores hosted packages from pub.dev
+into a fresh workspace cache with the lockfile enforced and verifies the
+Flutter SDK, Linux engine artifacts, and resolved packages before running the
+release checks. It
 generates/rechecks localization and Drift,
 runs formatting, analysis, platform boundaries, full Flutter/tool/native tests,
 and compiles a fresh configured bundle. It rechecks upstream integrity after

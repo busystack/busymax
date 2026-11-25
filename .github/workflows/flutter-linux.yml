@@ -91,6 +91,9 @@ jobs:
 
       - name: Resolve dependencies
         run: |
+          export PUB_CACHE="$(mktemp -d "$RUNNER_TEMP/busymax-pub.XXXXXXXX")"
+          export PUB_HOSTED_URL=https://pub.dev
+          printf 'PUB_CACHE=%s\nPUB_HOSTED_URL=%s\n' "$PUB_CACHE" "$PUB_HOSTED_URL" >> "$GITHUB_ENV"
           "$BUSYMAX_FLUTTER_EXECUTABLE" precache --linux
           "$BUSYMAX_FLUTTER_EXECUTABLE" pub get --enforce-lockfile
           python3 tool/verify_upstream_packages.py --require-target linux-debug

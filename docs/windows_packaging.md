@@ -63,9 +63,13 @@ native tests, builds `lib/main_windows.dart`, stages runtime files, validates
 the manifest, packages the MSIX, unpacks the exact artifact, compares file
 inventories, and prints metadata and SHA-256. It performs no deployment.
 
-The release script restores Pub dependencies with the lockfile enforced and
-verifies the reviewed SDK artifacts and package files before and after
-compilation. Packaging rechecks these inputs before staging the MSIX.
+Source generation and release compilation each restore hosted packages from
+pub.dev into a fresh cache under `.dart_tool` with the lockfile enforced. The
+release build verifies reviewed SDK artifacts and package files before and
+after compilation. The successful
+configured build records SHA-256 hashes of the compiled bundle, configuration,
+and lockfile. Packaging requires that receipt, rechecks the bundle and inputs,
+and compares the copied payload against the receipt before adding MSIX assets.
 
 The manifest is rendered from
 `tool/windows/AppxManifest.xml.template`. It declares x64, minimum OS

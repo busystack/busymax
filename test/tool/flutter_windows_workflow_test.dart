@@ -103,7 +103,10 @@ void main() {
     expect(buildScript, contains(r'& $dartExecutable format'));
     expect(
       buildScript,
-      contains(r'& $dartExecutable run tool/check_platform_boundaries.dart'),
+      contains(
+        r'& $dartExecutable --packages=.dart_tool/package_config.json '
+        'tool/check_platform_boundaries.dart',
+      ),
     );
     expect(buildScript, contains(r'& $flutterExecutable analyze'));
     expect(
@@ -138,13 +141,27 @@ void main() {
       final compile = release.indexOf(
         r'& $flutterExecutable build windows --no-pub --release',
       );
-      expect(release.indexOf(verify), greaterThan(0));
-      expect(compile, greaterThan(release.indexOf(verify)));
-      expect(release.lastIndexOf(verify), greaterThan(compile));
+      final before = release.indexOf(verify);
+      final after = release.lastIndexOf(verify);
+      expect(
+        release.lastIndexOf('pub get --enforce-lockfile'),
+        lessThan(before),
+      );
+      expect(before, greaterThan(0));
+      expect(compile, greaterThan(before));
+      expect(after, greaterThan(compile));
+      expect(
+        release.indexOf('Write-BusyMaxReleaseReceipt'),
+        greaterThan(after),
+      );
       expect(package, contains('--require-target windows-release'));
       expect(
         package.indexOf('--require-target windows-release'),
         lessThan(package.indexOf(r'& $makeAppx pack')),
+      );
+      expect(
+        package.indexOf('Assert-BusyMaxAcceptedRelease'),
+        lessThan(package.indexOf('Copy-Item')),
       );
     },
   );

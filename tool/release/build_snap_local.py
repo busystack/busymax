@@ -185,7 +185,7 @@ def signal_owned(process, signum):
             pass
 
 
-def run(args, cwd, *, log=None, redactions=(), label=None, progress_interval=30):
+def run(args, cwd, *, log=None, redactions=(), label=None, progress_interval=30, env=None):
     """Stream only sanitized text; own and reap each command on every exit path.
 
     progress_interval controls diagnostic heartbeats, never command deadlines.
@@ -222,7 +222,7 @@ def run(args, cwd, *, log=None, redactions=(), label=None, progress_interval=30)
             emit(safe)
 
         diagnostic(f'\n[release] Starting {title}: {command}\n')
-        process = subprocess.Popen(args, cwd=cwd, stdout=subprocess.PIPE,
+        process = subprocess.Popen(args, cwd=cwd, env=env, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, start_new_session=True)
         try:
             with selectors.DefaultSelector() as selector:
@@ -410,8 +410,11 @@ def build(options):
     root = workspace / 'busymax'
     log = workspace / 'build.log'
     redactions = tuple(configuration.values()) + tuple(f'{key}={value}' for key, value in configuration.items())
+    pub_cache = workspace / 'pub-cache'
+    pub_cache.mkdir(mode=0o700)
+    build_env = {**os.environ, 'PUB_CACHE': str(pub_cache), 'PUB_HOSTED_URL': 'https://pub.dev'}
     def step(arguments, label):
-        return run(arguments, root, log=log, redactions=redactions, label=label)
+        return run(arguments, root, log=log, redactions=redactions, label=label, env=build_env)
     run(['git', 'clone', '--no-hardlinks', '--no-checkout', source, root], workspace, log=log, redactions=redactions)
     run(['git', 'checkout', '--detach', options.revision], root, log=log, redactions=redactions)
     require(not (root / 'build').exists(), 'A stale Flutter bundle reached the isolated source checkout.')
