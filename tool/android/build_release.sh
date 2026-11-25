@@ -22,6 +22,8 @@ if ! $test_signing; then prerequisite_args+=(--require-signing); fi
 "$repo_root/tool/android/check_prerequisites.sh" "${prerequisite_args[@]}"
 
 flutter_bin="${BUSYMAX_FLUTTER_EXECUTABLE:-$(command -v flutter)}"
+flutter_bin="$(readlink -f "$flutter_bin")"
+flutter_sdk="$(dirname "$(dirname "$flutter_bin")")"
 config="$repo_root/android/busymax.android.properties"
 defines=()
 property_value() {
@@ -40,11 +42,18 @@ done
 
 cd "$repo_root"
 export ORG_GRADLE_PROJECT_busymaxTestSigning="$test_signing"
+"$flutter_bin" precache --android_gen_snapshot --android_internal_build
+"$flutter_bin" pub get --enforce-lockfile
+integrity=(python3 tool/verify_upstream_packages.py --sdk "$flutter_sdk"
+  --require-target android-release)
+"${integrity[@]}"
 if [[ "$kind" == apk || "$kind" == all ]]; then
-  "$flutter_bin" build apk --release -t lib/main_android.dart "${defines[@]}"
+  "$flutter_bin" build apk --no-pub --release -t lib/main_android.dart "${defines[@]}"
+  "${integrity[@]}" --android-maven-mode release
 fi
 if [[ "$kind" == aab || "$kind" == all ]]; then
-  "$flutter_bin" build appbundle --release -t lib/main_android.dart "${defines[@]}"
+  "$flutter_bin" build appbundle --no-pub --release -t lib/main_android.dart "${defines[@]}"
+  "${integrity[@]}" --android-maven-mode release
 fi
 if $test_signing; then
   echo 'Artifacts are explicitly TEST-SIGNED with the local debug identity; they are not production distribution artifacts.'

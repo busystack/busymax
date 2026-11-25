@@ -21,6 +21,12 @@ if ([string]::IsNullOrWhiteSpace($flutterExecutable) -or
 $identity = & "$PSScriptRoot/validate_release_config.ps1" `
   -ConfigPath $ConfigPath -Ci:$Ci
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
+$flutterSdk = Split-Path -Parent (Split-Path -Parent $flutterExecutable)
+
+function Assert-BusyMaxUpstreamIntegrity([string]$Target) {
+  & python tool/verify_upstream_packages.py --sdk $flutterSdk --require-target $Target
+  if ($LASTEXITCODE -ne 0) { throw "Official SDK or dependency integrity failed for $Target." }
+}
 
 function Invoke-BusyMaxPesterTests {
   $pesterModule = Get-Module -ListAvailable Pester |
@@ -47,15 +53,16 @@ function Invoke-BusyMaxPesterTests {
 }
 
 function Invoke-BusyMaxSourceGeneration {
+  & $flutterExecutable precache --windows
+  if ($LASTEXITCODE -ne 0) { throw 'Windows engine artifact acquisition failed.' }
+  & $flutterExecutable pub get --enforce-lockfile
+  if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed.' }
+  Assert-BusyMaxUpstreamIntegrity 'windows-debug'
+  & python -m unittest discover -s tool -p test_upstream_packages.py
+  if ($LASTEXITCODE -ne 0) { throw 'Official dependency integrity tests failed.' }
   $snapshot = [System.IO.Path]::GetTempFileName()
   & $dartExecutable run tool/check_generated_sources.dart snapshot $snapshot
   if ($LASTEXITCODE -ne 0) { throw 'Generated source snapshot failed.' }
-  & $flutterExecutable pub get --enforce-lockfile
-  if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed.' }
-  & python tool/verify_upstream_packages.py
-  if ($LASTEXITCODE -ne 0) { throw 'Official dependency integrity failed.' }
-  & python -m unittest discover -s tool -p test_upstream_packages.py
-  if ($LASTEXITCODE -ne 0) { throw 'Official dependency integrity tests failed.' }
   & $flutterExecutable gen-l10n
   if ($LASTEXITCODE -ne 0) { throw 'Localization generation failed.' }
   & $dartExecutable run build_runner build `
@@ -69,7 +76,7 @@ function Invoke-BusyMaxSourceGeneration {
 function Invoke-BusyMaxStaticAnalysis {
   & $dartExecutable format --output=none --set-exit-if-changed .
   if ($LASTEXITCODE -ne 0) { throw 'Formatting check failed.' }
-  & $flutterExecutable analyze
+  & $flutterExecutable analyze --no-pub
   if ($LASTEXITCODE -ne 0) { throw 'Flutter analysis failed.' }
   & $dartExecutable run tool/check_platform_boundaries.dart
   if ($LASTEXITCODE -ne 0) { throw 'Platform boundary validation failed.' }
@@ -78,7 +85,7 @@ function Invoke-BusyMaxStaticAnalysis {
 function Invoke-BusyMaxFlutterTests {
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
-  & $flutterExecutable test --machine | Tee-Object `
+  & $flutterExecutable test --no-pub --machine | Tee-Object `
     -FilePath 'build\windows\test-results\flutter-tests.jsonl'
   if ($LASTEXITCODE -ne 0) { throw 'Flutter tests failed.' }
 }
@@ -114,13 +121,15 @@ function Invoke-BusyMaxWindowsCompile {
   }
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
-  & $flutterExecutable build windows --release `
+  Assert-BusyMaxUpstreamIntegrity 'windows-release'
+  & $flutterExecutable build windows --no-pub --release `
     -t lib/main_windows.dart @defines 2>&1 |
     Tee-Object -FilePath 'build\windows\test-results\windows-build.log'
   $compileExitCode = $LASTEXITCODE
   if ($compileExitCode -ne 0) {
     throw "Flutter Windows release build failed with exit code $compileExitCode."
   }
+  Assert-BusyMaxUpstreamIntegrity 'windows-release'
 }
 
 function Invoke-BusyMaxNativeTests {

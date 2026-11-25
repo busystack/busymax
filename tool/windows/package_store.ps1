@@ -13,6 +13,9 @@ Assert-BusyMaxStoreConfig -Config $config -Mode $mode
 if (-not (Test-Path -LiteralPath "$ReleasePath/busymax.exe")) {
   throw "Windows release output was not found: $ReleasePath"
 }
+$flutterSdk = Split-Path -Parent (Split-Path -Parent $prerequisites.FlutterExecutable)
+& python tool/verify_upstream_packages.py --sdk $flutterSdk --require-target windows-release | Out-Host
+if ($LASTEXITCODE -ne 0) { throw 'Official Windows SDK or dependency integrity failed before packaging.' }
 $workspace = [IO.Path]::GetFullPath((Get-Location).Path)
 $allowedOutputRoot = [IO.Path]::GetFullPath(
   (Join-Path $workspace 'build\windows'))

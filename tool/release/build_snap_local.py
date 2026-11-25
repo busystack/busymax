@@ -416,7 +416,12 @@ def build(options):
     run(['git', 'checkout', '--detach', options.revision], root, log=log, redactions=redactions)
     require(not (root / 'build').exists(), 'A stale Flutter bundle reached the isolated source checkout.')
     step(['python3', 'tool/checkout_shared_dependencies.py'], 'Materializing exact pinned sibling dependencies')
+    flutter = options.flutter.resolve()
+    integrity = ['python3', 'tool/verify_upstream_packages.py', '--sdk', flutter.parent.parent,
+                 '--require-target', 'linux-debug', '--require-target', 'linux-release']
+    step([flutter, 'precache', '--linux'], 'Acquiring official Linux engine artifacts')
     step([options.flutter.resolve(), 'pub', 'get', '--enforce-lockfile'], 'Resolving locked Flutter dependencies')
+    step(integrity, 'Verifying official SDK and resolved dependencies')
     step([options.flutter.resolve(), 'gen-l10n'], 'Generating localization')
     step([dart, 'run', 'build_runner', 'build', '--force-jit'], 'Generating Drift sources')
     step(['git', 'diff', '--exit-code'], 'Verifying generated-source and lockfile consistency')
@@ -443,6 +448,7 @@ def build(options):
         require(not (root / 'build/linux/x64/release/bundle').exists(), 'Unexpected stale release bundle exists before compilation.')
         step([options.flutter.resolve(), 'build', 'linux', '--no-pub', '--release', '-t', 'lib/main_linux.dart',
               f'--dart-define-from-file={defines}'], 'Compiling configured Linux application')
+        step(integrity, 'Verifying official SDK and dependencies after compilation')
         bundle_gate(root / 'build/linux/x64/release/bundle', configuration, options.version)
         step(['git', 'diff', '--exit-code'], 'Verifying source and dependency locks after compilation')
     output = workspace / 'artifacts'

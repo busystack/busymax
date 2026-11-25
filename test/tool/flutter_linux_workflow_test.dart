@@ -59,6 +59,23 @@ void main() {
     expect(workflow, isNot(contains(r'command -v dart')));
   });
 
+  test('Linux CI checks acquired release artifacts before Snap packaging', () {
+    final workflow = File('.github/workflows/flutter-linux.yml')
+        .readAsStringSync();
+    const verify = 'python3 tool/verify_upstream_packages.py';
+    const release = '$verify --require-target linux-release';
+    final build = workflow.indexOf(
+      r'"$BUSYMAX_FLUTTER_EXECUTABLE" build linux --no-pub --release',
+    );
+    final before = workflow.indexOf(release);
+    final after = workflow.lastIndexOf(release);
+    expect(before, greaterThan(0));
+    expect(build, greaterThan(before));
+    expect(after, greaterThan(build));
+    expect(after, lessThan(workflow.indexOf('uses: snapcore/action-build@v1')));
+    expect(workflow, contains('$verify --require-target linux-debug'));
+  });
+
   test('production validator requires managed Google but no original or managed Microsoft', () async {
     final directory = Directory.systemTemp.createTempSync(
       'busymax-config-check-',

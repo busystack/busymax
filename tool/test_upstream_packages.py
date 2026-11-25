@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import unittest
 
-from verify_upstream_packages import verify, verify_sdk
+from verify_upstream_packages import verify, verify_android_maven, verify_sdk
 
 
 class UpstreamPackagesTest(unittest.TestCase):
@@ -94,8 +94,63 @@ class OfficialSdkTest(unittest.TestCase):
         artifact = {'directory': 'bin/cache', 'required': True, 'files': {'dart-sdk/bin/dart': hashlib.sha256(self.binary.read_bytes()).hexdigest()}}
         self.spec = {'identity': self.identity, 'artifacts': {'fixture-host': [artifact]}}
 
-    def check(self):
-        return verify_sdk(self.root, self.spec, 'fixture-host')
+    def check(self, *targets):
+        return verify_sdk(self.root, self.spec, 'fixture-host', targets)
+
+    def add_release_artifacts(self):
+        directory = 'bin/cache/artifacts/engine/fixture-release'
+        digest = hashlib.sha256(b'Official runtime').hexdigest()
+        self.spec['artifacts']['fixture-host'].append({
+            'directory': directory, 'required_for': ['fixture-release'],
+            'files': {'engine.dll': digest, 'tools/gen_snapshot': digest},
+        })
+        return self.root / directory
+
+    def test_required_mode_cannot_skip_an_absent_artifact_directory(self):
+        self.add_release_artifacts()
+        self.assertEqual(1, self.check())
+        with self.assertRaisesRegex(ValueError, 'fixture-release/engine.dll'):
+            self.check('fixture-release')
+
+    def test_required_mode_cannot_skip_partially_acquired_artifacts(self):
+        release = self.add_release_artifacts()
+        release.mkdir(parents=True)
+        (release / 'engine.dll').write_bytes(b'Official runtime')
+        self.assertEqual(2, self.check())
+        with self.assertRaisesRegex(ValueError, 'fixture-release/tools/gen_snapshot'):
+            self.check('fixture-release')
+        (release / 'tools').mkdir()
+        (release / 'tools/gen_snapshot').write_bytes(b'Official runtime')
+        self.assertEqual(3, self.check('fixture-release'))
+
+    def test_present_optional_files_still_require_official_bytes(self):
+        release = self.add_release_artifacts()
+        release.mkdir(parents=True)
+        (release / 'engine.dll').write_bytes(b'Modified runtime')
+        with self.assertRaisesRegex(ValueError, 'fixture-release/engine.dll'):
+            self.check()
+
+    def test_optional_artifact_directory_cannot_be_a_dangling_symlink(self):
+        release = self.add_release_artifacts()
+        release.parent.mkdir(parents=True)
+        release.symlink_to(self.root / 'absent', target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'directory was substituted'):
+            self.check()
+
+    def test_unknown_target_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, 'No reviewed SDK artifact requirements'):
+            self.check('fixture-profile')
+
+    def test_engine_stamp_must_match_the_reviewed_revision(self):
+        self.identity['engineRevision'] = 'a' * 40
+        cache = self.root / 'bin/cache'
+        (cache / 'flutter.version.json').write_text(json.dumps(self.identity))
+        stamp = cache / 'engine.stamp'
+        stamp.write_text(self.identity['engineRevision'])
+        self.assertEqual(1, self.check())
+        stamp.write_text('b' * 40)
+        with self.assertRaisesRegex(ValueError, 'engine stamp'):
+            self.check()
 
     def commit_source(self, *paths):
         self.git('add', *paths); self.git('commit', '-m', 'Application-owned source fixture')
@@ -294,6 +349,61 @@ class OfficialSdkTest(unittest.TestCase):
         finally:
             if previous is None: os.environ.pop('GIT_INDEX_FILE', None)
             else: os.environ['GIT_INDEX_FILE'] = previous
+
+
+class AndroidEngineArtifactsTest(unittest.TestCase):
+    def test_catalog_covers_supported_abis_and_modes_on_both_hosts(self):
+        path = Path(__file__).with_name('upstream_packages.json')
+        sdk = json.loads(path.read_text(encoding='utf-8'))['flutter']
+        engine = sdk['identity']['engineRevision']
+        upstream = f'https://storage.googleapis.com/flutter_infra_release/flutter/{engine}'
+        for host, host_arch in [('linux', 'linux-x64'), ('win32', 'windows-x64')]:
+            artifacts = {group['directory']: group for group in sdk['artifacts'][host]}
+            for mode in ('debug', 'profile', 'release'):
+                for arch in ('arm', 'arm64', 'x64'):
+                    with self.subTest(host=host, arch=arch, mode=mode):
+                        target = f'android-{mode}'
+                        platform = f'android-{arch}' + ('' if mode == 'debug' else f'-{mode}')
+                        directory = f'bin/cache/artifacts/engine/{platform}'
+                        group = artifacts[directory]
+                        self.assertIn(target, group['required_for'])
+                        self.assertRegex(group['files']['flutter.jar'], r'^[0-9a-f]{64}$')
+                        self.assertEqual(group['archives'][0]['archive_url'], f'{upstream}/{platform}/artifacts.zip')
+                        if mode != 'debug':
+                            compiler = artifacts[f'{directory}/{host_arch}']
+                            self.assertIn(target, compiler['required_for'])
+                            name = 'gen_snapshot.exe' if host == 'win32' else 'gen_snapshot'
+                            self.assertRegex(compiler['files'][name], r'^[0-9a-f]{64}$')
+                            self.assertEqual(compiler['archives'][0]['archive_url'], f'{upstream}/{platform}/{host_arch}.zip')
+                for arch in ('flutter_embedding', 'armeabi_v7a', 'arm64_v8a', 'x86_64'):
+                    module = f'{arch}_{mode}'
+                    for extension in ('jar', 'pom'):
+                        name = f'{module}-1.0.0-{engine}.{extension}'
+                        self.assertRegex(sdk['android_maven'][mode][module][name], r'^[0-9a-f]{64}$')
+
+    def test_maven_cache_requires_official_bytes_for_every_candidate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            revision = 'a' * 40
+            module = 'arm64_v8a_release'
+            name = f'{module}-1.0.0-{revision}.jar'
+            digest = hashlib.sha256(b'Official engine').hexdigest()
+            expected = {
+                'identity': {'engineRevision': revision},
+                'android_maven': {'release': {module: {name: digest}}},
+            }
+            with self.assertRaisesRegex(ValueError, 'Maven artifact missing'):
+                verify_android_maven(home, expected, 'release')
+            component = home / f'caches/modules-2/files-2.1/io.flutter/{module}/1.0.0-{revision}'
+            first = component / 'first' / name
+            first.parent.mkdir(parents=True)
+            first.write_bytes(b'Official engine')
+            self.assertEqual(1, verify_android_maven(home, expected, 'release'))
+            second = component / 'second' / name
+            second.parent.mkdir()
+            second.write_bytes(b'Modified engine')
+            with self.assertRaisesRegex(ValueError, name):
+                verify_android_maven(home, expected, 'release')
 
 
 if __name__ == '__main__': unittest.main()

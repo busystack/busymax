@@ -63,6 +63,10 @@ native tests, builds `lib/main_windows.dart`, stages runtime files, validates
 the manifest, packages the MSIX, unpacks the exact artifact, compares file
 inventories, and prints metadata and SHA-256. It performs no deployment.
 
+The release script restores Pub dependencies with the lockfile enforced and
+verifies the reviewed SDK artifacts and package files before and after
+compilation. Packaging rechecks these inputs before staging the MSIX.
+
 The manifest is rendered from
 `tool/windows/AppxManifest.xml.template`. It declares x64, minimum OS
 `10.0.26100.0`, internet-client and full-trust desktop capabilities,

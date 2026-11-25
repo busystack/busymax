@@ -81,10 +81,13 @@ Ctrl-C or SIGTERM stops the command's owned process session, gives it five
 seconds to terminate, then kills remaining processes and retains the workspace.
 
 The command checks all five version files before compiling; it never rewrites
-them. v0.4.3 uses Android code **11**. It resolves the lockfile,
+them. v0.4.3 uses Android code **11**. It restores dependencies with the
+lockfile enforced and verifies the Flutter SDK, Linux engine artifacts, and
+resolved packages before running the release checks. It
 generates/rechecks localization and Drift,
 runs formatting, analysis, platform boundaries, full Flutter/tool/native tests,
-and compiles a fresh configured bundle. It verifies the actual managed Google
+and compiles a fresh configured bundle. It rechecks upstream integrity after
+compilation and verifies the actual managed Google
 configuration in `libapp.so`, runs canonical Snapcraft packaging with
 `--use-lxd`. Its output stays inside the checkout during the LXD pack step,
 then the exact package moves to `artifacts/`. The command checks version,

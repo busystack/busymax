@@ -211,6 +211,10 @@ class LocalReleaseTest(unittest.TestCase):
             if args[0] == 'git' and args[1] == 'ls-files': return ''
             if failure == 'dependency' and 'tool/checkout_shared_dependencies.py' in args:
                 raise release.ReleaseError('Missing pinned dependency.')
+            if 'tool/verify_upstream_packages.py' in args:
+                compiled = any(cmd[1:3] == ['build', 'linux'] for cmd in seen)
+                if failure == ('post-integrity' if compiled else 'pre-integrity'):
+                    raise release.ReleaseError('Upstream integrity failure.')
             if failure == 'stale' and args[0] == 'git' and args[1] == 'checkout':
                 self.bundle(workspace/'busymax/build/linux/x64/release/bundle')
             if len(args) > 2 and args[1:3] == ['build', 'linux']:
@@ -248,6 +252,29 @@ class LocalReleaseTest(unittest.TestCase):
         packing = next(cmd for cmd in seen if cmd[:2] == ['snapcraft','pack'])
         self.assertEqual(packing[-1], 'build/snap-output')
         self.assertFalse(Path(packing[-1]).is_absolute())
+
+    def test_integrity_verification_brackets_compilation_and_precedes_packaging(self):
+        _, seen = self.mocked_build()
+        restore = next(i for i, cmd in enumerate(seen) if cmd[1:] == ['pub', 'get', '--enforce-lockfile'])
+        integrity = [i for i, cmd in enumerate(seen) if 'tool/verify_upstream_packages.py' in cmd]
+        self.assertEqual(len(integrity), 2)
+        compile_step = next(i for i, cmd in enumerate(seen) if cmd[1:3] == ['build', 'linux'])
+        pack_step = next(i for i, cmd in enumerate(seen) if cmd[:2] == ['snapcraft', 'pack'])
+        self.assertEqual(integrity[0], restore + 1)
+        self.assertGreater(compile_step, integrity[0])
+        self.assertEqual(integrity[1], compile_step + 1)
+        self.assertGreater(pack_step, integrity[1])
+        for index in integrity:
+            self.assertEqual(seen[index][-4:], ['--require-target', 'linux-debug', '--require-target', 'linux-release'])
+
+    def test_failed_integrity_gate_never_reaches_packaging(self):
+        for failure in ('pre-integrity', 'post-integrity'):
+            with self.subTest(failure=failure):
+                workspace, seen = self.mocked_build(failure)
+                self.assertEqual(any(cmd[1:3] == ['build', 'linux'] for cmd in seen), failure == 'post-integrity')
+                self.assertFalse(any(cmd[:2] == ['snapcraft', 'pack'] for cmd in seen))
+                self.assertFalse((workspace / 'artifacts').exists())
+                shutil.rmtree(workspace)
 
     def test_failed_build_never_emits_success_manifest(self):
         for failure in ['dependency','stale','snap','runtime']:

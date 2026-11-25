@@ -106,7 +106,10 @@ void main() {
       contains(r'& $dartExecutable run tool/check_platform_boundaries.dart'),
     );
     expect(buildScript, contains(r'& $flutterExecutable analyze'));
-    expect(buildScript, contains(r'& $flutterExecutable test --machine'));
+    expect(
+      buildScript,
+      contains(r'& $flutterExecutable test --no-pub --machine'),
+    );
     expect(buildScript, contains(r'& $flutterExecutable build windows'));
     expect(buildScript, isNot(matches(RegExp(r'&\s+dart\s'))));
     expect(buildScript, isNot(matches(RegExp(r'&\s+flutter\s'))));
@@ -125,6 +128,26 @@ void main() {
     expect(prerequisiteScript, isNot(contains('Get-Command dart')));
     expect(prerequisiteScript, isNot(contains(r'$flutterBin -ne $dartBin')));
   });
+
+  test(
+    'Windows release compilation and packaging require official artifacts',
+    () {
+      final release = File('tool/windows/build_release.ps1').readAsStringSync();
+      final package = File('tool/windows/package_store.ps1').readAsStringSync();
+      const verify = "Assert-BusyMaxUpstreamIntegrity 'windows-release'";
+      final compile = release.indexOf(
+        r'& $flutterExecutable build windows --no-pub --release',
+      );
+      expect(release.indexOf(verify), greaterThan(0));
+      expect(compile, greaterThan(release.indexOf(verify)));
+      expect(release.lastIndexOf(verify), greaterThan(compile));
+      expect(package, contains('--require-target windows-release'));
+      expect(
+        package.indexOf('--require-target windows-release'),
+        lessThan(package.indexOf(r'& $makeAppx pack')),
+      );
+    },
+  );
 
   test(
     'Windows CI retains diagnostics and limits package artifact uploads',
