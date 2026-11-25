@@ -47,6 +47,44 @@ export ORG_GRADLE_PROJECT_busymaxTestSigning="$test_signing"
 integrity=(python3 tool/verify_upstream_packages.py --sdk "$flutter_sdk"
   --require-target android-release)
 "${integrity[@]}"
+
+# Flutter 3.50.1's pub get writes a debug registrant. A --no-pub build skips
+# release regeneration, so invoke the pinned SDK's generator directly.
+registrant=android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+temporary="$(mktemp -d)"
+restore_registrant() {
+  if [[ -f "$temporary/GeneratedPluginRegistrant.java" ]]; then
+    cp -- "$temporary/GeneratedPluginRegistrant.java" "$registrant"
+  fi
+  rm -f -- "$temporary/GeneratedPluginRegistrant.java" "$temporary/generate.dart"
+  rmdir -- "$temporary"
+}
+trap restore_registrant EXIT
+cp -- "$registrant" "$temporary/GeneratedPluginRegistrant.java"
+cat > "$temporary/generate.dart" <<'DART'
+import 'package:flutter_tools/src/base/template.dart';
+import 'package:flutter_tools/src/cache.dart';
+import 'package:flutter_tools/src/context_runner.dart';
+import 'package:flutter_tools/src/flutter_plugins.dart';
+import 'package:flutter_tools/src/globals.dart' as globals;
+import 'package:flutter_tools/src/isolated/mustache_template.dart';
+import 'package:flutter_tools/src/project.dart';
+
+Future<void> main(List<String> args) async {
+  Cache.flutterRoot = args.single;
+  await runInContext(
+    () async {
+      final project = FlutterProject.fromDirectory(globals.fs.currentDirectory);
+      await injectPlugins(project, releaseMode: true, androidPlatform: true);
+    },
+    overrides: {TemplateRenderer: () => const MustacheTemplateRenderer()},
+  );
+}
+DART
+"$flutter_sdk/bin/cache/dart-sdk/bin/dart" \
+  --packages="$flutter_sdk/packages/flutter_tools/.dart_tool/package_config.json" \
+  "$temporary/generate.dart" "$flutter_sdk"
+
 if [[ "$kind" == apk || "$kind" == all ]]; then
   "$flutter_bin" build apk --no-pub --release -t lib/main_android.dart "${defines[@]}"
   "${integrity[@]}" --android-maven-mode release

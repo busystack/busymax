@@ -17,6 +17,9 @@ class AndroidReleaseIntegrityTest(unittest.TestCase):
         self.root = Path(temporary.name)
         self.log = self.root / 'commands.jsonl'
         self.flutter = self.root / 'sdk/bin/flutter'
+        self.registrant = self.root / 'android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java'
+        self.registrant.parent.mkdir(parents=True)
+        self.registrant.write_text('debug')
         self.script = self.root / 'tool/android/build_release.sh'
         self.script.parent.mkdir(parents=True)
         shutil.copy2(ROOT / 'tool/android/build_release.sh', self.script)
@@ -26,11 +29,26 @@ class AndroidReleaseIntegrityTest(unittest.TestCase):
         self.flutter.parent.mkdir(parents=True)
         self.flutter.write_text('''#!/usr/bin/env python3
 import json, os, sys
+from pathlib import Path
 with open(os.environ['COMMAND_LOG'], 'a') as log:
     print(json.dumps(sys.argv[1:]), file=log)
+if sys.argv[1] == 'build':
+    assert Path(os.environ['REGISTRANT']).read_text() == 'release'
 raise SystemExit(1 if sys.argv[1] == os.environ.get('FAILURE') else 0)
 ''')
         self.flutter.chmod(0o755)
+        dart = self.flutter.parent / 'cache/dart-sdk/bin/dart'
+        dart.parent.mkdir(parents=True)
+        dart.write_text('''#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+assert sys.argv[1] == '--packages=' + sys.argv[3] + '/packages/flutter_tools/.dart_tool/package_config.json'
+assert 'injectPlugins(project, releaseMode: true, androidPlatform: true)' in Path(sys.argv[2]).read_text()
+with open(os.environ['COMMAND_LOG'], 'a') as log:
+    print(json.dumps(['generate-release-registrant']), file=log)
+Path(os.environ['REGISTRANT']).write_text('release')
+''')
+        dart.chmod(0o755)
         (self.root / 'tool/verify_upstream_packages.py').write_text('''
 import json, os, sys
 with open(os.environ['COMMAND_LOG'], 'a') as log:
@@ -44,7 +62,7 @@ raise SystemExit(1 if stage == os.environ.get('FAILURE') else 0)
             ['bash', self.script, *options, '--test-signing', '--allow-unconfigured-providers'],
             cwd=self.root.parent, capture_output=True, text=True, timeout=30,
             env={**os.environ, 'BUSYMAX_FLUTTER_EXECUTABLE': str(self.flutter),
-                 'COMMAND_LOG': str(self.log), 'FAILURE': failure},
+                 'COMMAND_LOG': str(self.log), 'FAILURE': failure, 'REGISTRANT': str(self.registrant)},
         )
         return result, [json.loads(line) for line in self.log.read_text().splitlines()]
 
@@ -57,11 +75,13 @@ raise SystemExit(1 if stage == os.environ.get('FAILURE') else 0)
             ['precache', '--android_gen_snapshot', '--android_internal_build'],
             ['pub', 'get', '--enforce-lockfile'],
             verify,
+            ['generate-release-registrant'],
             ['build', 'apk', '--no-pub', '--release', '-t', 'lib/main_android.dart'],
             post,
             ['build', 'appbundle', '--no-pub', '--release', '-t', 'lib/main_android.dart'],
             post,
         ])
+        self.assertEqual(self.registrant.read_text(), 'debug')
 
     def test_lockfile_or_integrity_failure_cannot_accept_an_artifact(self):
         for failure, build_count in [('pub', 0), ('before', 0), ('after', 1)]:
@@ -71,6 +91,7 @@ raise SystemExit(1 if stage == os.environ.get('FAILURE') else 0)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(sum(cmd[0] == 'build' for cmd in commands), build_count)
                 self.assertNotIn('Artifacts are explicitly TEST-SIGNED', result.stdout)
+                self.assertEqual(self.registrant.read_text(), 'debug')
 
 
 if __name__ == '__main__':

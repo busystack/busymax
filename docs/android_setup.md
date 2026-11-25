@@ -138,9 +138,10 @@ It enforces the lockfile, regenerates localization and Drift output, checks
 generated consistency and formatting, runs analysis, platform boundaries, the
 complete Flutter suite, native plugin unit tests, and Android lint.
 
-The release script verifies the pinned Flutter SDK and resolved Pub packages
-before compiling with `--no-pub`. After each APK or AAB build, it rechecks those
-inputs and verifies the Android engine and embedding files in the Gradle cache.
+The release script verifies the pinned Flutter SDK and resolved Pub packages,
+then uses Flutter's release plugin generator before compiling with `--no-pub`.
+After each APK or AAB build, it rechecks those inputs and verifies the Android
+engine and embedding files in the Gradle cache.
 
 Android 17/API 37 acceptance must include an upgrade that preserves an existing
 local-server account and its queued edits. Deny Nearby devices access, then
