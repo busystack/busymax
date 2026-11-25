@@ -46,6 +46,9 @@ production HTTPS URLs and complete OAuth configuration.
 
 ## Build and package
 
+Complete the [Windows development setup](development.md#windows-development),
+including Developer Mode for Flutter's plugin symlinks.
+
 Use a 64-bit Windows 11 PowerShell prompt:
 
 ```powershell

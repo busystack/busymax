@@ -144,6 +144,10 @@ Install:
 - Windows SDK `10.0.26100.0` or newer; and
 - Pester 5 when running the packaging contract tests (CI uses 5.7.1).
 
+Flutter needs permission to create Windows plugin symlinks during
+`flutter pub get`. Enable Developer Mode on your Windows build machine before
+restoring dependencies. See [Microsoft's Developer Mode setup guide](https://learn.microsoft.com/en-us/windows/apps/get-started/developer-mode-features-and-debugging#enable-developer-mode).
+
 From a PowerShell prompt at the repository root, verify the environment:
 
 ```powershell
