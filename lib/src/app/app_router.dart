@@ -95,6 +95,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ],
             ),
             title: BusyMaxLinuxHeaderTitle(context.l10n.journals),
+            trailing: const SizedBox.shrink(),
           ),
           body: const JournalWorkspace(
             controls: LinuxJournalControls(),
