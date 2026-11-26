@@ -117,12 +117,18 @@ def main():
     run('linux-native', ['flutter', 'test', '-d', 'linux',
         'integration_test/journal_linux_workflows_test.dart', '--reporter', 'expanded'],
         named=[f'Linux journal collection and editor on {provider}' for provider in profiles])
+    linux = results['linux-native']
     for platform in ('linux', 'windows', 'android'):
         for provider in ('caldav', 'nextcloud'):
-            evidence['nativeMatrix'][f'{platform}/{provider}'] = (
-                'partial scope, see linux-native' if platform == 'linux'
-                else 'required native journal workflow unavailable'
-            )
+            if platform == 'linux':
+                result = (
+                    'partial workflow executed successfully'
+                    if linux['exitCode'] == 0 and not linux['missing']
+                    else 'partial workflow failed or a required case was absent'
+                )
+            else:
+                result = 'required native journal workflow unavailable'
+            evidence['nativeMatrix'][f'{platform}/{provider}'] = result
     evidence['finished'] = utc()
     (artifact / 'manifest.json').write_text(json.dumps(evidence, indent=2) + '\n')
     print(f'Required matrix incomplete. Evidence is in {artifact}', flush=True)
