@@ -537,11 +537,12 @@ final class DavConditionalMutationService {
     Future<void> Function(Uri uri)? beforeCreateDispatch,
     bool requireContentPreservation = false,
   }) async {
-    final allowed = object.componentType == 'VEVENT'
-        ? capabilities.canAttemptCreateEvent
-        : object.componentType == 'VTODO'
-        ? capabilities.canAttemptCreateTask
-        : false;
+    final allowed = switch (object.componentType) {
+      'VEVENT' => capabilities.canAttemptCreateEvent,
+      'VTODO' => capabilities.canAttemptCreateTask,
+      'VJOURNAL' => capabilities.canAttemptCreateJournal,
+      _ => false,
+    };
     if (!allowed) throw _readOnlyError(correlationId);
     if (!object.suppressScheduling) {
       schedulingValidator?.call(candidate: object.rawIcs);
@@ -603,6 +604,7 @@ final class DavConditionalMutationService {
         if (!canonical.missing &&
             (_matchesCreatedCanonical(object.rawIcs, canonical.rawIcsBody!) ||
                 (!requireContentPreservation &&
+                    object.componentType != 'VJOURNAL' &&
                     implicitScheduling &&
                     _sameResourceIdentity(
                       object.rawIcs,
@@ -655,11 +657,13 @@ final class DavConditionalMutationService {
     required String correlationId,
     bool reconcileFirst = false,
   }) async {
-    final event = patch.target.componentType.toUpperCase() == 'VEVENT';
-    if (baselineEtag.isEmpty ||
-        (event
-            ? !capabilities.canAttemptUpdateEvent
-            : !capabilities.canAttemptUpdateTask)) {
+    final allowed = switch (patch.target.componentType.toUpperCase()) {
+      'VEVENT' => capabilities.canAttemptUpdateEvent,
+      'VTODO' => capabilities.canAttemptUpdateTask,
+      'VJOURNAL' => capabilities.canAttemptUpdateJournal,
+      _ => false,
+    };
+    if (baselineEtag.isEmpty || !allowed) {
       throw _readOnlyError(correlationId);
     }
     var expectedEtag = baselineEtag;
@@ -1004,10 +1008,15 @@ final class DavConditionalMutationService {
     required CollectionCapabilities capabilities,
     required String correlationId,
   }) async {
-    if (baselineEtag.isEmpty ||
-        (isEvent
-            ? !capabilities.canAttemptDeleteEvent
-            : !capabilities.canAttemptDeleteTask)) {
+    final journal =
+        IcalSemanticDocument.parse(baselineRawIcs).dominantComponentType ==
+        'VJOURNAL';
+    final allowed = journal
+        ? capabilities.canAttemptDeleteJournal
+        : isEvent
+        ? capabilities.canAttemptDeleteEvent
+        : capabilities.canAttemptDeleteTask;
+    if (baselineEtag.isEmpty || !allowed) {
       throw _readOnlyError(correlationId);
     }
     var expectedEtag = baselineEtag;

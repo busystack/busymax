@@ -4117,4 +4117,53 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'Charger plus de jours';
+
+  @override
+  String get journals => 'Journaux';
+
+  @override
+  String get newJournal => 'Nouvelle entrée';
+
+  @override
+  String get newJournalCollection => 'Nouvelle collection de journaux';
+
+  @override
+  String get journalCollection => 'Collection de journaux';
+
+  @override
+  String get untitledJournal => 'Entrée sans titre';
+
+  @override
+  String get journalNoEntries => 'Aucune entrée de journal trouvée.';
+
+  @override
+  String get journalOperationFailed => 'L’opération sur le journal a échoué.';
+
+  @override
+  String get journalDated => 'Entrées datées';
+
+  @override
+  String get journalDate => 'Date de l’entrée';
+
+  @override
+  String get journalStatus => 'État';
+
+  @override
+  String get journalAddDescription => 'Ajouter une description';
+
+  @override
+  String get journalRemoveDescription => 'Retirer la description';
+
+  @override
+  String get journalDuplicate => 'Dupliquer l’entrée';
+
+  @override
+  String get journalDeleteSeries =>
+      'Supprimer l’entrée entière et ses répétitions ?';
+
+  @override
+  String get journalFloatingTime => 'Heure locale';
+
+  @override
+  String get journalZonedTime => 'Heure avec fuseau horaire';
 }

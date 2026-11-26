@@ -2108,5 +2108,21 @@
   "taskReminderRequiresAnchor": "Zmień przypomnienie względne przed usunięciem jego początku lub terminu.",
   "attachmentInvalidOrTooLarge": "Ten załącznik jest nieprawidłowy lub przekracza limit rozmiaru.",
   "moveEvent": "Przenieś wydarzenie",
-  "agendaLoadMoreDays": "Wczytaj więcej dni"
+  "agendaLoadMoreDays": "Wczytaj więcej dni",
+  "journals": "Dzienniki",
+  "newJournal": "Nowy wpis",
+  "newJournalCollection": "Nowa kolekcja dziennika",
+  "journalCollection": "Kolekcja dziennika",
+  "untitledJournal": "Wpis bez tytułu",
+  "journalNoEntries": "Nie znaleziono wpisów w dzienniku.",
+  "journalOperationFailed": "Operacja na dzienniku nie powiodła się.",
+  "journalDated": "Wpisy z datą",
+  "journalDate": "Data",
+  "journalStatus": "Stan",
+  "journalAddDescription": "Dodaj opis",
+  "journalRemoveDescription": "Usuń opis",
+  "journalDuplicate": "Powiel wpis",
+  "journalDeleteSeries": "Usunąć cały wpis i jego powtórzenia?",
+  "journalFloatingTime": "Czas lokalny",
+  "journalZonedTime": "Czas ze strefą czasową"
 }

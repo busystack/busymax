@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../db/app_database.dart';
+import '../../journal/journal_component.dart';
 import '../dav_errors.dart';
 import '../ical/ical_document.dart';
 import '../ical/ical_semantics.dart';
@@ -56,7 +57,8 @@ final class NextcloudNativeImportPreview {
     for (final component in document.calendarComponents) {
       if (component.name == 'VTIMEZONE') continue;
       final uid = component.firstProperty('UID')?.rawValue.trim() ?? '';
-      if (!{'VEVENT', 'VTODO'}.contains(component.name) || uid.isEmpty) {
+      if (!const {'VEVENT', 'VTODO', 'VJOURNAL'}.contains(component.name) ||
+          uid.isEmpty) {
         rejected.add(
           NativeImportItemResult(
             uid,
@@ -80,15 +82,19 @@ final class NextcloudNativeImportPreview {
           (node) => node is IcalComponent && node.name != 'VTIMEZONE',
         );
         resource.root.children.addAll(entry.value.map((c) => c.deepCopy()));
-        resource.root.children.removeWhere(
-          (node) => node is IcalProperty && node.name == 'METHOD',
-        );
+        if (type != 'VJOURNAL') {
+          resource.root.children.removeWhere(
+            (node) => node is IcalProperty && node.name == 'METHOD',
+          );
+        }
         resource.root.structurallyDirty = true;
         final raw = resource.serialize();
         final semantic = IcalSemanticDocument.parse(raw);
         final identities = <String>{};
-        if (semantic.components.where((c) => c.recurrenceId == null).length !=
-                1 ||
+        final masters = semantic.components
+            .where((c) => c.recurrenceId == null)
+            .length;
+        if ((type == 'VJOURNAL' ? masters > 1 : masters != 1) ||
             semantic.components.any(
               (c) => !identities.add(c.recurrenceIdKey ?? 'master'),
             )) {
@@ -98,6 +104,7 @@ final class NextcloudNativeImportPreview {
             safeMessage: 'A recurrence set must have one master and distinct exceptions.',
           );
         }
+        JournalComponent.validateAuthored(semantic);
         resources.add(NativeImportResource(uid, type, raw));
       } on DavException catch (error) {
         rejected.add(
@@ -251,10 +258,15 @@ final class DavNativeImportService {
             database.accounts,
           )..where((r) => r.id.equals(accountId))).getSingle();
           final caps = collectionCapabilitiesFromStored(collection);
+          final canCreate = switch (resource.componentType) {
+            'VEVENT' => caps.canAttemptCreateEvent,
+            'VTODO' => caps.canAttemptCreateTask,
+            'VJOURNAL' =>
+              account.journalsEnabled && caps.canAttemptCreateJournal,
+            _ => false,
+          };
           if (!const {'nextcloud', 'caldav'}.contains(account.provider) ||
-              !(resource.componentType == 'VEVENT'
-                  ? caps.canAttemptCreateEvent
-                  : caps.canAttemptCreateTask)) {
+              !canCreate) {
             return NativeImportItemResult(
               resource.uid,
               resource.componentType,
@@ -319,7 +331,9 @@ final class DavNativeImportService {
             initialMemberName: '${_idFactory()}.ics',
             rawIcs: document.serialize(),
             componentType: resource.componentType,
-            suppressScheduling: account.provider == 'nextcloud',
+            suppressScheduling:
+                account.provider == 'nextcloud' &&
+                resource.componentType != 'VJOURNAL',
           );
           final target = Uri.parse(
             collection.requestUri.endsWith('/')

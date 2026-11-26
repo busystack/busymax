@@ -204,6 +204,21 @@ final class DavDiscoveryRepository {
                   discovered.eventProjectionEnabled,
                 ),
                 taskProjectionEnabled: Value(discovered.taskProjectionEnabled),
+                journalProjectionEnabled: Value(
+                  discovered.journalProjectionEnabled,
+                ),
+                journalsSelected: Value(existing?.journalsSelected ?? true),
+                journalInventoryComplete: Value(
+                  discovered.journalProjectionEnabled &&
+                      existing?.journalProjectionEnabled == true &&
+                      existing?.journalInventoryComplete == true &&
+                      existing?.readOnly ==
+                          discovered.capabilities.isReadOnly &&
+                      existing?.ownerHref == discovered.ownerHref &&
+                      (jsonDecode(existing?.safeDisplayMetadataJson ?? '{}')
+                              as Map)['principalHref'] ==
+                          discovered.principalHref?.toString(),
+                ),
                 eventsSelected: Value(existing?.eventsSelected ?? true),
                 tasksSelected: Value(existing?.tasksSelected ?? true),
                 serverMissing: const Value(false),

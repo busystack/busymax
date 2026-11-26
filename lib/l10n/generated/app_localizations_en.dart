@@ -4112,4 +4112,53 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'Load more days';
+
+  @override
+  String get journals => 'Journals';
+
+  @override
+  String get newJournal => 'New entry';
+
+  @override
+  String get newJournalCollection => 'New journal collection';
+
+  @override
+  String get journalCollection => 'Journal collection';
+
+  @override
+  String get untitledJournal => 'Untitled entry';
+
+  @override
+  String get journalNoEntries => 'No journal entries found.';
+
+  @override
+  String get journalOperationFailed => 'The journal operation failed.';
+
+  @override
+  String get journalDated => 'Dated entries';
+
+  @override
+  String get journalDate => 'Date';
+
+  @override
+  String get journalStatus => 'Status';
+
+  @override
+  String get journalAddDescription => 'Add description';
+
+  @override
+  String get journalRemoveDescription => 'Remove description';
+
+  @override
+  String get journalDuplicate => 'Duplicate entry';
+
+  @override
+  String get journalDeleteSeries =>
+      'Delete the entire entry and its recurrence?';
+
+  @override
+  String get journalFloatingTime => 'Local time';
+
+  @override
+  String get journalZonedTime => 'Time with a time zone';
 }

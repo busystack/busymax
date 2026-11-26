@@ -1490,5 +1490,21 @@
   "taskReminderRequiresAnchor": "Modifiez le rappel relatif avant de supprimer son début ou son échéance.",
   "attachmentInvalidOrTooLarge": "Cette pièce jointe est invalide ou dépasse la taille limite.",
   "moveEvent": "Déplacer l’événement",
-  "agendaLoadMoreDays": "Charger plus de jours"
+  "agendaLoadMoreDays": "Charger plus de jours",
+  "journals": "Journaux",
+  "newJournal": "Nouvelle entrée",
+  "newJournalCollection": "Nouvelle collection de journaux",
+  "journalCollection": "Collection de journaux",
+  "untitledJournal": "Entrée sans titre",
+  "journalNoEntries": "Aucune entrée de journal trouvée.",
+  "journalOperationFailed": "L’opération sur le journal a échoué.",
+  "journalDated": "Entrées datées",
+  "journalDate": "Date de l’entrée",
+  "journalStatus": "État",
+  "journalAddDescription": "Ajouter une description",
+  "journalRemoveDescription": "Retirer la description",
+  "journalDuplicate": "Dupliquer l’entrée",
+  "journalDeleteSeries": "Supprimer l’entrée entière et ses répétitions ?",
+  "journalFloatingTime": "Heure locale",
+  "journalZonedTime": "Heure avec fuseau horaire"
 }

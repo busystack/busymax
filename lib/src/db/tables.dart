@@ -18,6 +18,8 @@ class Accounts extends Table {
   BoolColumn get calendarsEnabled =>
       boolean().withDefault(const Constant(true))();
   BoolColumn get tasksEnabled => boolean().withDefault(const Constant(true))();
+  BoolColumn get journalsEnabled =>
+      boolean().withDefault(const Constant(true))();
   TextColumn get grantedScopes => text().withDefault(const Constant(''))();
   TextColumn get createdAtUtc => text()();
   TextColumn get updatedAtUtc => text()();
@@ -144,6 +146,12 @@ class DavCollections extends Table {
       boolean().withDefault(const Constant(false))();
   BoolColumn get taskProjectionEnabled =>
       boolean().withDefault(const Constant(false))();
+  BoolColumn get journalProjectionEnabled =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get journalsSelected =>
+      boolean().withDefault(const Constant(true))();
+  BoolColumn get journalInventoryComplete =>
+      boolean().withDefault(const Constant(false))();
   BoolColumn get eventsSelected =>
       boolean().withDefault(const Constant(true))();
   BoolColumn get tasksSelected => boolean().withDefault(const Constant(true))();
@@ -209,6 +217,32 @@ class DavObjectComponents extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Search and list data derived from effective DAV journal components.
+class DavJournalEntries extends Table {
+  TextColumn get componentId => text().references(
+    DavObjectComponents,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  TextColumn get davObjectId =>
+      text().references(DavObjects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get collectionId =>
+      text().references(DavCollections, #id, onDelete: KeyAction.cascade)();
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get uid => text()();
+  TextColumn get recurrenceIdKey => text().nullable()();
+  TextColumn get title => text().nullable()();
+  TextColumn get searchText => text()();
+  TextColumn get status => text().nullable()();
+  TextColumn get startKind => text().nullable()();
+  TextColumn get startValue => text().nullable()();
+  TextColumn get startTimeZone => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {componentId};
 }
 
 class DavConflictSnapshots extends Table {

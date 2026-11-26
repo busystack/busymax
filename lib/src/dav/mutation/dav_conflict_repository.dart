@@ -873,7 +873,7 @@ bool _hasObjectIdentity(DavPreparedObject canonical, DavObject object) =>
     }
     final componentType = (decoded['componentType']! as String).toUpperCase();
     final uid = decoded['uid']! as String;
-    if ((componentType != 'VEVENT' && componentType != 'VTODO') ||
+    if (!const {'VEVENT', 'VTODO', 'VJOURNAL'}.contains(componentType) ||
         uid.isEmpty) {
       return null;
     }
@@ -1052,7 +1052,8 @@ String _duplicateResource(
   final document = IcalDocument.parse(source);
   final stamp = _utcIcal(nowUtc);
   for (final component in document.calendarComponents.where(
-    (component) => component.name == 'VEVENT' || component.name == 'VTODO',
+    (component) =>
+        const {'VEVENT', 'VTODO', 'VJOURNAL'}.contains(component.name),
   )) {
     final uidProperty = component.firstProperty('UID');
     if (uidProperty == null) throw _resolutionUnavailable();

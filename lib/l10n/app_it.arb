@@ -1427,5 +1427,21 @@
   "taskReminderRequiresAnchor": "Modifica il promemoria relativo prima di rimuoverne l’inizio o la scadenza.",
   "attachmentInvalidOrTooLarge": "Questo allegato non è valido o supera il limite di dimensione.",
   "moveEvent": "Sposta evento",
-  "agendaLoadMoreDays": "Carica altri giorni"
+  "agendaLoadMoreDays": "Carica altri giorni",
+  "journals": "Diari",
+  "newJournal": "Nuova voce",
+  "newJournalCollection": "Nuova raccolta di diario",
+  "journalCollection": "Raccolta di diario",
+  "untitledJournal": "Voce senza titolo",
+  "journalNoEntries": "Nessuna voce di diario trovata.",
+  "journalOperationFailed": "Operazione sul diario non riuscita.",
+  "journalDated": "Voci con data",
+  "journalDate": "Data",
+  "journalStatus": "Stato",
+  "journalAddDescription": "Aggiungi descrizione",
+  "journalRemoveDescription": "Rimuovi descrizione",
+  "journalDuplicate": "Duplica voce",
+  "journalDeleteSeries": "Eliminare l’intera voce con le sue ricorrenze?",
+  "journalFloatingTime": "Ora locale",
+  "journalZonedTime": "Ora con fuso orario"
 }

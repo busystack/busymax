@@ -3986,4 +3986,52 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => '날짜 더 불러오기';
+
+  @override
+  String get journals => '일지';
+
+  @override
+  String get newJournal => '새 항목';
+
+  @override
+  String get newJournalCollection => '새 일지 모음';
+
+  @override
+  String get journalCollection => '일지 모음';
+
+  @override
+  String get untitledJournal => '제목 없는 항목';
+
+  @override
+  String get journalNoEntries => '일지 항목을 찾을 수 없습니다.';
+
+  @override
+  String get journalOperationFailed => '일지 작업에 실패했습니다.';
+
+  @override
+  String get journalDated => '날짜가 있는 항목';
+
+  @override
+  String get journalDate => '날짜';
+
+  @override
+  String get journalStatus => '상태';
+
+  @override
+  String get journalAddDescription => '설명 추가';
+
+  @override
+  String get journalRemoveDescription => '설명 제거';
+
+  @override
+  String get journalDuplicate => '항목 복제';
+
+  @override
+  String get journalDeleteSeries => '항목과 모든 반복을 삭제할까요?';
+
+  @override
+  String get journalFloatingTime => '현지 시각';
+
+  @override
+  String get journalZonedTime => '시간대가 있는 시각';
 }

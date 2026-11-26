@@ -115,11 +115,12 @@ final class DavSyncEngine {
     final window = davProjectionWindow(_nowUtc());
     final projectionStart = (projectionRangeStartUtc ?? window.start).toUtc();
     final projectionEnd = (projectionRangeEndUtc ?? window.end).toUtc();
-    final projectionStale = _projectionStateStale(
-      cursor,
-      projectionStart,
-      projectionEnd,
-    );
+    final journalBootstrap =
+        collection.journalProjectionEnabled &&
+        !collection.journalInventoryComplete;
+    final projectionStale =
+        journalBootstrap ||
+        _projectionStateStale(cursor, projectionStart, projectionEnd);
     await _objectRepository.markSyncStarted(
       accountId: _accountId,
       collectionId: _collectionId,
@@ -136,7 +137,9 @@ final class DavSyncEngine {
       var initialOrRebaseline = false;
       if (supportsSyncCollection) {
         final savedToken =
-            !forceRebaseline && cursor?.cursorKind == 'dav_sync_token'
+            !forceRebaseline &&
+                !journalBootstrap &&
+                cursor?.cursorKind == 'dav_sync_token'
             ? cursor?.cursorValue
             : null;
         initialOrRebaseline = savedToken == null || savedToken.isEmpty;
@@ -171,7 +174,8 @@ final class DavSyncEngine {
       final fetch = <DavRemoteMember>[];
       for (final member in remote.liveMembers.values) {
         final local = localByHref[member.hrefKey];
-        if (local == null ||
+        if (journalBootstrap ||
+            local == null ||
             local.serverDeleted ||
             local.etag != member.etag ||
             local.parserVersion != davRawObjectParserVersion) {

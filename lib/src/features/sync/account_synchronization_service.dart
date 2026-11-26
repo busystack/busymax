@@ -284,14 +284,20 @@ final class AccountSynchronizationService {
           account.tasksEnabled &&
           row.taskProjectionEnabled &&
           row.tasksSelected;
+      final journalsEnabled =
+          account.journalsEnabled &&
+          row.journalProjectionEnabled &&
+          row.journalsSelected;
       final selected = physical
-          ? eventsEnabled || tasksEnabled
+          ? eventsEnabled || tasksEnabled || journalsEnabled
           : task
           ? tasksEnabled
           : eventsEnabled;
       if (!selected) return SyncOutcome(request, SyncDisposition.disabled);
     }
-    if (!account.tasksEnabled && !account.calendarsEnabled) {
+    if (!account.tasksEnabled &&
+        !account.calendarsEnabled &&
+        !account.journalsEnabled) {
       return SyncOutcome(request, SyncDisposition.disabled);
     }
     final dispatchOnly = request.origin == SyncTrigger.localMutation;

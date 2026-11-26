@@ -4124,4 +4124,52 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'بارگذاری روزهای بیشتر';
+
+  @override
+  String get journals => 'یادداشت‌های روزانه';
+
+  @override
+  String get newJournal => 'مدخل جدید';
+
+  @override
+  String get newJournalCollection => 'مجموعهٔ جدید یادداشت روزانه';
+
+  @override
+  String get journalCollection => 'مجموعهٔ یادداشت روزانه';
+
+  @override
+  String get untitledJournal => 'مدخل بدون عنوان';
+
+  @override
+  String get journalNoEntries => 'هیچ مدخلی یافت نشد.';
+
+  @override
+  String get journalOperationFailed => 'عملیات یادداشت روزانه ناموفق بود.';
+
+  @override
+  String get journalDated => 'مدخل‌های تاریخ‌دار';
+
+  @override
+  String get journalDate => 'تاریخ';
+
+  @override
+  String get journalStatus => 'وضعیت';
+
+  @override
+  String get journalAddDescription => 'افزودن توضیحات';
+
+  @override
+  String get journalRemoveDescription => 'حذف توضیحات';
+
+  @override
+  String get journalDuplicate => 'تکثیر مدخل';
+
+  @override
+  String get journalDeleteSeries => 'مدخل و همهٔ تکرارهای آن حذف شوند؟';
+
+  @override
+  String get journalFloatingTime => 'زمان محلی';
+
+  @override
+  String get journalZonedTime => 'زمان با منطقهٔ زمانی';
 }

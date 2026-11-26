@@ -4083,4 +4083,52 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'और दिन लोड करें';
+
+  @override
+  String get journals => 'दैनिकी';
+
+  @override
+  String get newJournal => 'नई प्रविष्टि';
+
+  @override
+  String get newJournalCollection => 'नया दैनिकी संग्रह';
+
+  @override
+  String get journalCollection => 'दैनिकी संग्रह';
+
+  @override
+  String get untitledJournal => 'बिना शीर्षक की प्रविष्टि';
+
+  @override
+  String get journalNoEntries => 'दैनिकी की कोई प्रविष्टि नहीं मिली।';
+
+  @override
+  String get journalOperationFailed => 'दैनिकी की कार्रवाई विफल रही।';
+
+  @override
+  String get journalDated => 'तारीख वाली प्रविष्टियाँ';
+
+  @override
+  String get journalDate => 'तारीख';
+
+  @override
+  String get journalStatus => 'स्थिति';
+
+  @override
+  String get journalAddDescription => 'विवरण जोड़ें';
+
+  @override
+  String get journalRemoveDescription => 'विवरण हटाएँ';
+
+  @override
+  String get journalDuplicate => 'प्रविष्टि की प्रति बनाएँ';
+
+  @override
+  String get journalDeleteSeries => 'पूरी प्रविष्टि और उसके दोहराव मिटाएँ?';
+
+  @override
+  String get journalFloatingTime => 'स्थानीय समय';
+
+  @override
+  String get journalZonedTime => 'समय क्षेत्र के साथ समय';
 }

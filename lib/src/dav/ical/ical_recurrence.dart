@@ -190,6 +190,54 @@ final class IcalRecurrenceExpander {
     final masters = document.components
         .where((component) => component.recurrenceId == null)
         .toList(growable: false);
+    final journal = document.dominantComponentType == 'VJOURNAL';
+    if (journal && masters.isEmpty) {
+      final occurrences = <IcalOccurrence>[];
+      final identities = <String>{};
+      for (final exception in document.components) {
+        final id = exception.recurrenceId!;
+        final start = exception.start;
+        final key = _temporalIdentity(id);
+        if (!identities.add(key)) {
+          throw const DavException(
+            kind: DavErrorKind.invalidCalendarData,
+            code: 'IcalDuplicateRecurrenceId',
+            safeMessage:
+                'A recurrence set contains duplicate recurrence exceptions.',
+          );
+        }
+        if (start == null ||
+            !_overlaps(
+              start,
+              _journalQueryEnd(start),
+              rangeStart,
+              rangeEnd,
+              timeZoneResolver,
+            )) {
+          continue;
+        }
+        if (occurrences.length >= limits.maximumOccurrences) {
+          throw _occurrenceLimitError();
+        }
+        occurrences.add(
+          IcalOccurrence(
+            master: exception,
+            override: exception,
+            inheritedOverride: null,
+            recurrenceId: id,
+            start: start,
+            end: null,
+            occurrenceKey: key,
+          ),
+        );
+      }
+      occurrences.sort(
+        (left, right) => timeZoneResolver
+            .toUtc(left.start)
+            .compareTo(timeZoneResolver.toUtc(right.start)),
+      );
+      return List.unmodifiable(occurrences);
+    }
     if (masters.length != 1) {
       throw const DavException(
         kind: DavErrorKind.invalidCalendarData,
@@ -198,7 +246,14 @@ final class IcalRecurrenceExpander {
       );
     }
     final master = masters.single;
-    final anchor = master.start ?? master.due;
+    if (journal && master.recurrenceRules.length > 1) {
+      throw const DavException(
+        kind: DavErrorKind.invalidCalendarData,
+        code: 'IcalMultipleJournalRecurrenceRules',
+        safeMessage: 'The journal has multiple recurrence rules with undefined behavior.',
+      );
+    }
+    final anchor = journal ? master.start : master.start ?? master.due;
     if (anchor == null) return const [];
 
     final overrides = <String, IcalSemanticComponent>{};
@@ -223,7 +278,12 @@ final class IcalRecurrenceExpander {
             .toList(growable: false)
           ..sort((left, right) => _compareRecurrenceIds(left, right));
 
-    final masterDuration = _componentDuration(master, timeZoneResolver);
+    final masterDuration = journal
+        ? _OccurrenceDuration._(
+            calendarDays: anchor.isDate ? 1 : 0,
+            exact: Duration.zero,
+          )
+        : _componentDuration(master, timeZoneResolver);
     final recurrenceDates = [
       for (final property in master.documentComponent.propertiesNamed('RDATE'))
         ..._parseRecurrenceDates(property, anchor, timeZoneResolver),
@@ -231,7 +291,7 @@ final class IcalRecurrenceExpander {
     final periodDurations = <String, _OccurrenceDuration>{};
     for (final date in recurrenceDates) {
       final duration = date.duration;
-      if (duration == null) continue;
+      if (duration == null || journal) continue;
       final key = _temporalIdentity(date.start);
       final previous = periodDurations[key];
       if (previous != null &&
@@ -259,6 +319,7 @@ final class IcalRecurrenceExpander {
       if (excludedStartKeys.contains(key)) return;
       final duration = periodDurations[key] ?? masterDuration;
       final exception = overrides[key];
+      if (journal && exception != null && exception.start == null) return;
       final inheritedOverride = exception == null
           ? _rangeOverrideFor(value, rangeOverrides)
           : null;
@@ -267,7 +328,9 @@ final class IcalRecurrenceExpander {
           exception?.due ??
           _rangeAdjustedStart(value, inheritedOverride) ??
           value;
-      final effectiveEnd = exception != null
+      final effectiveEnd = journal
+          ? _journalQueryEnd(effectiveStart)
+          : exception != null
           ? _occurrenceEnd(
               exception,
               effectiveStart,
@@ -316,14 +379,17 @@ final class IcalRecurrenceExpander {
     }
     for (final entry in overrides.entries) {
       final exception = entry.value;
+      if (journal && exception.start == null) continue;
       final effectiveStart =
           exception.start ?? exception.due ?? exception.recurrenceId!;
-      final effectiveEnd = _occurrenceEnd(
-        exception,
-        effectiveStart,
-        periodDurations[entry.key] ?? masterDuration,
-        timeZoneResolver,
-      );
+      final effectiveEnd = journal
+          ? _journalQueryEnd(effectiveStart)
+          : _occurrenceEnd(
+              exception,
+              effectiveStart,
+              periodDurations[entry.key] ?? masterDuration,
+              timeZoneResolver,
+            );
       if (!excludedStartKeys.contains(entry.key) &&
           _overlaps(
             effectiveStart,
@@ -354,7 +420,9 @@ final class IcalRecurrenceExpander {
           exception?.due ??
           _rangeAdjustedStart(originalStart, inheritedOverride) ??
           originalStart;
-      final effectiveEnd = exception != null
+      final effectiveEnd = journal
+          ? _journalQueryEnd(effectiveStart)
+          : exception != null
           ? _occurrenceEnd(
               exception,
               effectiveStart,
@@ -383,7 +451,7 @@ final class IcalRecurrenceExpander {
           inheritedOverride: inheritedOverride,
           recurrenceId: originalStart,
           start: effectiveStart,
-          end: effectiveEnd,
+          end: journal ? null : effectiveEnd,
           occurrenceKey: entry.key,
         ),
       );
@@ -1297,6 +1365,14 @@ DateTime _wallDateTime(DateTime value) => DateTime.utc(
   value.millisecond,
   value.microsecond,
 );
+
+// Calendar-day extent is used for range matching only.
+IcalTemporalValue? _journalQueryEnd(IcalTemporalValue value) => value.isDate
+    ? _withWallValue(
+        value,
+        _wallDateTime(value.localValue).add(const Duration(days: 1)),
+      )
+    : null;
 
 bool _overlaps(
   IcalTemporalValue start,

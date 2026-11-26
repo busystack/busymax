@@ -4081,4 +4081,52 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'Tải thêm ngày';
+
+  @override
+  String get journals => 'Nhật ký';
+
+  @override
+  String get newJournal => 'Mục mới';
+
+  @override
+  String get newJournalCollection => 'Bộ sưu tập nhật ký mới';
+
+  @override
+  String get journalCollection => 'Bộ sưu tập nhật ký';
+
+  @override
+  String get untitledJournal => 'Mục không có tiêu đề';
+
+  @override
+  String get journalNoEntries => 'Không tìm thấy mục nhật ký nào.';
+
+  @override
+  String get journalOperationFailed => 'Thao tác với nhật ký không thành công.';
+
+  @override
+  String get journalDated => 'Mục có ngày';
+
+  @override
+  String get journalDate => 'Ngày';
+
+  @override
+  String get journalStatus => 'Trạng thái';
+
+  @override
+  String get journalAddDescription => 'Thêm mô tả';
+
+  @override
+  String get journalRemoveDescription => 'Xóa mô tả';
+
+  @override
+  String get journalDuplicate => 'Nhân đôi mục';
+
+  @override
+  String get journalDeleteSeries => 'Xóa toàn bộ mục và các lần lặp?';
+
+  @override
+  String get journalFloatingTime => 'Giờ địa phương';
+
+  @override
+  String get journalZonedTime => 'Giờ có múi giờ';
 }

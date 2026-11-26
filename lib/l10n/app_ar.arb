@@ -1427,5 +1427,21 @@
   "taskReminderRequiresAnchor": "عدّل التذكير النسبي قبل إزالة وقت البدء أو الموعد النهائي المرتبط به.",
   "attachmentInvalidOrTooLarge": "هذا المرفق غير صالح أو يتجاوز الحد الأقصى للحجم.",
   "moveEvent": "نقل الحدث",
-  "agendaLoadMoreDays": "تحميل المزيد من الأيام"
+  "agendaLoadMoreDays": "تحميل المزيد من الأيام",
+  "journals": "اليوميات",
+  "newJournal": "إدخال جديد",
+  "newJournalCollection": "مجموعة يوميات جديدة",
+  "journalCollection": "مجموعة اليوميات",
+  "untitledJournal": "إدخال بلا عنوان",
+  "journalNoEntries": "لم يتم العثور على إدخالات يوميات.",
+  "journalOperationFailed": "تعذّر إتمام عملية اليوميات.",
+  "journalDated": "إدخالات مؤرخة",
+  "journalDate": "التاريخ",
+  "journalStatus": "الحالة",
+  "journalAddDescription": "إضافة وصف",
+  "journalRemoveDescription": "إزالة الوصف",
+  "journalDuplicate": "تكرار الإدخال",
+  "journalDeleteSeries": "هل تريد حذف الإدخال بالكامل مع تكراراته؟",
+  "journalFloatingTime": "الوقت المحلي",
+  "journalZonedTime": "وقت بمنطقة زمنية"
 }

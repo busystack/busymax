@@ -7,7 +7,7 @@ import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_keyboard_shortcuts_dialog.dart';
 
-enum WindowsWorkspaceDestination { schedule, tasks, settings }
+enum WindowsWorkspaceDestination { schedule, tasks, journals, settings }
 
 class WindowsWorkspaceShell extends StatelessWidget {
   const WindowsWorkspaceShell({
@@ -51,6 +51,7 @@ class WindowsWorkspaceShell extends StatelessWidget {
               context.go(switch (index) {
                 0 => '/schedule',
                 1 => '/tasks',
+                2 => '/journals',
                 _ => '/settings',
               });
             },
@@ -65,12 +66,19 @@ class WindowsWorkspaceShell extends StatelessWidget {
                 title: Text(l10n.tasks),
                 body: selected == 1 ? child : const SizedBox.shrink(),
               ),
+              PaneItem(
+                icon: const Icon(FluentIcons.edit),
+                title: Text(l10n.journals),
+                body: selected == 2 ? child : const SizedBox.shrink(),
+              ),
             ],
             footerItems: [
               PaneItem(
                 icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.settings)),
                 title: Text(l10n.settings),
-                body: selected == 2 ? child : const SizedBox.shrink(),
+                body: destination == WindowsWorkspaceDestination.settings
+                    ? child
+                    : const SizedBox.shrink(),
               ),
             ],
           ),

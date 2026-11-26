@@ -4135,4 +4135,52 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'تحميل المزيد من الأيام';
+
+  @override
+  String get journals => 'اليوميات';
+
+  @override
+  String get newJournal => 'إدخال جديد';
+
+  @override
+  String get newJournalCollection => 'مجموعة يوميات جديدة';
+
+  @override
+  String get journalCollection => 'مجموعة اليوميات';
+
+  @override
+  String get untitledJournal => 'إدخال بلا عنوان';
+
+  @override
+  String get journalNoEntries => 'لم يتم العثور على إدخالات يوميات.';
+
+  @override
+  String get journalOperationFailed => 'تعذّر إتمام عملية اليوميات.';
+
+  @override
+  String get journalDated => 'إدخالات مؤرخة';
+
+  @override
+  String get journalDate => 'التاريخ';
+
+  @override
+  String get journalStatus => 'الحالة';
+
+  @override
+  String get journalAddDescription => 'إضافة وصف';
+
+  @override
+  String get journalRemoveDescription => 'إزالة الوصف';
+
+  @override
+  String get journalDuplicate => 'تكرار الإدخال';
+
+  @override
+  String get journalDeleteSeries => 'هل تريد حذف الإدخال بالكامل مع تكراراته؟';
+
+  @override
+  String get journalFloatingTime => 'الوقت المحلي';
+
+  @override
+  String get journalZonedTime => 'وقت بمنطقة زمنية';
 }

@@ -1427,5 +1427,21 @@
   "taskReminderRequiresAnchor": "Измените относительное напоминание перед удалением связанного с ним начала или срока.",
   "attachmentInvalidOrTooLarge": "Это вложение недействительно или превышает допустимый размер.",
   "moveEvent": "Переместить событие",
-  "agendaLoadMoreDays": "Загрузить следующие дни"
+  "agendaLoadMoreDays": "Загрузить следующие дни",
+  "journals": "Журналы",
+  "newJournal": "Новая запись",
+  "newJournalCollection": "Новая коллекция журналов",
+  "journalCollection": "Коллекция журналов",
+  "untitledJournal": "Запись без названия",
+  "journalNoEntries": "Записи журнала не найдены.",
+  "journalOperationFailed": "Не удалось выполнить действие с журналом.",
+  "journalDated": "Записи с датой",
+  "journalDate": "Дата",
+  "journalStatus": "Статус",
+  "journalAddDescription": "Добавить описание",
+  "journalRemoveDescription": "Удалить описание",
+  "journalDuplicate": "Создать копию записи",
+  "journalDeleteSeries": "Удалить всю запись со всеми повторениями?",
+  "journalFloatingTime": "Местное время",
+  "journalZonedTime": "Время с часовым поясом"
 }

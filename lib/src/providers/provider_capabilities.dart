@@ -104,6 +104,7 @@ class CollectionCapabilities {
     this.canSendFreeBusy = false,
     this.supportsEvents = false,
     this.supportsTasks = false,
+    this.supportsJournals = false,
     this.supportsSyncCollection = false,
     this.supportsCalendarMultiget = false,
     this.supportsCalendarQuery = false,
@@ -132,6 +133,7 @@ class CollectionCapabilities {
   final bool canSendFreeBusy;
   final bool supportsEvents;
   final bool supportsTasks;
+  final bool supportsJournals;
   final bool supportsSyncCollection;
   final bool supportsCalendarMultiget;
   final bool supportsCalendarQuery;
@@ -166,6 +168,18 @@ class CollectionCapabilities {
   bool get canAttemptDeleteTask =>
       allowsItemMutations &&
       supportsTasks &&
+      (!permissionsKnown || canDeleteMembers);
+  bool get canAttemptCreateJournal =>
+      allowsItemMutations &&
+      supportsJournals &&
+      (!permissionsKnown || canAddMembers);
+  bool get canAttemptUpdateJournal =>
+      allowsItemMutations &&
+      supportsJournals &&
+      (!permissionsKnown || canWriteContent);
+  bool get canAttemptDeleteJournal =>
+      allowsItemMutations &&
+      supportsJournals &&
       (!permissionsKnown || canDeleteMembers);
   bool get canCreateEvent => supportsEvents && canAddMembers;
   bool get canUpdateEvent => supportsEvents && canWriteContent;

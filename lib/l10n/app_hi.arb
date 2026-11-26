@@ -1427,5 +1427,21 @@
   "taskReminderRequiresAnchor": "शुरू होने का समय या समय सीमा हटाने से पहले सापेक्ष रिमाइंडर बदलें।",
   "attachmentInvalidOrTooLarge": "यह अटैचमेंट अमान्य है या आकार सीमा से बड़ा है।",
   "moveEvent": "इवेंट ले जाएँ",
-  "agendaLoadMoreDays": "और दिन लोड करें"
+  "agendaLoadMoreDays": "और दिन लोड करें",
+  "journals": "दैनिकी",
+  "newJournal": "नई प्रविष्टि",
+  "newJournalCollection": "नया दैनिकी संग्रह",
+  "journalCollection": "दैनिकी संग्रह",
+  "untitledJournal": "बिना शीर्षक की प्रविष्टि",
+  "journalNoEntries": "दैनिकी की कोई प्रविष्टि नहीं मिली।",
+  "journalOperationFailed": "दैनिकी की कार्रवाई विफल रही।",
+  "journalDated": "तारीख वाली प्रविष्टियाँ",
+  "journalDate": "तारीख",
+  "journalStatus": "स्थिति",
+  "journalAddDescription": "विवरण जोड़ें",
+  "journalRemoveDescription": "विवरण हटाएँ",
+  "journalDuplicate": "प्रविष्टि की प्रति बनाएँ",
+  "journalDeleteSeries": "पूरी प्रविष्टि और उसके दोहराव मिटाएँ?",
+  "journalFloatingTime": "स्थानीय समय",
+  "journalZonedTime": "समय क्षेत्र के साथ समय"
 }

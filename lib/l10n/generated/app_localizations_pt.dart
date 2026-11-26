@@ -4112,6 +4112,55 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'Load more days';
+
+  @override
+  String get journals => 'Journals';
+
+  @override
+  String get newJournal => 'New entry';
+
+  @override
+  String get newJournalCollection => 'New journal collection';
+
+  @override
+  String get journalCollection => 'Journal collection';
+
+  @override
+  String get untitledJournal => 'Untitled entry';
+
+  @override
+  String get journalNoEntries => 'No journal entries found.';
+
+  @override
+  String get journalOperationFailed => 'The journal operation failed.';
+
+  @override
+  String get journalDated => 'Dated entries';
+
+  @override
+  String get journalDate => 'Date';
+
+  @override
+  String get journalStatus => 'Status';
+
+  @override
+  String get journalAddDescription => 'Add description';
+
+  @override
+  String get journalRemoveDescription => 'Remove description';
+
+  @override
+  String get journalDuplicate => 'Duplicate entry';
+
+  @override
+  String get journalDeleteSeries =>
+      'Delete the entire entry and its recurrence?';
+
+  @override
+  String get journalFloatingTime => 'Local time';
+
+  @override
+  String get journalZonedTime => 'Time with a time zone';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -8226,4 +8275,53 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get agendaLoadMoreDays => 'Carregar mais dias';
+
+  @override
+  String get journals => 'Diários';
+
+  @override
+  String get newJournal => 'Nova entrada';
+
+  @override
+  String get newJournalCollection => 'Nova coleção de diário';
+
+  @override
+  String get journalCollection => 'Coleção de diário';
+
+  @override
+  String get untitledJournal => 'Entrada sem título';
+
+  @override
+  String get journalNoEntries => 'Não foram encontradas entradas de diário.';
+
+  @override
+  String get journalOperationFailed => 'A operação no diário falhou.';
+
+  @override
+  String get journalDated => 'Entradas com data';
+
+  @override
+  String get journalDate => 'Data';
+
+  @override
+  String get journalStatus => 'Estado';
+
+  @override
+  String get journalAddDescription => 'Adicionar descrição';
+
+  @override
+  String get journalRemoveDescription => 'Remover descrição';
+
+  @override
+  String get journalDuplicate => 'Duplicar entrada';
+
+  @override
+  String get journalDeleteSeries =>
+      'Eliminar toda a entrada e as suas repetições?';
+
+  @override
+  String get journalFloatingTime => 'Hora local';
+
+  @override
+  String get journalZonedTime => 'Hora com fuso horário';
 }

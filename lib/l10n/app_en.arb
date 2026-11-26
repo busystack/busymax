@@ -2206,5 +2206,21 @@
   "taskReminderRequiresAnchor": "Adjust the relative reminder before removing its start or deadline.",
   "attachmentInvalidOrTooLarge": "This attachment is invalid or exceeds the size limit.",
   "moveEvent": "Move event",
-  "agendaLoadMoreDays": "Load more days"
+  "agendaLoadMoreDays": "Load more days",
+  "journals": "Journals",
+  "newJournal": "New entry",
+  "newJournalCollection": "New journal collection",
+  "journalCollection": "Journal collection",
+  "untitledJournal": "Untitled entry",
+  "journalNoEntries": "No journal entries found.",
+  "journalOperationFailed": "The journal operation failed.",
+  "journalDated": "Dated entries",
+  "journalDate": "Date",
+  "journalStatus": "Status",
+  "journalAddDescription": "Add description",
+  "journalRemoveDescription": "Remove description",
+  "journalDuplicate": "Duplicate entry",
+  "journalDeleteSeries": "Delete the entire entry and its recurrence?",
+  "journalFloatingTime": "Local time",
+  "journalZonedTime": "Time with a time zone"
 }

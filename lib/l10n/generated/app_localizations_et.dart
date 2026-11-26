@@ -4071,4 +4071,52 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'Laadi rohkem päevi';
+
+  @override
+  String get journals => 'Päevikud';
+
+  @override
+  String get newJournal => 'Uus sissekanne';
+
+  @override
+  String get newJournalCollection => 'Uus päevikukogu';
+
+  @override
+  String get journalCollection => 'Päevikukogu';
+
+  @override
+  String get untitledJournal => 'Pealkirjata sissekanne';
+
+  @override
+  String get journalNoEntries => 'Päevikukirjeid ei leitud.';
+
+  @override
+  String get journalOperationFailed => 'Päevikutoiming nurjus.';
+
+  @override
+  String get journalDated => 'Kuupäevaga kirjed';
+
+  @override
+  String get journalDate => 'Kuupäev';
+
+  @override
+  String get journalStatus => 'Olek';
+
+  @override
+  String get journalAddDescription => 'Lisa kirjeldus';
+
+  @override
+  String get journalRemoveDescription => 'Eemalda kirjeldus';
+
+  @override
+  String get journalDuplicate => 'Tee kirjest koopia';
+
+  @override
+  String get journalDeleteSeries => 'Kas kustutada kogu kirje koos kordustega?';
+
+  @override
+  String get journalFloatingTime => 'Kohalik kellaaeg';
+
+  @override
+  String get journalZonedTime => 'Kellaaeg koos ajavööndiga';
 }

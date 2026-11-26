@@ -882,6 +882,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   void _handleToolbarMenu(ScheduleToolbarMenuAction action) {
     switch (action) {
+      case ScheduleToolbarMenuAction.journals:
+        unawaited(context.push<void>('/journals'));
       case ScheduleToolbarMenuAction.refresh:
         _handleHeaderAction(BusyMaxHeaderAction.refresh);
       case ScheduleToolbarMenuAction.settings:

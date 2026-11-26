@@ -4110,4 +4110,54 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'Cargar más días';
+
+  @override
+  String get journals => 'Diarios';
+
+  @override
+  String get newJournal => 'Nueva entrada';
+
+  @override
+  String get newJournalCollection => 'Nueva colección de diario';
+
+  @override
+  String get journalCollection => 'Colección de diario';
+
+  @override
+  String get untitledJournal => 'Entrada sin título';
+
+  @override
+  String get journalNoEntries => 'No se encontraron entradas de diario.';
+
+  @override
+  String get journalOperationFailed =>
+      'No se pudo completar la operación en el diario.';
+
+  @override
+  String get journalDated => 'Entradas con fecha';
+
+  @override
+  String get journalDate => 'Fecha';
+
+  @override
+  String get journalStatus => 'Estado';
+
+  @override
+  String get journalAddDescription => 'Añadir descripción';
+
+  @override
+  String get journalRemoveDescription => 'Quitar descripción';
+
+  @override
+  String get journalDuplicate => 'Duplicar entrada';
+
+  @override
+  String get journalDeleteSeries =>
+      '¿Eliminar la entrada completa y sus repeticiones?';
+
+  @override
+  String get journalFloatingTime => 'Hora local';
+
+  @override
+  String get journalZonedTime => 'Hora con zona horaria';
 }

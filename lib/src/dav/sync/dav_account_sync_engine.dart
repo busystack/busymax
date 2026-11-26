@@ -426,10 +426,14 @@ final class DavAccountSyncEngine {
           account.tasksEnabled &&
           target?.taskProjectionEnabled == true &&
           target?.tasksSelected == true;
+      final targetJournals =
+          account.journalsEnabled &&
+          target?.journalProjectionEnabled == true &&
+          target?.journalsSelected == true;
       final enabled = switch (projection) {
         SyncScopeKind.calendarSource => targetEvents,
         SyncScopeKind.taskList => targetTasks,
-        _ => targetEvents || targetTasks,
+        _ => targetEvents || targetTasks || targetJournals,
       };
       if (collectionId != null && (target == null || !enabled)) {
         final available = (await _availableCollections()).any(
@@ -822,7 +826,11 @@ final class DavAccountSyncEngine {
               (domain != SyncDomain.calendar &&
                   account.tasksEnabled &&
                   collection.taskProjectionEnabled &&
-                  collection.tasksSelected),
+                  collection.tasksSelected) ||
+              (domain == null &&
+                  account.journalsEnabled &&
+                  collection.journalProjectionEnabled &&
+                  collection.journalsSelected),
         )
         .toList();
   }

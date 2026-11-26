@@ -69,6 +69,8 @@ CollectionCapabilities collectionCapabilitiesFromStored(
     providerAllowsSchedulingMutation: metadata['calendarUserAddresses'] is List,
     supportsEvents: collection.supportedComponentMask & davComponentEvent != 0,
     supportsTasks: collection.supportedComponentMask & davComponentTodo != 0,
+    supportsJournals:
+        collection.supportedComponentMask & davComponentJournal != 0,
     supportsSyncCollection: reports.contains('{DAV:}sync-collection'),
     supportsCalendarMultiget: reports.contains(
       '{urn:ietf:params:xml:ns:caldav}calendar-multiget',

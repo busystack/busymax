@@ -1517,5 +1517,21 @@
   "taskReminderRequiresAnchor": "پیش از حذف زمان شروع یا مهلت، یادآور نسبی را تنظیم کنید.",
   "attachmentInvalidOrTooLarge": "این پیوست نامعتبر است یا از محدودیت اندازه فراتر می‌رود.",
   "moveEvent": "جابجایی رویداد",
-  "agendaLoadMoreDays": "بارگذاری روزهای بیشتر"
+  "agendaLoadMoreDays": "بارگذاری روزهای بیشتر",
+  "journals": "یادداشت‌های روزانه",
+  "newJournal": "مدخل جدید",
+  "newJournalCollection": "مجموعهٔ جدید یادداشت روزانه",
+  "journalCollection": "مجموعهٔ یادداشت روزانه",
+  "untitledJournal": "مدخل بدون عنوان",
+  "journalNoEntries": "هیچ مدخلی یافت نشد.",
+  "journalOperationFailed": "عملیات یادداشت روزانه ناموفق بود.",
+  "journalDated": "مدخل‌های تاریخ‌دار",
+  "journalDate": "تاریخ",
+  "journalStatus": "وضعیت",
+  "journalAddDescription": "افزودن توضیحات",
+  "journalRemoveDescription": "حذف توضیحات",
+  "journalDuplicate": "تکثیر مدخل",
+  "journalDeleteSeries": "مدخل و همهٔ تکرارهای آن حذف شوند؟",
+  "journalFloatingTime": "زمان محلی",
+  "journalZonedTime": "زمان با منطقهٔ زمانی"
 }

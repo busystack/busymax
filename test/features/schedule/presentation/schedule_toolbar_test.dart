@@ -618,6 +618,7 @@ void main() {
       [for (final entry in entries) (entry! as Map<Object?, Object?>)['icon']],
       const [
         'view-refresh-symbolic',
+        'accessories-text-editor-symbolic',
         'preferences-system-symbolic',
         'input-keyboard-symbolic',
         'dialog-warning-symbolic',
@@ -777,10 +778,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-      findsNWidgets(4),
+      findsNWidgets(5),
     );
     expect(find.byType(YaruRadio<int>), findsNothing);
     expect(find.text('Report an issue'), findsOneWidget);
+    await tester.tap(find.text('Journals'));
+    await tester.pumpAndSettle();
+    expect(selectedMenuAction, ScheduleToolbarMenuAction.journals);
+
+    await tester.tap(find.byTooltip('Main Menu'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
     expect(selectedMenuAction, ScheduleToolbarMenuAction.settings);
@@ -833,8 +840,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-      findsNWidgets(5),
+      findsNWidgets(6),
     );
+    expect(find.text('Journals'), findsOneWidget);
     await tester.tap(find.text('Refresh all'));
     await tester.pumpAndSettle();
 

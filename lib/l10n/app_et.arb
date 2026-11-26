@@ -1605,5 +1605,21 @@
   "taskReminderRequiresAnchor": "Muuda suhtelist meeldetuletust enne selle alguse või tähtaja eemaldamist.",
   "attachmentInvalidOrTooLarge": "See manus on vigane või ületab suurusepiirangu.",
   "moveEvent": "Teisalda sündmus",
-  "agendaLoadMoreDays": "Laadi rohkem päevi"
+  "agendaLoadMoreDays": "Laadi rohkem päevi",
+  "journals": "Päevikud",
+  "newJournal": "Uus sissekanne",
+  "newJournalCollection": "Uus päevikukogu",
+  "journalCollection": "Päevikukogu",
+  "untitledJournal": "Pealkirjata sissekanne",
+  "journalNoEntries": "Päevikukirjeid ei leitud.",
+  "journalOperationFailed": "Päevikutoiming nurjus.",
+  "journalDated": "Kuupäevaga kirjed",
+  "journalDate": "Kuupäev",
+  "journalStatus": "Olek",
+  "journalAddDescription": "Lisa kirjeldus",
+  "journalRemoveDescription": "Eemalda kirjeldus",
+  "journalDuplicate": "Tee kirjest koopia",
+  "journalDeleteSeries": "Kas kustutada kogu kirje koos kordustega?",
+  "journalFloatingTime": "Kohalik kellaaeg",
+  "journalZonedTime": "Kellaaeg koos ajavööndiga"
 }

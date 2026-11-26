@@ -2,8 +2,9 @@ import 'package:drift/drift.dart';
 
 import 'app_database.dart';
 import 'location_migration.dart';
+import '../dav/storage/dav_object_repository.dart';
 
-const latestSchemaVersion = 26;
+const latestSchemaVersion = 27;
 
 /// A recoverable, non-secret diagnostic raised when an on-disk schema cannot
 /// be migrated without guessing remote identity or losing synchronized data.
@@ -44,6 +45,14 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
       await database.transaction(() async {
         // Later legacy migrations rebuild the accounts table against the current
         // schema, so additive account columns must exist before those rebuilds.
+        if (from < 27) {
+          await _addColumnIfMissing(
+            migrator,
+            database,
+            database.accounts,
+            database.accounts.journalsEnabled,
+          );
+        }
         if (from < 16) {
           await _addColumnIfMissing(
             migrator,
@@ -176,6 +185,35 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
         }
         if (from < 26 && !await _hasTable(database, 'creation_receipts')) {
           await migrator.createTable(database.creationReceipts);
+        }
+        if (from < 27) {
+          final collections = database.davCollections;
+          await _addColumnIfMissing(
+            migrator,
+            database,
+            collections,
+            collections.journalProjectionEnabled,
+          );
+          await _addColumnIfMissing(
+            migrator,
+            database,
+            collections,
+            collections.journalsSelected,
+          );
+          await _addColumnIfMissing(
+            migrator,
+            database,
+            collections,
+            collections.journalInventoryComplete,
+          );
+          if (!await _hasTable(database, 'dav_journal_entries')) {
+            await migrator.createTable(database.davJournalEntries);
+          }
+          // Cached journal bodies predate journal semantic identity. Reparse
+          // them inside the upgrade transaction without changing their ETags,
+          // cursors, generations or pending-operation baselines.
+          await DavObjectRepository(database: database)
+              .backfillStoredJournals();
         }
         await _createIndexes(database);
         await createLocationLifecycleTriggers(database);
@@ -870,6 +908,16 @@ Future<void> _createIndexes(AppDatabase database) async {
       'CREATE INDEX IF NOT EXISTS idx_dav_objects_projection '
       'ON dav_objects(collection_id, server_deleted, parser_version, '
       'last_parse_status)',
+    );
+  }
+  if (await _hasTable(database, 'dav_journal_entries')) {
+    await database.customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_dav_journals_collection_date '
+      'ON dav_journal_entries(collection_id, start_value, component_id)',
+    );
+    await database.customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_dav_journals_object '
+      'ON dav_journal_entries(dav_object_id)',
     );
   }
   if (await _hasTable(database, 'dav_object_components')) {

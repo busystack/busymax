@@ -429,6 +429,50 @@ final class IcalDocumentPatcher {
       final node = component.children[index];
       if (node is IcalProperty && node.name == upper) indexes.add(index);
     }
+    if (component.name == 'VJOURNAL') {
+      final existing = <String, List<IcalProperty>>{};
+      for (final index in indexes.reversed) {
+        final property = component.children[index] as IcalProperty;
+        existing
+            .putIfAbsent(property.serializeLogicalLine(), () => [])
+            .add(property);
+      }
+      final replacements =
+          [
+            for (final entry in values)
+              IcalProperty(
+                group: null,
+                name: upper,
+                parameters: List.of(entry.parameters),
+                rawValue: entry.value,
+                originalPhysicalLines: const [],
+                isDirty: true,
+              ),
+          ].map((property) {
+            final candidates = existing[property.serializeLogicalLine()];
+            return candidates == null || candidates.isEmpty
+                ? property
+                : candidates.removeLast();
+          }).toList();
+      for (var index = indexes.length - 1; index >= 0; index--) {
+        if (index < replacements.length) {
+          component.children[indexes[index]] = replacements[index];
+        } else {
+          component.children.removeAt(indexes[index]);
+        }
+      }
+      if (replacements.length > indexes.length) {
+        final after = indexes.isEmpty
+            ? component.children.indexWhere((node) => node is IcalComponent)
+            : indexes.last + 1;
+        component.children.insertAll(
+          after < 0 ? component.children.length : after,
+          replacements.skip(indexes.length),
+        );
+      }
+      component.structurallyDirty = true;
+      return;
+    }
     final insertionIndex = indexes.firstOrNull ?? component.children.length;
     component.children.removeWhere(
       (node) => node is IcalProperty && node.name == upper,
@@ -781,8 +825,12 @@ DavException _icalError(String code, String safeMessage) => DavException(
   safeMessage: safeMessage,
 );
 
-/// Participant data is preserved; creating a new scheduling object requires
-/// explicit consent on generic CalDAV servers that may schedule implicitly.
-bool icalHasAttendees(String rawIcs) =>
-    IcalDocument.parse(rawIcs).calendarComponents
-        .any((component) => component.propertiesNamed('ATTENDEE').isNotEmpty);
+/// Indicates whether stored attendee data can trigger implicit meeting
+/// scheduling. Ordinary journal participants are journal metadata.
+bool icalHasAttendees(String rawIcs) => IcalDocument.parse(rawIcs)
+    .calendarComponents
+    .any(
+      (component) =>
+          component.name != 'VJOURNAL' &&
+          component.propertiesNamed('ATTENDEE').isNotEmpty,
+    );

@@ -13,6 +13,8 @@ enum DavCollectionKind {
   readOnlyEventCalendar,
   writableTaskList,
   readOnlyTaskList,
+  writableJournal,
+  readOnlyJournal,
   mixedCalendar,
   subscribedCalendar,
   schedulingInbox,
@@ -253,6 +255,7 @@ final class DavCollectionDiscovery {
     required this.kind,
     required this.eventProjectionEnabled,
     required this.taskProjectionEnabled,
+    this.journalProjectionEnabled = false,
     this.principalHref,
     this.calendarHomeHref,
     this.delegated = false,
@@ -283,6 +286,7 @@ final class DavCollectionDiscovery {
   final DavCollectionKind kind;
   final bool eventProjectionEnabled;
   final bool taskProjectionEnabled;
+  final bool journalProjectionEnabled;
   final Uri? principalHref;
   final Uri? calendarHomeHref;
   final bool delegated;

@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../calendar_providers/calendar_mutation.dart';
 import '../../db/app_database.dart';
+import '../../journal/journal_component.dart';
 import '../../features/accounts/domain/account_connection_state.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
@@ -112,10 +113,13 @@ final class DavPendingOperationQueue {
       throw _invalidPendingOperation();
     }
     final capabilities = collectionCapabilitiesFromStored(context.collection);
-    final isEvent = _componentIsEvent(object.componentType);
-    final canCreate = isEvent
-        ? capabilities.canAttemptCreateEvent
-        : capabilities.canAttemptCreateTask;
+    final canCreate = switch (object.componentType.toUpperCase()) {
+      'VEVENT' => capabilities.canAttemptCreateEvent,
+      'VTODO' => capabilities.canAttemptCreateTask,
+      'VJOURNAL' =>
+        context.account.journalsEnabled && capabilities.canAttemptCreateJournal,
+      _ => false,
+    };
     if (!canCreate) throw _permissionError();
     if (localObjectId != null) {
       final local = await _objectContext(
@@ -139,6 +143,11 @@ final class DavPendingOperationQueue {
       throw _invalidPendingOperation();
     }
     _validateTaskTemporalRange(parsed);
+    _validateJournalCandidate(
+      parsed,
+      object.rawIcs,
+      capabilities.maximumResourceSize,
+    );
     await _validateScheduling(
       context,
       null,
@@ -173,8 +182,12 @@ final class DavPendingOperationQueue {
         mutationScope: Value(DavMutationScope.object.name),
         retryClassification: const Value('conditional_create'),
         localTempId: Value(object.uid),
-        eventId: Value(isEvent ? localProjectionId : null),
-        taskId: Value(isEvent ? null : localProjectionId),
+        eventId: Value(
+          object.componentType == 'VEVENT' ? localProjectionId : null,
+        ),
+        taskId: Value(
+          object.componentType == 'VTODO' ? localProjectionId : null,
+        ),
         dependsOnOpId: Value(dependsOnOperationId),
         requestJson: jsonEncode({
           'schemaVersion': davPendingOperationSchemaVersion,
@@ -204,10 +217,17 @@ final class DavPendingOperationQueue {
     final materializedPatch = patch.materialize(nowUtc);
     final context = await _objectContext(accountId, collectionId, objectId);
     final capabilities = collectionCapabilitiesFromStored(context.collection);
-    final event = _componentIsEvent(patch.target.componentType);
-    if (event
-        ? !capabilities.canAttemptUpdateEvent
-        : !capabilities.canAttemptUpdateTask) {
+    final canUpdate = switch (patch.target.componentType.toUpperCase()) {
+      'VEVENT' => capabilities.canAttemptUpdateEvent,
+      'VTODO' => capabilities.canAttemptUpdateTask,
+      'VJOURNAL' =>
+        context.account.journalsEnabled &&
+            capabilities.canAttemptUpdateJournal &&
+            (context.object.etag == null ||
+                context.collection.journalInventoryComplete),
+      _ => false,
+    };
+    if (!canUpdate) {
       throw _permissionError();
     }
     final etag = context.object.etag;
@@ -239,7 +259,13 @@ final class DavPendingOperationQueue {
           _required(existing.baselineRawIcs),
           nowUtc: nowUtc,
         );
-        _validateTaskTemporalRange(IcalSemanticDocument.parse(candidate));
+        final parsed = IcalSemanticDocument.parse(candidate);
+        _validateTaskTemporalRange(parsed);
+        _validateJournalCandidate(
+          parsed,
+          candidate,
+          capabilities.maximumResourceSize,
+        );
         await _validateScheduling(
           context,
           context.object.rawIcsBody,
@@ -268,7 +294,13 @@ final class DavPendingOperationQueue {
       context.object.rawIcsBody,
       nowUtc: nowUtc,
     );
-    _validateTaskTemporalRange(IcalSemanticDocument.parse(candidate));
+    final parsed = IcalSemanticDocument.parse(candidate);
+    _validateTaskTemporalRange(parsed);
+    _validateJournalCandidate(
+      parsed,
+      candidate,
+      capabilities.maximumResourceSize,
+    );
     await _validateScheduling(context, context.object.rawIcsBody, candidate);
 
     final id = _idFactory();
@@ -390,6 +422,11 @@ final class DavPendingOperationQueue {
     final context = await _context(
       operation.accountId,
       _required(operation.davCollectionId),
+    );
+    _validateJournalCandidate(
+      IcalSemanticDocument.parse(updatedRaw),
+      updatedRaw,
+      context.collection.maximumResourceSize,
     );
     if (context.provider == BusyProvider.caldav &&
         !consent &&
@@ -781,10 +818,17 @@ final class DavPendingOperationQueue {
   }) async {
     final context = await _objectContext(accountId, collectionId, objectId);
     final capabilities = collectionCapabilitiesFromStored(context.collection);
-    final event = _componentIsEvent(target.componentType);
-    if (event
-        ? !capabilities.canAttemptDeleteEvent
-        : !capabilities.canAttemptDeleteTask) {
+    final canDelete = switch (target.componentType.toUpperCase()) {
+      'VEVENT' => capabilities.canAttemptDeleteEvent,
+      'VTODO' => capabilities.canAttemptDeleteTask,
+      'VJOURNAL' =>
+        context.account.journalsEnabled &&
+            capabilities.canAttemptDeleteJournal &&
+            (context.object.etag == null ||
+                context.collection.journalInventoryComplete),
+      _ => false,
+    };
+    if (!canDelete) {
       throw _permissionError();
     }
     final etag = context.object.etag;
@@ -842,7 +886,9 @@ final class DavPendingOperationQueue {
         mutationScope: Value(scope.name),
         retryClassification: const Value('conditional_delete'),
         dependsOnOpId: Value(dependsOnOperationId),
-        requestJson: jsonEncode({'isEvent': event}),
+        requestJson: jsonEncode({
+          'isEvent': target.componentType.toUpperCase() == 'VEVENT',
+        }),
         state: Value(DavPendingState.pending.storageValue),
         createdAtUtc: now,
         updatedAtUtc: now,
@@ -1564,6 +1610,12 @@ final class DavPendingOperationsReplayer {
                 ?.applyTo(baseline, nowUtc: _nowUtc()) ??
             baseline,
       );
+    }
+    if (op.entityType == 'journal' &&
+        (!account.journalsEnabled ||
+            (op.operationType != 'dav.create' &&
+                !collection.journalInventoryComplete))) {
+      throw _permissionError();
     }
     final service = await _serviceFactory(
       account: account,
@@ -2319,6 +2371,34 @@ final class _DavObjectContext extends _DavContext {
   final DavObject object;
 }
 
+void _validateJournalCandidate(
+  IcalSemanticDocument parsed,
+  String rawIcs,
+  int? maximumResourceSize,
+) {
+  if (parsed.dominantComponentType != 'VJOURNAL') return;
+  JournalComponent.validateAuthored(parsed);
+  if (maximumResourceSize != null &&
+      utf8.encode(rawIcs).length > maximumResourceSize) {
+    throw const DavException(
+      kind: DavErrorKind.maximumResourceSize,
+      code: 'DavCalendarObjectTooLarge',
+      safeMessage: 'The journal exceeds the collection size limit.',
+    );
+  }
+  if (parsed.components.any(
+    (entry) => entry.recurrenceRules.any(
+      (rule) => RegExp(r'(?:^|;)RSCALE=', caseSensitive: false).hasMatch(rule),
+    ),
+  )) {
+    throw const DavException(
+      kind: DavErrorKind.unsupportedComponent,
+      code: 'DavUnsupportedRecurrenceScale',
+      safeMessage: 'This journal uses an unsupported recurrence calendar.',
+    );
+  }
+}
+
 void _validateTaskTemporalRange(IcalSemanticDocument document) {
   IcalTimeZoneResolver? resolver;
   for (final component in document.components) {
@@ -2590,7 +2670,12 @@ String _componentKeyJson(IcalComponentKey key) => jsonEncode({
 });
 
 String _entityType(String componentType) =>
-    _componentIsEvent(componentType) ? 'event' : 'task';
+    switch (componentType.toUpperCase()) {
+      'VEVENT' => 'event',
+      'VTODO' => 'task',
+      'VJOURNAL' => 'journal',
+      _ => throw _invalidPendingOperation(),
+    };
 
 bool _componentIsEvent(String componentType) =>
     switch (componentType.toUpperCase()) {

@@ -320,7 +320,7 @@ final class DavCollectionAdministration {
     if (title.trim().isEmpty ||
         title.length > 1024 ||
         components.isEmpty ||
-        !const {'VEVENT', 'VTODO'}.containsAll(components)) {
+        !const {'VEVENT', 'VTODO', 'VJOURNAL'}.containsAll(components)) {
       throw ArgumentError('Invalid collection');
     }
     final c = await _open();
@@ -345,7 +345,8 @@ final class DavCollectionAdministration {
     if (existing.any(
       (r) =>
           components.contains('VEVENT') && r.eventProjectionEnabled ||
-          components.contains('VTODO') && r.taskProjectionEnabled,
+          components.contains('VTODO') && r.taskProjectionEnabled ||
+          components.contains('VJOURNAL') && r.journalProjectionEnabled,
     )) {
       throw _error(409, 'DavCollectionNameConflict');
     }
@@ -487,7 +488,7 @@ final class DavCollectionAdministration {
       throw _error(400, 'DavCollectionCreationInvalid');
     }
     if (components.isEmpty ||
-        !const {'VEVENT', 'VTODO'}.containsAll(components)) {
+        !const {'VEVENT', 'VTODO', 'VJOURNAL'}.containsAll(components)) {
       throw _error(400, 'DavCollectionCreationInvalid');
     }
     if (operation.state == 'committed') {

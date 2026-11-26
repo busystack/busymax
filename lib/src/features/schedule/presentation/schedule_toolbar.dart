@@ -19,6 +19,7 @@ import '../../../schedule/schedule_view_mode.dart';
 
 enum ScheduleToolbarMenuAction {
   refresh,
+  journals,
   settings,
   keyboardShortcuts,
   reportIssue,
@@ -374,6 +375,12 @@ class BusyMaxMainMenuButton extends StatelessWidget {
             nativeIconName: 'view-refresh-symbolic',
             enabled: canRefresh,
           ),
+        BusyMaxMenuEntry(
+          value: ScheduleToolbarMenuAction.journals,
+          label: context.l10n.journals,
+          icon: Icons.book_outlined,
+          nativeIconName: 'accessories-text-editor-symbolic',
+        ),
         BusyMaxMenuEntry(
           value: ScheduleToolbarMenuAction.settings,
           label: context.l10n.settings,

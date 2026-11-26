@@ -4124,4 +4124,52 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'Lataa lisää päiviä';
+
+  @override
+  String get journals => 'Päiväkirjat';
+
+  @override
+  String get newJournal => 'Uusi merkintä';
+
+  @override
+  String get newJournalCollection => 'Uusi päiväkirjakokoelma';
+
+  @override
+  String get journalCollection => 'Päiväkirjakokoelma';
+
+  @override
+  String get untitledJournal => 'Nimetön merkintä';
+
+  @override
+  String get journalNoEntries => 'Päiväkirjamerkintöjä ei löytynyt.';
+
+  @override
+  String get journalOperationFailed => 'Päiväkirjatoiminto epäonnistui.';
+
+  @override
+  String get journalDated => 'Päivätyt merkinnät';
+
+  @override
+  String get journalDate => 'Päivämäärä';
+
+  @override
+  String get journalStatus => 'Tila';
+
+  @override
+  String get journalAddDescription => 'Lisää kuvaus';
+
+  @override
+  String get journalRemoveDescription => 'Poista kuvaus';
+
+  @override
+  String get journalDuplicate => 'Monista merkintä';
+
+  @override
+  String get journalDeleteSeries => 'Poistetaanko koko merkintä toistoineen?';
+
+  @override
+  String get journalFloatingTime => 'Paikallinen aika';
+
+  @override
+  String get journalZonedTime => 'Aika ja aikavyöhyke';
 }

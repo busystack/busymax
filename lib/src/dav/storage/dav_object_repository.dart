@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../db/app_database.dart';
 import '../../ical/ical_event_projection.dart';
+import '../../journal/journal_component.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
 import '../ical/ical_document.dart';
@@ -20,9 +21,8 @@ import '../mutation/dav_pending_operation_selection.dart';
 import '../nextcloud/nextcloud_scheduling_policy.dart';
 import 'dav_collection_capabilities.dart';
 
-const davRawObjectParserVersion = 1;
-// Reproject cached resources after the IANA 2026f update, even with an unchanged ETag.
-const davProjectionVersion = 7;
+const davRawObjectParserVersion = 2;
+const davProjectionVersion = 8;
 const davSyncStateSchemaVersion = 1;
 
 /// Shared temporal projection for synchronized and queued DAV task resources.
@@ -1032,6 +1032,11 @@ final class DavObjectRepository {
                 : null,
           ),
           serverMissing: const Value(false),
+          journalInventoryComplete: Value(
+            collection.journalProjectionEnabled &&
+                (collection.journalInventoryComplete ||
+                    commit.completeMembership),
+          ),
           lastSyncAtUtc: Value(completed.toIso8601String()),
           parserVersion: const Value(davRawObjectParserVersion),
           projectionVersion: const Value(davProjectionVersion),
@@ -1040,6 +1045,61 @@ final class DavObjectRepository {
       );
       return {...changedObjectIds, ...deletedObjectIds};
     });
+  }
+
+  /// Migrates previously opaque journal resources using only persisted bytes.
+  /// The upgrade owns the transaction and leaves sync state and ETags intact.
+  Future<void> backfillStoredJournals() async {
+    final candidates =
+        await (_database.select(_database.davObjects)..where(
+              (row) =>
+                  row.dominantComponentType.equals('VJOURNAL') &
+                  row.serverDeleted.equals(false),
+            ))
+            .get();
+    for (final object in candidates) {
+      try {
+        final semantic = IcalSemanticDocument.parse(object.rawIcsBody);
+        final keys = <String?>{};
+        if (semantic.dominantComponentType != 'VJOURNAL' ||
+            semantic.components.any(
+              (entry) => !keys.add(entry.recurrenceIdKey),
+            )) {
+          throw const DavException(
+            kind: DavErrorKind.invalidCalendarData,
+            code: 'IcalInvalidJournalRecurrenceSet',
+            safeMessage: 'The journal has ambiguous recurrence identities.',
+          );
+        }
+        final componentIds = await _replaceComponentIndex(object.id, semantic);
+        await _writeJournalProjection(
+          object.accountId,
+          object.collectionId,
+          object.id,
+          semantic,
+          componentIds,
+        );
+        await (_database.update(
+          _database.davObjects,
+        )..where((row) => row.id.equals(object.id))).write(
+          DavObjectsCompanion(
+            componentMask: Value(semantic.componentMask),
+            primaryUid: Value(semantic.primaryUid),
+            semanticHash: Value(semantic.semanticHash),
+            parserVersion: const Value(davRawObjectParserVersion),
+          ),
+        );
+      } on DavException catch (error) {
+        await (_database.update(
+          _database.davObjects,
+        )..where((row) => row.id.equals(object.id))).write(
+          DavObjectsCompanion(
+            lastParseStatus: const Value('projection_failed'),
+            lastParseErrorCode: Value(error.code),
+          ),
+        );
+      }
+    }
   }
 
   Future<String> _upsertPreparedObject({
@@ -1131,7 +1191,9 @@ final class DavObjectRepository {
     };
     final returnedIds = <String>{};
     final result = <String, String>{};
-    for (final entry in semantic.buildIndex()) {
+    for (final entry in semantic.buildIndex(
+      profileVersion: davRawObjectParserVersion,
+    )) {
       final key = _componentKey(
         entry.componentType,
         entry.uid,
@@ -1306,7 +1368,53 @@ final class DavObjectRepository {
         componentIds: componentIds,
         taskIdentities: taskIdentities,
       );
+    } else if (componentType == 'VJOURNAL' &&
+        collection.journalProjectionEnabled) {
+      await _writeJournalProjection(
+        commit.accountId,
+        collection.id,
+        objectId,
+        semantic,
+        componentIds,
+      );
     }
+  }
+
+  Future<void> _writeJournalProjection(
+    String accountId,
+    String collectionId,
+    String objectId,
+    IcalSemanticDocument semantic,
+    Map<String, String> componentIds,
+  ) async {
+    await _database.batch((batch) {
+      for (final component in semantic.components) {
+        final journal = JournalComponent(component.documentComponent);
+        final start = journal.start;
+        batch.insert(
+          _database.davJournalEntries,
+          DavJournalEntriesCompanion.insert(
+            componentId:
+                componentIds[_componentKey(
+                  component.componentType,
+                  component.uid!,
+                  component.recurrenceIdKey,
+                )]!,
+            davObjectId: objectId,
+            collectionId: collectionId,
+            accountId: accountId,
+            uid: component.uid!,
+            recurrenceIdKey: Value(component.recurrenceIdKey),
+            title: Value(journal.title),
+            searchText: journal.searchText,
+            status: Value(journal.status),
+            startKind: Value(start?.kind.name),
+            startValue: Value(start?.rawValue),
+            startTimeZone: Value(start?.timeZoneId),
+          ),
+        );
+      }
+    });
   }
 
   Future<void> _projectEvents({
@@ -1804,6 +1912,9 @@ final class DavObjectRepository {
   }
 
   Future<void> _deleteProjections(String objectId) async {
+    await (_database.delete(
+      _database.davJournalEntries,
+    )..where((row) => row.davObjectId.equals(objectId))).go();
     await (_database.delete(
       _database.calendarEvents,
     )..where((row) => row.davObjectId.equals(objectId))).go();

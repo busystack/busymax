@@ -80,7 +80,18 @@ final class DavCalendarCollectionMutationService
   Future<DavCalendarCollectionCreationResult> createEventCalendar(
     String title, {
     DavCancellationToken? cancellationToken,
-  }) async {
+  }) => _createCalendar(title, 'VEVENT', cancellationToken);
+
+  Future<DavCalendarCollectionCreationResult> createJournalCollection(
+    String title, {
+    DavCancellationToken? cancellationToken,
+  }) => _createCalendar(title, 'VJOURNAL', cancellationToken);
+
+  Future<DavCalendarCollectionCreationResult> _createCalendar(
+    String title,
+    String component,
+    DavCancellationToken? cancellationToken,
+  ) async {
     final displayName = _requiredCalendarTitle(title);
     final account = await (_database.select(
       _database.accounts,
@@ -94,7 +105,7 @@ final class DavCalendarCollectionMutationService
         accountId: _accountId,
         refresh: _refreshAfterMutation,
         requireNetwork: _requireNetwork,
-      ).create(displayName, const {'VEVENT'}, cancellation: cancellationToken);
+      ).create(displayName, {component}, cancellation: cancellationToken);
       return DavCalendarCollectionCreationResult(switch (result) {
         DavCollectionAdministrationOutcome.committed =>
           DavCalendarCollectionCreationStatus.created,
@@ -112,7 +123,9 @@ final class DavCalendarCollectionMutationService
     final existing = await _activeCollections();
     if (existing.any(
       (collection) =>
-          collection.eventProjectionEnabled &&
+          (component == 'VJOURNAL'
+              ? collection.journalProjectionEnabled
+              : collection.eventProjectionEnabled) &&
           collection.displayName == displayName,
     )) {
       throw const DavException(
@@ -130,7 +143,11 @@ final class DavCalendarCollectionMutationService
         for (final collection in existing) Uri.parse(collection.requestUri),
       ],
     );
-    final targetUri = homeUri.resolve('$memberName/');
+    final targetUri = homeUri.resolve(
+      component == 'VJOURNAL'
+          ? 'busymax-${const Uuid().v4()}/'
+          : '$memberName/',
+    );
     _validateTarget(
       profile: context.profile,
       authority: context.authority,
@@ -145,7 +162,7 @@ final class DavCalendarCollectionMutationService
           uri: targetUri,
           accountId: _accountId,
           correlationId: _correlationIdFactory(),
-          body: _eventCalendarMkcalendarXml(displayName),
+          body: _calendarMkcalendarXml(displayName, component),
           retryClass: DavRetryClass.never,
         ),
         credential: context.credential,
@@ -159,10 +176,11 @@ final class DavCalendarCollectionMutationService
       }
     } on DavException catch (error) {
       if (!_calendarCreationMayHaveCommitted(error) ||
-          !await _isMatchingEventCalendar(
+          !await _isMatchingCalendar(
             context,
             targetUri,
             displayName: displayName,
+            component: component,
             cancellationToken: cancellationToken,
           )) {
         rethrow;
@@ -260,10 +278,11 @@ final class DavCalendarCollectionMutationService
         .get();
   }
 
-  Future<bool> _isMatchingEventCalendar(
+  Future<bool> _isMatchingCalendar(
     _DavCalendarCollectionContext context,
     Uri uri, {
     required String displayName,
+    required String component,
     DavCancellationToken? cancellationToken,
   }) async {
     try {
@@ -308,15 +327,15 @@ final class DavCalendarCollectionMutationService
               element.name.namespaceUri == caldavNamespace &&
               element.name.local == 'calendar',
         );
-        final supportsEvents = components?.childElements.any(
+        final supportsComponent = components?.childElements.any(
           (element) =>
               element.name.namespaceUri == caldavNamespace &&
               element.name.local == 'comp' &&
-              element.getAttribute('name')?.toUpperCase() == 'VEVENT',
+              element.getAttribute('name')?.toUpperCase() == component,
         );
         if (isCollection == true &&
             isCalendar == true &&
-            supportsEvents == true &&
+            supportsComponent == true &&
             name == displayName) {
           return true;
         }
@@ -380,13 +399,13 @@ String _requiredCalendarTitle(String title) {
   return value;
 }
 
-String _eventCalendarMkcalendarXml(String displayName) =>
+String _calendarMkcalendarXml(String displayName, String component) =>
     '<?xml version="1.0" encoding="utf-8"?>'
     '<c:mkcalendar xmlns:d="$davNamespace" xmlns:c="$caldavNamespace">'
     '<d:set><d:prop>'
     '<d:displayname>${escapeDavXmlText(displayName)}</d:displayname>'
     '<c:supported-calendar-component-set>'
-    '<c:comp name="VEVENT"/>'
+    '<c:comp name="$component"/>'
     '</c:supported-calendar-component-set>'
     '</d:prop></d:set>'
     '</c:mkcalendar>';

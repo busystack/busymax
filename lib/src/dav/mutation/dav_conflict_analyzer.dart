@@ -37,6 +37,29 @@ final class DavConflictAnalyzer {
     final baseline = IcalSemanticDocument.parse(baselineRawIcs);
     final current = IcalSemanticDocument.parse(currentRemoteRawIcs);
     final localChanges = localPatch.changedProperties;
+    if (localPatch.target.componentType == 'VJOURNAL') {
+      final before = _findTarget(baseline, localPatch.target);
+      final after = _findTarget(current, localPatch.target);
+      if (before != null && after != null) {
+        final reordered = <String>{
+          for (final operation in localPatch.operations)
+            if (operation.type == DavPatchOperationType.replaceRepeatedRaw &&
+                !_samePropertyOrder(
+                  before.documentComponent,
+                  after.documentComponent,
+                  operation.propertyName,
+                ))
+              operation.propertyName,
+        };
+        if (reordered.isNotEmpty) {
+          return _conflict(
+            localChanges,
+            reordered,
+            'DavConflictOverlappingProperties',
+          );
+        }
+      }
+    }
     if (baseline.semanticHash == current.semanticHash) {
       return DavConflictAnalysis(
         outcome: DavConflictOutcome.remoteUnchanged,
@@ -145,6 +168,38 @@ DavConflictAnalysis _conflict(
   mergedRawIcs: null,
   conflictCode: code,
 );
+
+bool _samePropertyOrder(
+  IcalComponent first,
+  IcalComponent second,
+  String name,
+) {
+  final left = first
+      .propertiesNamed(name)
+      .map((p) => p.serializeLogicalLine())
+      .toList();
+  final right = second
+      .propertiesNamed(name)
+      .map((p) => p.serializeLogicalLine())
+      .toList();
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (left[index] != right[index]) return false;
+  }
+  return true;
+}
+
+IcalSemanticComponent? _findTarget(
+  IcalSemanticDocument document,
+  IcalComponentKey target,
+) => document.components
+    .where(
+      (component) =>
+          component.componentType == target.componentType.toUpperCase() &&
+          component.uid == target.uid &&
+          component.recurrenceIdKey == target.recurrenceIdKey,
+    )
+    .firstOrNull;
 
 IcalSemanticComponent _requireTarget(
   IcalSemanticDocument document,

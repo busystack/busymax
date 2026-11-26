@@ -188,6 +188,8 @@ void main() {
       'idx_dav_objects_href',
       'idx_dav_objects_projection',
       'idx_dav_components_logical_key',
+      'idx_dav_journals_collection_date',
+      'idx_dav_journals_object',
       'idx_dav_components_uid',
       'idx_task_lists_account_title',
       'idx_task_lists_dirty',
@@ -352,7 +354,7 @@ void main() {
         .select(database.locationResolutions)
         .getSingle();
 
-    expect(latestSchemaVersion, 26);
+    expect(latestSchemaVersion, 27);
     expect(version.read<int>('user_version'), latestSchemaVersion);
     expect(event.locationLatitude, 49.2827);
     expect(event.locationLongitude, -123.1207);

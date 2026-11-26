@@ -1490,5 +1490,21 @@
   "taskReminderRequiresAnchor": "Ajusta el recordatorio relativo antes de eliminar su inicio o fecha límite.",
   "attachmentInvalidOrTooLarge": "Este archivo adjunto no es válido o supera el límite de tamaño.",
   "moveEvent": "Mover evento",
-  "agendaLoadMoreDays": "Cargar más días"
+  "agendaLoadMoreDays": "Cargar más días",
+  "journals": "Diarios",
+  "newJournal": "Nueva entrada",
+  "newJournalCollection": "Nueva colección de diario",
+  "journalCollection": "Colección de diario",
+  "untitledJournal": "Entrada sin título",
+  "journalNoEntries": "No se encontraron entradas de diario.",
+  "journalOperationFailed": "No se pudo completar la operación en el diario.",
+  "journalDated": "Entradas con fecha",
+  "journalDate": "Fecha",
+  "journalStatus": "Estado",
+  "journalAddDescription": "Añadir descripción",
+  "journalRemoveDescription": "Quitar descripción",
+  "journalDuplicate": "Duplicar entrada",
+  "journalDeleteSeries": "¿Eliminar la entrada completa y sus repeticiones?",
+  "journalFloatingTime": "Hora local",
+  "journalZonedTime": "Hora con zona horaria"
 }

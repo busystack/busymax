@@ -3980,4 +3980,52 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'さらに日付を読み込む';
+
+  @override
+  String get journals => 'ジャーナル';
+
+  @override
+  String get newJournal => '新規エントリ';
+
+  @override
+  String get newJournalCollection => 'ジャーナルコレクションを作成';
+
+  @override
+  String get journalCollection => 'ジャーナルコレクション';
+
+  @override
+  String get untitledJournal => '無題のエントリ';
+
+  @override
+  String get journalNoEntries => 'ジャーナルのエントリが見つかりません。';
+
+  @override
+  String get journalOperationFailed => 'ジャーナルの操作に失敗しました。';
+
+  @override
+  String get journalDated => '日付あり';
+
+  @override
+  String get journalDate => '日付';
+
+  @override
+  String get journalStatus => '状態';
+
+  @override
+  String get journalAddDescription => '説明を追加';
+
+  @override
+  String get journalRemoveDescription => '説明を削除';
+
+  @override
+  String get journalDuplicate => 'エントリを複製';
+
+  @override
+  String get journalDeleteSeries => 'エントリとすべての繰り返しを削除しますか？';
+
+  @override
+  String get journalFloatingTime => '現地時刻';
+
+  @override
+  String get journalZonedTime => 'タイムゾーン付き時刻';
 }

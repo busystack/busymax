@@ -44,6 +44,10 @@ import '../../features/recurrence/presentation/recurrence_summary.dart';
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import 'dart:async';
+
+import '../../journal/presentation/journal_workspace.dart';
+import '../../journal/presentation/material_journal_controls.dart';
+
 import 'dart:convert';
 
 import 'package:busymax_android_platform/busymax_android_platform.dart';
@@ -570,6 +574,25 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                 switch (value) {
                   case 'refresh':
                     await _refreshWorkspace();
+                  case 'journals':
+                    if (context.mounted) {
+                      await Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (context) => Scaffold(
+                            appBar: AppBar(title: Text(context.l10n.journals)),
+                            body: const SafeArea(
+                              child: JournalWorkspace(
+                                controls: MaterialJournalControls(),
+                                files: JournalFileActions(
+                                  read: _readJournalFile,
+                                  export: _exportJournalFile,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
                   case 'settings':
                     if (context.mounted) {
                       await Navigator.of(context).push<void>(
@@ -604,6 +627,10 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                     value: 'refresh',
                     child: Text(context.l10n.refreshAll),
                   ),
+                PopupMenuItem(
+                  value: 'journals',
+                  child: Text(context.l10n.journals),
+                ),
                 PopupMenuItem(
                   value: 'settings',
                   child: Text(context.l10n.settings),
@@ -6554,3 +6581,16 @@ String _eventVisibilityLabel(BuildContext context, String value) =>
       'personal' => context.l10n.sensitivityPersonal,
       _ => value,
     };
+
+Future<List<int>?> _readJournalFile() async =>
+    (await BusyMaxAndroidPlatform.instance.openDocument(
+      maximumBytes: 16 * 1024 * 1024,
+    ))?.bytes;
+
+Future<void> _exportJournalFile(String raw) async {
+  await BusyMaxAndroidPlatform.instance.createDocument(
+    suggestedName: 'busymax-journal.ics',
+    mimeType: 'text/calendar',
+    bytes: Uint8List.fromList(utf8.encode(raw)),
+  );
+}

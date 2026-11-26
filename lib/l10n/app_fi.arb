@@ -1427,5 +1427,21 @@
   "taskReminderRequiresAnchor": "Muuta suhteellista muistutusta ennen sen aloituksen tai määräajan poistamista.",
   "attachmentInvalidOrTooLarge": "Tämä liite on virheellinen tai ylittää kokorajan.",
   "moveEvent": "Siirrä tapahtuma",
-  "agendaLoadMoreDays": "Lataa lisää päiviä"
+  "agendaLoadMoreDays": "Lataa lisää päiviä",
+  "journals": "Päiväkirjat",
+  "newJournal": "Uusi merkintä",
+  "newJournalCollection": "Uusi päiväkirjakokoelma",
+  "journalCollection": "Päiväkirjakokoelma",
+  "untitledJournal": "Nimetön merkintä",
+  "journalNoEntries": "Päiväkirjamerkintöjä ei löytynyt.",
+  "journalOperationFailed": "Päiväkirjatoiminto epäonnistui.",
+  "journalDated": "Päivätyt merkinnät",
+  "journalDate": "Päivämäärä",
+  "journalStatus": "Tila",
+  "journalAddDescription": "Lisää kuvaus",
+  "journalRemoveDescription": "Poista kuvaus",
+  "journalDuplicate": "Monista merkintä",
+  "journalDeleteSeries": "Poistetaanko koko merkintä toistoineen?",
+  "journalFloatingTime": "Paikallinen aika",
+  "journalZonedTime": "Aika ja aikavyöhyke"
 }

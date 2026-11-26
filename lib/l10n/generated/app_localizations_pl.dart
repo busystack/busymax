@@ -4271,4 +4271,53 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'Wczytaj więcej dni';
+
+  @override
+  String get journals => 'Dzienniki';
+
+  @override
+  String get newJournal => 'Nowy wpis';
+
+  @override
+  String get newJournalCollection => 'Nowa kolekcja dziennika';
+
+  @override
+  String get journalCollection => 'Kolekcja dziennika';
+
+  @override
+  String get untitledJournal => 'Wpis bez tytułu';
+
+  @override
+  String get journalNoEntries => 'Nie znaleziono wpisów w dzienniku.';
+
+  @override
+  String get journalOperationFailed =>
+      'Operacja na dzienniku nie powiodła się.';
+
+  @override
+  String get journalDated => 'Wpisy z datą';
+
+  @override
+  String get journalDate => 'Data';
+
+  @override
+  String get journalStatus => 'Stan';
+
+  @override
+  String get journalAddDescription => 'Dodaj opis';
+
+  @override
+  String get journalRemoveDescription => 'Usuń opis';
+
+  @override
+  String get journalDuplicate => 'Powiel wpis';
+
+  @override
+  String get journalDeleteSeries => 'Usunąć cały wpis i jego powtórzenia?';
+
+  @override
+  String get journalFloatingTime => 'Czas lokalny';
+
+  @override
+  String get journalZonedTime => 'Czas ze strefą czasową';
 }

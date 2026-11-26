@@ -3903,6 +3903,54 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => '加载更多日期';
+
+  @override
+  String get journals => '日志';
+
+  @override
+  String get newJournal => '新建条目';
+
+  @override
+  String get newJournalCollection => '新建日志集合';
+
+  @override
+  String get journalCollection => '日志集合';
+
+  @override
+  String get untitledJournal => '无标题条目';
+
+  @override
+  String get journalNoEntries => '未找到日志条目。';
+
+  @override
+  String get journalOperationFailed => '日志操作失败。';
+
+  @override
+  String get journalDated => '有日期的条目';
+
+  @override
+  String get journalDate => '日期';
+
+  @override
+  String get journalStatus => '状态';
+
+  @override
+  String get journalAddDescription => '添加描述';
+
+  @override
+  String get journalRemoveDescription => '移除描述';
+
+  @override
+  String get journalDuplicate => '复制条目';
+
+  @override
+  String get journalDeleteSeries => '删除整条日志及其重复项？';
+
+  @override
+  String get journalFloatingTime => '本地时间';
+
+  @override
+  String get journalZonedTime => '带时区的时间';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -7797,6 +7845,54 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get agendaLoadMoreDays => '加载更多日期';
+
+  @override
+  String get journals => '日志';
+
+  @override
+  String get newJournal => '新建条目';
+
+  @override
+  String get newJournalCollection => '新建日志集合';
+
+  @override
+  String get journalCollection => '日志集合';
+
+  @override
+  String get untitledJournal => '无标题条目';
+
+  @override
+  String get journalNoEntries => '未找到日志条目。';
+
+  @override
+  String get journalOperationFailed => '日志操作失败。';
+
+  @override
+  String get journalDated => '有日期的条目';
+
+  @override
+  String get journalDate => '日期';
+
+  @override
+  String get journalStatus => '状态';
+
+  @override
+  String get journalAddDescription => '添加描述';
+
+  @override
+  String get journalRemoveDescription => '移除描述';
+
+  @override
+  String get journalDuplicate => '复制条目';
+
+  @override
+  String get journalDeleteSeries => '删除整条日志及其重复项？';
+
+  @override
+  String get journalFloatingTime => '本地时间';
+
+  @override
+  String get journalZonedTime => '带时区的时间';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -11692,4 +11788,52 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get agendaLoadMoreDays => '載入更多日期';
+
+  @override
+  String get journals => '日誌';
+
+  @override
+  String get newJournal => '新增項目';
+
+  @override
+  String get newJournalCollection => '新增日誌集合';
+
+  @override
+  String get journalCollection => '日誌集合';
+
+  @override
+  String get untitledJournal => '未命名項目';
+
+  @override
+  String get journalNoEntries => '找不到日誌項目。';
+
+  @override
+  String get journalOperationFailed => '日誌操作失敗。';
+
+  @override
+  String get journalDated => '有日期的項目';
+
+  @override
+  String get journalDate => '日期';
+
+  @override
+  String get journalStatus => '狀態';
+
+  @override
+  String get journalAddDescription => '新增描述';
+
+  @override
+  String get journalRemoveDescription => '移除描述';
+
+  @override
+  String get journalDuplicate => '複製項目';
+
+  @override
+  String get journalDeleteSeries => '要刪除整個項目及其重複項目嗎？';
+
+  @override
+  String get journalFloatingTime => '本地時間';
+
+  @override
+  String get journalZonedTime => '含時區的時間';
 }

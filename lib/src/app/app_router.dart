@@ -1,3 +1,4 @@
+import '../journal/presentation/journal_desktop_files.dart';
 import '../features/notifications/daily_summary_policy.dart';
 
 import 'package:busymax/src/ui/common/flutter_material.dart';
@@ -9,6 +10,9 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/schedule/presentation/schedule_workspace.dart';
 import '../schedule/schedule_scope.dart';
+import '../l10n/l10n.dart';
+import '../journal/presentation/journal_workspace.dart';
+import '../journal/presentation/material_journal_controls.dart';
 import 'app_bootstrap.dart';
 import 'busymax_design.dart';
 import 'busymax_layout.dart';
@@ -72,6 +76,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             taskId: segments.length == 4 ? segments[3] : null,
           );
         },
+      ),
+      GoRoute(
+        path: '/journals',
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(title: Text(context.l10n.journals)),
+          body: const JournalWorkspace(
+            controls: MaterialJournalControls(),
+            files: journalDesktopFiles,
+          ),
+        ),
       ),
       GoRoute(
         path: '/settings',

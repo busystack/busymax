@@ -2,6 +2,7 @@ import '../ical/ical_timezone.dart';
 
 import 'dart:convert';
 
+import '../../journal/journal_component.dart';
 import '../dav_errors.dart';
 import '../ical/ical_document.dart';
 import '../ical/ical_semantics.dart';
@@ -47,7 +48,7 @@ final class DavRawPropertyValue {
 
   factory DavRawPropertyValue.fromJson(Map<String, Object?> json) =>
       DavRawPropertyValue(
-        value: _requiredString(json, 'value'),
+        value: _requiredStringAllowEmpty(json, 'value'),
         parameters: _parameters(json['parameters']),
       );
 }
@@ -132,8 +133,8 @@ final class DavPatchOperation {
   }
 
   factory DavPatchOperation.addComponent(IcalComponent component) {
-    if (component.name != 'VEVENT' && component.name != 'VTODO') {
-      throw ArgumentError('Only VEVENT or VTODO components can be added.');
+    if (!const {'VEVENT', 'VTODO', 'VJOURNAL'}.contains(component.name)) {
+      throw ArgumentError('Unsupported calendar component.');
     }
     return DavPatchOperation._(
       type: DavPatchOperationType.addComponent,
@@ -401,10 +402,16 @@ final class DavMutationPatch {
       }
     }
     final serialized = document.serialize();
-    // The semantic parse is an invariant gate: no patch can emit a malformed
-    // recurrence set or an invalid VEVENT/VTODO resource.
-    IcalSemanticDocument.parse(serialized);
-    return completeIcalTimeZones(serialized);
+    final semantic = IcalSemanticDocument.parse(serialized);
+    final complete = completeIcalTimeZones(serialized);
+    if (semantic.dominantComponentType == 'VJOURNAL') {
+      JournalComponent.validateAuthored(
+        complete == serialized
+            ? semantic
+            : IcalSemanticDocument.parse(complete),
+      );
+    }
+    return complete;
   }
 }
 
@@ -506,6 +513,17 @@ const _editableProperties = {
   'ORGANIZER',
   'ATTENDEE',
   'DESCRIPTION',
+  'ATTACH',
+  'COMMENT',
+  'CONTACT',
+  'REQUEST-STATUS',
+  'COLOR',
+  'IMAGE',
+  'STYLED-DESCRIPTION',
+  'STRUCTURED-DATA',
+  'LINK',
+  'CONCEPT',
+  'REFID',
   'X-ALT-DESC',
   'LOCATION',
   'GEO',
@@ -584,7 +602,15 @@ IcalComponentKey _componentKeyFromJson(Map<String, Object?> json) =>
 
 IcalComponent _componentFromJson(Map<String, Object?> json) {
   final name = _requiredString(json, 'name').toUpperCase();
-  if (name != 'VALARM' && name != 'VEVENT' && name != 'VTODO') {
+  if (!const {
+    'VALARM',
+    'VEVENT',
+    'VTODO',
+    'VJOURNAL',
+    'PARTICIPANT',
+    'VLOCATION',
+    'VRESOURCE',
+  }.contains(name)) {
     throw _invalidPatch();
   }
   final children = <IcalNode>[];
@@ -606,7 +632,17 @@ IcalComponent _componentFromJson(Map<String, Object?> json) {
       );
     } else if (node == 'component' && name != 'VALARM') {
       final nested = _componentFromJson(_requiredMap(child, 'component'));
-      if (nested.name != 'VALARM') throw _invalidPatch();
+      final permitted = switch (name) {
+        'VJOURNAL' => const {
+          'PARTICIPANT',
+          'VLOCATION',
+          'VRESOURCE',
+        }.contains(nested.name),
+        'PARTICIPANT' => const {'VLOCATION', 'VRESOURCE'}.contains(nested.name),
+        'VEVENT' || 'VTODO' => nested.name == 'VALARM',
+        _ => false,
+      };
+      if (!permitted) throw _invalidPatch();
       children.add(nested);
     } else {
       throw _invalidPatch();

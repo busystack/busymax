@@ -502,12 +502,22 @@ void main() {
               .data['user_version'],
           latestSchemaVersion,
         );
+        const addedColumns = {
+          'accounts': {'journals_enabled': 1},
+          'dav_collections': {
+            'journal_projection_enabled': 0,
+            'journals_selected': 1,
+            'journal_inventory_complete': 0,
+          },
+        };
         for (final table in tables) {
           expect(
             (await db.customSelect('SELECT * FROM "$table"').get())
                 .map((r) => r.data)
                 .toList(),
-            before[table],
+            before[table]!
+                .map((row) => {...row, ...?addedColumns[table]})
+                .toList(),
             reason: table,
           );
         }

@@ -20,6 +20,7 @@ import '../../platform/windows/windows_clock_preference.dart';
 import '../../platform/windows/windows_first_weekday_source.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../ui/windows/windows_schedule_page.dart';
+import '../../ui/windows/windows_journal_page.dart';
 import '../../ui/windows/windows_settings_page.dart';
 import '../../ui/windows/windows_tasks_page.dart';
 import '../../ui/windows/windows_workspace_shell.dart';
@@ -47,6 +48,13 @@ final windowsAppRouter = GoRouter(
       builder: (_, _) => const WindowsWorkspaceShell(
         destination: WindowsWorkspaceDestination.tasks,
         child: WindowsTasksPage(),
+      ),
+    ),
+    GoRoute(
+      path: '/journals',
+      builder: (_, _) => const WindowsWorkspaceShell(
+        destination: WindowsWorkspaceDestination.journals,
+        child: WindowsJournalPage(),
       ),
     ),
     GoRoute(

@@ -6837,6 +6837,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Load more days'**
   String get agendaLoadMoreDays;
+
+  /// No description provided for @journals.
+  ///
+  /// In en, this message translates to:
+  /// **'Journals'**
+  String get journals;
+
+  /// No description provided for @newJournal.
+  ///
+  /// In en, this message translates to:
+  /// **'New entry'**
+  String get newJournal;
+
+  /// No description provided for @newJournalCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'New journal collection'**
+  String get newJournalCollection;
+
+  /// No description provided for @journalCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Journal collection'**
+  String get journalCollection;
+
+  /// No description provided for @untitledJournal.
+  ///
+  /// In en, this message translates to:
+  /// **'Untitled entry'**
+  String get untitledJournal;
+
+  /// No description provided for @journalNoEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'No journal entries found.'**
+  String get journalNoEntries;
+
+  /// No description provided for @journalOperationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The journal operation failed.'**
+  String get journalOperationFailed;
+
+  /// No description provided for @journalDated.
+  ///
+  /// In en, this message translates to:
+  /// **'Dated entries'**
+  String get journalDated;
+
+  /// No description provided for @journalDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get journalDate;
+
+  /// No description provided for @journalStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get journalStatus;
+
+  /// No description provided for @journalAddDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Add description'**
+  String get journalAddDescription;
+
+  /// No description provided for @journalRemoveDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove description'**
+  String get journalRemoveDescription;
+
+  /// No description provided for @journalDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate entry'**
+  String get journalDuplicate;
+
+  /// No description provided for @journalDeleteSeries.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the entire entry and its recurrence?'**
+  String get journalDeleteSeries;
+
+  /// No description provided for @journalFloatingTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Local time'**
+  String get journalFloatingTime;
+
+  /// No description provided for @journalZonedTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Time with a time zone'**
+  String get journalZonedTime;
 }
 
 class _AppLocalizationsDelegate

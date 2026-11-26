@@ -1086,6 +1086,7 @@ final class DavDiscoveryService {
       final componentMask = _componentMask(componentProperty);
       final supportsEvents = componentMask & davComponentEvent != 0;
       final supportsTasks = componentMask & davComponentTodo != 0;
+      final supportsJournals = componentMask & davComponentJournal != 0;
       final reports = _reportNames(
         response.successfulProperty(davNamespace, 'supported-report-set'),
       );
@@ -1161,6 +1162,7 @@ final class DavDiscoveryService {
             privileges.contains(_name(caldavNamespace, 'read-free-busy')),
         supportsEvents: supportsEvents,
         supportsTasks: supportsTasks,
+        supportsJournals: supportsJournals,
         supportsSyncCollection: reports.contains(
           _name(davNamespace, 'sync-collection'),
         ),
@@ -1193,6 +1195,7 @@ final class DavDiscoveryService {
               hrefKey: hrefKey,
               supportsEvents: supportsEvents,
               supportsTasks: supportsTasks,
+              supportsJournals: supportsJournals,
               capabilities: capabilities,
             );
       result.add(
@@ -1275,6 +1278,8 @@ final class DavDiscoveryService {
               capabilities.canRead &&
               _profile.calendarEnabled &&
               supportsEvents,
+          journalProjectionEnabled:
+              contentResource && capabilities.canRead && supportsJournals,
           taskProjectionEnabled:
               !isInbox &&
               !isOutbox &&
@@ -1296,6 +1301,7 @@ final class DavDiscoveryService {
     required String hrefKey,
     required bool supportsEvents,
     required bool supportsTasks,
+    required bool supportsJournals,
     required CollectionCapabilities capabilities,
   }) {
     if (isInbox) return DavCollectionKind.schedulingInbox;
@@ -1305,7 +1311,15 @@ final class DavDiscoveryService {
     if (lowered.contains('/notifications/') || lowered.contains('/trashbin/')) {
       return DavCollectionKind.notifications;
     }
-    if (supportsEvents && supportsTasks) return DavCollectionKind.mixedCalendar;
+    if (supportsEvents && (supportsTasks || supportsJournals) ||
+        supportsTasks && supportsJournals) {
+      return DavCollectionKind.mixedCalendar;
+    }
+    if (supportsJournals) {
+      return capabilities.isReadOnly
+          ? DavCollectionKind.readOnlyJournal
+          : DavCollectionKind.writableJournal;
+    }
     if (supportsEvents) {
       return capabilities.isReadOnly
           ? DavCollectionKind.readOnlyEventCalendar

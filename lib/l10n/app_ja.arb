@@ -1427,5 +1427,21 @@
   "taskReminderRequiresAnchor": "開始日時や期限を削除する前に、それを基準とするリマインダーを変更してください。",
   "attachmentInvalidOrTooLarge": "この添付ファイルは無効か、サイズの上限を超えています。",
   "moveEvent": "予定を移動",
-  "agendaLoadMoreDays": "さらに日付を読み込む"
+  "agendaLoadMoreDays": "さらに日付を読み込む",
+  "journals": "ジャーナル",
+  "newJournal": "新規エントリ",
+  "newJournalCollection": "ジャーナルコレクションを作成",
+  "journalCollection": "ジャーナルコレクション",
+  "untitledJournal": "無題のエントリ",
+  "journalNoEntries": "ジャーナルのエントリが見つかりません。",
+  "journalOperationFailed": "ジャーナルの操作に失敗しました。",
+  "journalDated": "日付あり",
+  "journalDate": "日付",
+  "journalStatus": "状態",
+  "journalAddDescription": "説明を追加",
+  "journalRemoveDescription": "説明を削除",
+  "journalDuplicate": "エントリを複製",
+  "journalDeleteSeries": "エントリとすべての繰り返しを削除しますか？",
+  "journalFloatingTime": "現地時刻",
+  "journalZonedTime": "タイムゾーン付き時刻"
 }

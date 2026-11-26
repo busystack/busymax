@@ -49,6 +49,7 @@ class AccountEntity {
     this.grantedScopes = '',
     this.calendarsEnabled = true,
     this.tasksEnabled = true,
+    this.journalsEnabled = true,
     this.lastSuccessfulSyncAtUtc,
     this.lastFullSyncAtUtc,
   });
@@ -75,6 +76,7 @@ class AccountEntity {
       grantedScopes: row.grantedScopes,
       calendarsEnabled: row.calendarsEnabled,
       tasksEnabled: row.tasksEnabled,
+      journalsEnabled: row.journalsEnabled,
       lastSuccessfulSyncAtUtc: DateTime.tryParse(
         row.lastSuccessfulSyncAtUtc ?? '',
       )?.toUtc(),
@@ -97,6 +99,7 @@ class AccountEntity {
   final String grantedScopes;
   final bool calendarsEnabled;
   final bool tasksEnabled;
+  final bool journalsEnabled;
   final DateTime? lastSuccessfulSyncAtUtc;
   final DateTime? lastFullSyncAtUtc;
   final String authState;

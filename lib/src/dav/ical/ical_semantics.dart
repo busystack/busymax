@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 import '../dav_errors.dart';
+import '../discovery/dav_discovery_models.dart';
 import '../../features/maps/domain/geographic_point.dart';
 import 'ical_document.dart';
 
@@ -112,12 +113,12 @@ final class IcalSemanticComponent {
         .propertiesNamed('UID')
         .toList(growable: false);
     final uid = uidProperties.firstOrNull?.rawValue.trim();
-    if ((type == 'VEVENT' || type == 'VTODO') &&
+    if (const {'VEVENT', 'VTODO', 'VJOURNAL'}.contains(type) &&
         (uid == null || uid.isEmpty || uidProperties.length != 1)) {
       throw const DavException(
         kind: DavErrorKind.invalidCalendarData,
         code: 'IcalCalendarObjectInvariantFailed',
-        safeMessage: 'An event or task component must contain exactly one UID.',
+        safeMessage: 'A calendar component must contain exactly one UID.',
       );
     }
     final status = _raw(component, 'STATUS')?.toUpperCase();
@@ -279,7 +280,7 @@ final class IcalSemanticDocument {
     final semanticComponents = <IcalSemanticComponent>[];
     final timeZones = <IcalComponent>[];
     for (final component in document.calendarComponents) {
-      if (component.name == 'VEVENT' || component.name == 'VTODO') {
+      if (const {'VEVENT', 'VTODO', 'VJOURNAL'}.contains(component.name)) {
         semanticComponents.add(
           IcalSemanticComponent.fromDocumentComponent(component),
         );
@@ -320,8 +321,7 @@ final class IcalSemanticDocument {
   final String semanticHash;
 
   /// The primary top-level component type retained by this raw resource.
-  /// BusyMax projects VEVENT and VTODO components, but unsupported component
-  /// types still remain valid raw synchronization content.
+  /// Unsupported component types can still be retained as raw synchronization content.
   String? get dominantComponentType {
     if (components.isNotEmpty) return components.first.componentType;
     for (final component in document.calendarComponents) {
@@ -333,12 +333,15 @@ final class IcalSemanticDocument {
   int get componentMask {
     var mask = 0;
     if (components.any((component) => component.componentType == 'VEVENT')) {
-      mask |= 1 << 0;
+      mask |= davComponentEvent;
     }
     if (components.any((component) => component.componentType == 'VTODO')) {
-      mask |= 1 << 1;
+      mask |= davComponentTodo;
     }
-    if (timeZones.isNotEmpty) mask |= 1 << 2;
+    if (components.any((component) => component.componentType == 'VJOURNAL')) {
+      mask |= davComponentJournal;
+    }
+    if (timeZones.isNotEmpty) mask |= davComponentTimezone;
     return mask;
   }
 
@@ -483,13 +486,14 @@ DateTime _parseDateTime(String source) {
   final match = RegExp(r'^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$')
       .firstMatch(source);
   if (match == null) throw _invalidTemporal();
+  final second = int.parse(match.group(6)!);
   return _checkedDateTime(
     int.parse(match.group(1)!),
     int.parse(match.group(2)!),
     int.parse(match.group(3)!),
     int.parse(match.group(4)!),
     int.parse(match.group(5)!),
-    int.parse(match.group(6)!),
+    second == 60 ? 59 : second,
   );
 }
 

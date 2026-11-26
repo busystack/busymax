@@ -168,6 +168,21 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _journalsEnabledMeta = const VerificationMeta(
+    'journalsEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> journalsEnabled = GeneratedColumn<bool>(
+    'journals_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("journals_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _grantedScopesMeta = const VerificationMeta(
     'grantedScopes',
   );
@@ -255,6 +270,7 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     authState,
     calendarsEnabled,
     tasksEnabled,
+    journalsEnabled,
     grantedScopes,
     createdAtUtc,
     updatedAtUtc,
@@ -389,6 +405,15 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         ),
       );
     }
+    if (data.containsKey('journals_enabled')) {
+      context.handle(
+        _journalsEnabledMeta,
+        journalsEnabled.isAcceptableOrUnknown(
+          data['journals_enabled']!,
+          _journalsEnabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('granted_scopes')) {
       context.handle(
         _grantedScopesMeta,
@@ -512,6 +537,10 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         DriftSqlType.bool,
         data['${effectivePrefix}tasks_enabled'],
       )!,
+      journalsEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}journals_enabled'],
+      )!,
       grantedScopes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}granted_scopes'],
@@ -560,6 +589,7 @@ class Account extends DataClass implements Insertable<Account> {
   final String authState;
   final bool calendarsEnabled;
   final bool tasksEnabled;
+  final bool journalsEnabled;
   final String grantedScopes;
   final String createdAtUtc;
   final String updatedAtUtc;
@@ -581,6 +611,7 @@ class Account extends DataClass implements Insertable<Account> {
     required this.authState,
     required this.calendarsEnabled,
     required this.tasksEnabled,
+    required this.journalsEnabled,
     required this.grantedScopes,
     required this.createdAtUtc,
     required this.updatedAtUtc,
@@ -615,6 +646,7 @@ class Account extends DataClass implements Insertable<Account> {
     map['auth_state'] = Variable<String>(authState);
     map['calendars_enabled'] = Variable<bool>(calendarsEnabled);
     map['tasks_enabled'] = Variable<bool>(tasksEnabled);
+    map['journals_enabled'] = Variable<bool>(journalsEnabled);
     map['granted_scopes'] = Variable<String>(grantedScopes);
     map['created_at_utc'] = Variable<String>(createdAtUtc);
     map['updated_at_utc'] = Variable<String>(updatedAtUtc);
@@ -656,6 +688,7 @@ class Account extends DataClass implements Insertable<Account> {
       authState: Value(authState),
       calendarsEnabled: Value(calendarsEnabled),
       tasksEnabled: Value(tasksEnabled),
+      journalsEnabled: Value(journalsEnabled),
       grantedScopes: Value(grantedScopes),
       createdAtUtc: Value(createdAtUtc),
       updatedAtUtc: Value(updatedAtUtc),
@@ -693,6 +726,7 @@ class Account extends DataClass implements Insertable<Account> {
       authState: serializer.fromJson<String>(json['authState']),
       calendarsEnabled: serializer.fromJson<bool>(json['calendarsEnabled']),
       tasksEnabled: serializer.fromJson<bool>(json['tasksEnabled']),
+      journalsEnabled: serializer.fromJson<bool>(json['journalsEnabled']),
       grantedScopes: serializer.fromJson<String>(json['grantedScopes']),
       createdAtUtc: serializer.fromJson<String>(json['createdAtUtc']),
       updatedAtUtc: serializer.fromJson<String>(json['updatedAtUtc']),
@@ -725,6 +759,7 @@ class Account extends DataClass implements Insertable<Account> {
       'authState': serializer.toJson<String>(authState),
       'calendarsEnabled': serializer.toJson<bool>(calendarsEnabled),
       'tasksEnabled': serializer.toJson<bool>(tasksEnabled),
+      'journalsEnabled': serializer.toJson<bool>(journalsEnabled),
       'grantedScopes': serializer.toJson<String>(grantedScopes),
       'createdAtUtc': serializer.toJson<String>(createdAtUtc),
       'updatedAtUtc': serializer.toJson<String>(updatedAtUtc),
@@ -751,6 +786,7 @@ class Account extends DataClass implements Insertable<Account> {
     String? authState,
     bool? calendarsEnabled,
     bool? tasksEnabled,
+    bool? journalsEnabled,
     String? grantedScopes,
     String? createdAtUtc,
     String? updatedAtUtc,
@@ -777,6 +813,7 @@ class Account extends DataClass implements Insertable<Account> {
     authState: authState ?? this.authState,
     calendarsEnabled: calendarsEnabled ?? this.calendarsEnabled,
     tasksEnabled: tasksEnabled ?? this.tasksEnabled,
+    journalsEnabled: journalsEnabled ?? this.journalsEnabled,
     grantedScopes: grantedScopes ?? this.grantedScopes,
     createdAtUtc: createdAtUtc ?? this.createdAtUtc,
     updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
@@ -820,6 +857,9 @@ class Account extends DataClass implements Insertable<Account> {
       tasksEnabled: data.tasksEnabled.present
           ? data.tasksEnabled.value
           : this.tasksEnabled,
+      journalsEnabled: data.journalsEnabled.present
+          ? data.journalsEnabled.value
+          : this.journalsEnabled,
       grantedScopes: data.grantedScopes.present
           ? data.grantedScopes.value
           : this.grantedScopes,
@@ -858,6 +898,7 @@ class Account extends DataClass implements Insertable<Account> {
           ..write('authState: $authState, ')
           ..write('calendarsEnabled: $calendarsEnabled, ')
           ..write('tasksEnabled: $tasksEnabled, ')
+          ..write('journalsEnabled: $journalsEnabled, ')
           ..write('grantedScopes: $grantedScopes, ')
           ..write('createdAtUtc: $createdAtUtc, ')
           ..write('updatedAtUtc: $updatedAtUtc, ')
@@ -869,7 +910,7 @@ class Account extends DataClass implements Insertable<Account> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     provider,
     authority,
@@ -884,13 +925,14 @@ class Account extends DataClass implements Insertable<Account> {
     authState,
     calendarsEnabled,
     tasksEnabled,
+    journalsEnabled,
     grantedScopes,
     createdAtUtc,
     updatedAtUtc,
     lastSuccessfulSyncAtUtc,
     lastFullSyncAtUtc,
     taskImportIncomplete,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -909,6 +951,7 @@ class Account extends DataClass implements Insertable<Account> {
           other.authState == this.authState &&
           other.calendarsEnabled == this.calendarsEnabled &&
           other.tasksEnabled == this.tasksEnabled &&
+          other.journalsEnabled == this.journalsEnabled &&
           other.grantedScopes == this.grantedScopes &&
           other.createdAtUtc == this.createdAtUtc &&
           other.updatedAtUtc == this.updatedAtUtc &&
@@ -932,6 +975,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   final Value<String> authState;
   final Value<bool> calendarsEnabled;
   final Value<bool> tasksEnabled;
+  final Value<bool> journalsEnabled;
   final Value<String> grantedScopes;
   final Value<String> createdAtUtc;
   final Value<String> updatedAtUtc;
@@ -954,6 +998,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.authState = const Value.absent(),
     this.calendarsEnabled = const Value.absent(),
     this.tasksEnabled = const Value.absent(),
+    this.journalsEnabled = const Value.absent(),
     this.grantedScopes = const Value.absent(),
     this.createdAtUtc = const Value.absent(),
     this.updatedAtUtc = const Value.absent(),
@@ -977,6 +1022,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.authState = const Value.absent(),
     this.calendarsEnabled = const Value.absent(),
     this.tasksEnabled = const Value.absent(),
+    this.journalsEnabled = const Value.absent(),
     this.grantedScopes = const Value.absent(),
     required String createdAtUtc,
     required String updatedAtUtc,
@@ -1006,6 +1052,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Expression<String>? authState,
     Expression<bool>? calendarsEnabled,
     Expression<bool>? tasksEnabled,
+    Expression<bool>? journalsEnabled,
     Expression<String>? grantedScopes,
     Expression<String>? createdAtUtc,
     Expression<String>? updatedAtUtc,
@@ -1031,6 +1078,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       if (authState != null) 'auth_state': authState,
       if (calendarsEnabled != null) 'calendars_enabled': calendarsEnabled,
       if (tasksEnabled != null) 'tasks_enabled': tasksEnabled,
+      if (journalsEnabled != null) 'journals_enabled': journalsEnabled,
       if (grantedScopes != null) 'granted_scopes': grantedScopes,
       if (createdAtUtc != null) 'created_at_utc': createdAtUtc,
       if (updatedAtUtc != null) 'updated_at_utc': updatedAtUtc,
@@ -1058,6 +1106,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Value<String>? authState,
     Value<bool>? calendarsEnabled,
     Value<bool>? tasksEnabled,
+    Value<bool>? journalsEnabled,
     Value<String>? grantedScopes,
     Value<String>? createdAtUtc,
     Value<String>? updatedAtUtc,
@@ -1082,6 +1131,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       authState: authState ?? this.authState,
       calendarsEnabled: calendarsEnabled ?? this.calendarsEnabled,
       tasksEnabled: tasksEnabled ?? this.tasksEnabled,
+      journalsEnabled: journalsEnabled ?? this.journalsEnabled,
       grantedScopes: grantedScopes ?? this.grantedScopes,
       createdAtUtc: createdAtUtc ?? this.createdAtUtc,
       updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
@@ -1142,6 +1192,9 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     if (tasksEnabled.present) {
       map['tasks_enabled'] = Variable<bool>(tasksEnabled.value);
     }
+    if (journalsEnabled.present) {
+      map['journals_enabled'] = Variable<bool>(journalsEnabled.value);
+    }
     if (grantedScopes.present) {
       map['granted_scopes'] = Variable<String>(grantedScopes.value);
     }
@@ -1187,6 +1240,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
           ..write('authState: $authState, ')
           ..write('calendarsEnabled: $calendarsEnabled, ')
           ..write('tasksEnabled: $tasksEnabled, ')
+          ..write('journalsEnabled: $journalsEnabled, ')
           ..write('grantedScopes: $grantedScopes, ')
           ..write('createdAtUtc: $createdAtUtc, ')
           ..write('updatedAtUtc: $updatedAtUtc, ')
@@ -4945,6 +4999,51 @@ class $DavCollectionsTable extends DavCollections
         ),
         defaultValue: const Constant(false),
       );
+  static const VerificationMeta _journalProjectionEnabledMeta =
+      const VerificationMeta('journalProjectionEnabled');
+  @override
+  late final GeneratedColumn<bool> journalProjectionEnabled =
+      GeneratedColumn<bool>(
+        'journal_projection_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("journal_projection_enabled" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _journalsSelectedMeta = const VerificationMeta(
+    'journalsSelected',
+  );
+  @override
+  late final GeneratedColumn<bool> journalsSelected = GeneratedColumn<bool>(
+    'journals_selected',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("journals_selected" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _journalInventoryCompleteMeta =
+      const VerificationMeta('journalInventoryComplete');
+  @override
+  late final GeneratedColumn<bool> journalInventoryComplete =
+      GeneratedColumn<bool>(
+        'journal_inventory_complete',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("journal_inventory_complete" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   static const VerificationMeta _eventsSelectedMeta = const VerificationMeta(
     'eventsSelected',
   );
@@ -5100,6 +5199,9 @@ class $DavCollectionsTable extends DavCollections
     readOnly,
     eventProjectionEnabled,
     taskProjectionEnabled,
+    journalProjectionEnabled,
+    journalsSelected,
+    journalInventoryComplete,
     eventsSelected,
     tasksSelected,
     serverMissing,
@@ -5325,6 +5427,33 @@ class $DavCollectionsTable extends DavCollections
         ),
       );
     }
+    if (data.containsKey('journal_projection_enabled')) {
+      context.handle(
+        _journalProjectionEnabledMeta,
+        journalProjectionEnabled.isAcceptableOrUnknown(
+          data['journal_projection_enabled']!,
+          _journalProjectionEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('journals_selected')) {
+      context.handle(
+        _journalsSelectedMeta,
+        journalsSelected.isAcceptableOrUnknown(
+          data['journals_selected']!,
+          _journalsSelectedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('journal_inventory_complete')) {
+      context.handle(
+        _journalInventoryCompleteMeta,
+        journalInventoryComplete.isAcceptableOrUnknown(
+          data['journal_inventory_complete']!,
+          _journalInventoryCompleteMeta,
+        ),
+      );
+    }
     if (data.containsKey('events_selected')) {
       context.handle(
         _eventsSelectedMeta,
@@ -5525,6 +5654,18 @@ class $DavCollectionsTable extends DavCollections
         DriftSqlType.bool,
         data['${effectivePrefix}task_projection_enabled'],
       )!,
+      journalProjectionEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}journal_projection_enabled'],
+      )!,
+      journalsSelected: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}journals_selected'],
+      )!,
+      journalInventoryComplete: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}journal_inventory_complete'],
+      )!,
       eventsSelected: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}events_selected'],
@@ -5600,6 +5741,9 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
   final bool readOnly;
   final bool eventProjectionEnabled;
   final bool taskProjectionEnabled;
+  final bool journalProjectionEnabled;
+  final bool journalsSelected;
+  final bool journalInventoryComplete;
   final bool eventsSelected;
   final bool tasksSelected;
   final bool serverMissing;
@@ -5636,6 +5780,9 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
     required this.readOnly,
     required this.eventProjectionEnabled,
     required this.taskProjectionEnabled,
+    required this.journalProjectionEnabled,
+    required this.journalsSelected,
+    required this.journalInventoryComplete,
     required this.eventsSelected,
     required this.tasksSelected,
     required this.serverMissing,
@@ -5705,6 +5852,13 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
     map['read_only'] = Variable<bool>(readOnly);
     map['event_projection_enabled'] = Variable<bool>(eventProjectionEnabled);
     map['task_projection_enabled'] = Variable<bool>(taskProjectionEnabled);
+    map['journal_projection_enabled'] = Variable<bool>(
+      journalProjectionEnabled,
+    );
+    map['journals_selected'] = Variable<bool>(journalsSelected);
+    map['journal_inventory_complete'] = Variable<bool>(
+      journalInventoryComplete,
+    );
     map['events_selected'] = Variable<bool>(eventsSelected);
     map['tasks_selected'] = Variable<bool>(tasksSelected);
     map['server_missing'] = Variable<bool>(serverMissing);
@@ -5771,6 +5925,9 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
       readOnly: Value(readOnly),
       eventProjectionEnabled: Value(eventProjectionEnabled),
       taskProjectionEnabled: Value(taskProjectionEnabled),
+      journalProjectionEnabled: Value(journalProjectionEnabled),
+      journalsSelected: Value(journalsSelected),
+      journalInventoryComplete: Value(journalInventoryComplete),
       eventsSelected: Value(eventsSelected),
       tasksSelected: Value(tasksSelected),
       serverMissing: Value(serverMissing),
@@ -5839,6 +5996,13 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
       taskProjectionEnabled: serializer.fromJson<bool>(
         json['taskProjectionEnabled'],
       ),
+      journalProjectionEnabled: serializer.fromJson<bool>(
+        json['journalProjectionEnabled'],
+      ),
+      journalsSelected: serializer.fromJson<bool>(json['journalsSelected']),
+      journalInventoryComplete: serializer.fromJson<bool>(
+        json['journalInventoryComplete'],
+      ),
       eventsSelected: serializer.fromJson<bool>(json['eventsSelected']),
       tasksSelected: serializer.fromJson<bool>(json['tasksSelected']),
       serverMissing: serializer.fromJson<bool>(json['serverMissing']),
@@ -5888,6 +6052,13 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
       'readOnly': serializer.toJson<bool>(readOnly),
       'eventProjectionEnabled': serializer.toJson<bool>(eventProjectionEnabled),
       'taskProjectionEnabled': serializer.toJson<bool>(taskProjectionEnabled),
+      'journalProjectionEnabled': serializer.toJson<bool>(
+        journalProjectionEnabled,
+      ),
+      'journalsSelected': serializer.toJson<bool>(journalsSelected),
+      'journalInventoryComplete': serializer.toJson<bool>(
+        journalInventoryComplete,
+      ),
       'eventsSelected': serializer.toJson<bool>(eventsSelected),
       'tasksSelected': serializer.toJson<bool>(tasksSelected),
       'serverMissing': serializer.toJson<bool>(serverMissing),
@@ -5927,6 +6098,9 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
     bool? readOnly,
     bool? eventProjectionEnabled,
     bool? taskProjectionEnabled,
+    bool? journalProjectionEnabled,
+    bool? journalsSelected,
+    bool? journalInventoryComplete,
     bool? eventsSelected,
     bool? tasksSelected,
     bool? serverMissing,
@@ -5979,6 +6153,11 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
     eventProjectionEnabled:
         eventProjectionEnabled ?? this.eventProjectionEnabled,
     taskProjectionEnabled: taskProjectionEnabled ?? this.taskProjectionEnabled,
+    journalProjectionEnabled:
+        journalProjectionEnabled ?? this.journalProjectionEnabled,
+    journalsSelected: journalsSelected ?? this.journalsSelected,
+    journalInventoryComplete:
+        journalInventoryComplete ?? this.journalInventoryComplete,
     eventsSelected: eventsSelected ?? this.eventsSelected,
     tasksSelected: tasksSelected ?? this.tasksSelected,
     serverMissing: serverMissing ?? this.serverMissing,
@@ -6053,6 +6232,15 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
       taskProjectionEnabled: data.taskProjectionEnabled.present
           ? data.taskProjectionEnabled.value
           : this.taskProjectionEnabled,
+      journalProjectionEnabled: data.journalProjectionEnabled.present
+          ? data.journalProjectionEnabled.value
+          : this.journalProjectionEnabled,
+      journalsSelected: data.journalsSelected.present
+          ? data.journalsSelected.value
+          : this.journalsSelected,
+      journalInventoryComplete: data.journalInventoryComplete.present
+          ? data.journalInventoryComplete.value
+          : this.journalInventoryComplete,
       eventsSelected: data.eventsSelected.present
           ? data.eventsSelected.value
           : this.eventsSelected,
@@ -6112,6 +6300,9 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
           ..write('readOnly: $readOnly, ')
           ..write('eventProjectionEnabled: $eventProjectionEnabled, ')
           ..write('taskProjectionEnabled: $taskProjectionEnabled, ')
+          ..write('journalProjectionEnabled: $journalProjectionEnabled, ')
+          ..write('journalsSelected: $journalsSelected, ')
+          ..write('journalInventoryComplete: $journalInventoryComplete, ')
           ..write('eventsSelected: $eventsSelected, ')
           ..write('tasksSelected: $tasksSelected, ')
           ..write('serverMissing: $serverMissing, ')
@@ -6153,6 +6344,9 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
     readOnly,
     eventProjectionEnabled,
     taskProjectionEnabled,
+    journalProjectionEnabled,
+    journalsSelected,
+    journalInventoryComplete,
     eventsSelected,
     tasksSelected,
     serverMissing,
@@ -6193,6 +6387,9 @@ class DavCollection extends DataClass implements Insertable<DavCollection> {
           other.readOnly == this.readOnly &&
           other.eventProjectionEnabled == this.eventProjectionEnabled &&
           other.taskProjectionEnabled == this.taskProjectionEnabled &&
+          other.journalProjectionEnabled == this.journalProjectionEnabled &&
+          other.journalsSelected == this.journalsSelected &&
+          other.journalInventoryComplete == this.journalInventoryComplete &&
           other.eventsSelected == this.eventsSelected &&
           other.tasksSelected == this.tasksSelected &&
           other.serverMissing == this.serverMissing &&
@@ -6231,6 +6428,9 @@ class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
   final Value<bool> readOnly;
   final Value<bool> eventProjectionEnabled;
   final Value<bool> taskProjectionEnabled;
+  final Value<bool> journalProjectionEnabled;
+  final Value<bool> journalsSelected;
+  final Value<bool> journalInventoryComplete;
   final Value<bool> eventsSelected;
   final Value<bool> tasksSelected;
   final Value<bool> serverMissing;
@@ -6268,6 +6468,9 @@ class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
     this.readOnly = const Value.absent(),
     this.eventProjectionEnabled = const Value.absent(),
     this.taskProjectionEnabled = const Value.absent(),
+    this.journalProjectionEnabled = const Value.absent(),
+    this.journalsSelected = const Value.absent(),
+    this.journalInventoryComplete = const Value.absent(),
     this.eventsSelected = const Value.absent(),
     this.tasksSelected = const Value.absent(),
     this.serverMissing = const Value.absent(),
@@ -6306,6 +6509,9 @@ class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
     this.readOnly = const Value.absent(),
     this.eventProjectionEnabled = const Value.absent(),
     this.taskProjectionEnabled = const Value.absent(),
+    this.journalProjectionEnabled = const Value.absent(),
+    this.journalsSelected = const Value.absent(),
+    this.journalInventoryComplete = const Value.absent(),
     this.eventsSelected = const Value.absent(),
     this.tasksSelected = const Value.absent(),
     this.serverMissing = const Value.absent(),
@@ -6350,6 +6556,9 @@ class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
     Expression<bool>? readOnly,
     Expression<bool>? eventProjectionEnabled,
     Expression<bool>? taskProjectionEnabled,
+    Expression<bool>? journalProjectionEnabled,
+    Expression<bool>? journalsSelected,
+    Expression<bool>? journalInventoryComplete,
     Expression<bool>? eventsSelected,
     Expression<bool>? tasksSelected,
     Expression<bool>? serverMissing,
@@ -6398,6 +6607,11 @@ class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
         'event_projection_enabled': eventProjectionEnabled,
       if (taskProjectionEnabled != null)
         'task_projection_enabled': taskProjectionEnabled,
+      if (journalProjectionEnabled != null)
+        'journal_projection_enabled': journalProjectionEnabled,
+      if (journalsSelected != null) 'journals_selected': journalsSelected,
+      if (journalInventoryComplete != null)
+        'journal_inventory_complete': journalInventoryComplete,
       if (eventsSelected != null) 'events_selected': eventsSelected,
       if (tasksSelected != null) 'tasks_selected': tasksSelected,
       if (serverMissing != null) 'server_missing': serverMissing,
@@ -6439,6 +6653,9 @@ class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
     Value<bool>? readOnly,
     Value<bool>? eventProjectionEnabled,
     Value<bool>? taskProjectionEnabled,
+    Value<bool>? journalProjectionEnabled,
+    Value<bool>? journalsSelected,
+    Value<bool>? journalInventoryComplete,
     Value<bool>? eventsSelected,
     Value<bool>? tasksSelected,
     Value<bool>? serverMissing,
@@ -6483,6 +6700,11 @@ class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
           eventProjectionEnabled ?? this.eventProjectionEnabled,
       taskProjectionEnabled:
           taskProjectionEnabled ?? this.taskProjectionEnabled,
+      journalProjectionEnabled:
+          journalProjectionEnabled ?? this.journalProjectionEnabled,
+      journalsSelected: journalsSelected ?? this.journalsSelected,
+      journalInventoryComplete:
+          journalInventoryComplete ?? this.journalInventoryComplete,
       eventsSelected: eventsSelected ?? this.eventsSelected,
       tasksSelected: tasksSelected ?? this.tasksSelected,
       serverMissing: serverMissing ?? this.serverMissing,
@@ -6591,6 +6813,19 @@ class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
         taskProjectionEnabled.value,
       );
     }
+    if (journalProjectionEnabled.present) {
+      map['journal_projection_enabled'] = Variable<bool>(
+        journalProjectionEnabled.value,
+      );
+    }
+    if (journalsSelected.present) {
+      map['journals_selected'] = Variable<bool>(journalsSelected.value);
+    }
+    if (journalInventoryComplete.present) {
+      map['journal_inventory_complete'] = Variable<bool>(
+        journalInventoryComplete.value,
+      );
+    }
     if (eventsSelected.present) {
       map['events_selected'] = Variable<bool>(eventsSelected.value);
     }
@@ -6655,6 +6890,9 @@ class DavCollectionsCompanion extends UpdateCompanion<DavCollection> {
           ..write('readOnly: $readOnly, ')
           ..write('eventProjectionEnabled: $eventProjectionEnabled, ')
           ..write('taskProjectionEnabled: $taskProjectionEnabled, ')
+          ..write('journalProjectionEnabled: $journalProjectionEnabled, ')
+          ..write('journalsSelected: $journalsSelected, ')
+          ..write('journalInventoryComplete: $journalInventoryComplete, ')
           ..write('eventsSelected: $eventsSelected, ')
           ..write('tasksSelected: $tasksSelected, ')
           ..write('serverMissing: $serverMissing, ')
@@ -8545,6 +8783,760 @@ class DavObjectComponentsCompanion extends UpdateCompanion<DavObjectComponent> {
           ..write('lastModifiedUtc: $lastModifiedUtc, ')
           ..write('semanticHash: $semanticHash, ')
           ..write('parserProfileVersion: $parserProfileVersion, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DavJournalEntriesTable extends DavJournalEntries
+    with TableInfo<$DavJournalEntriesTable, DavJournalEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DavJournalEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _componentIdMeta = const VerificationMeta(
+    'componentId',
+  );
+  @override
+  late final GeneratedColumn<String> componentId = GeneratedColumn<String>(
+    'component_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_object_components (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _davObjectIdMeta = const VerificationMeta(
+    'davObjectId',
+  );
+  @override
+  late final GeneratedColumn<String> davObjectId = GeneratedColumn<String>(
+    'dav_object_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_objects (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _collectionIdMeta = const VerificationMeta(
+    'collectionId',
+  );
+  @override
+  late final GeneratedColumn<String> collectionId = GeneratedColumn<String>(
+    'collection_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _uidMeta = const VerificationMeta('uid');
+  @override
+  late final GeneratedColumn<String> uid = GeneratedColumn<String>(
+    'uid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recurrenceIdKeyMeta = const VerificationMeta(
+    'recurrenceIdKey',
+  );
+  @override
+  late final GeneratedColumn<String> recurrenceIdKey = GeneratedColumn<String>(
+    'recurrence_id_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _searchTextMeta = const VerificationMeta(
+    'searchText',
+  );
+  @override
+  late final GeneratedColumn<String> searchText = GeneratedColumn<String>(
+    'search_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startKindMeta = const VerificationMeta(
+    'startKind',
+  );
+  @override
+  late final GeneratedColumn<String> startKind = GeneratedColumn<String>(
+    'start_kind',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startValueMeta = const VerificationMeta(
+    'startValue',
+  );
+  @override
+  late final GeneratedColumn<String> startValue = GeneratedColumn<String>(
+    'start_value',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startTimeZoneMeta = const VerificationMeta(
+    'startTimeZone',
+  );
+  @override
+  late final GeneratedColumn<String> startTimeZone = GeneratedColumn<String>(
+    'start_time_zone',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    componentId,
+    davObjectId,
+    collectionId,
+    accountId,
+    uid,
+    recurrenceIdKey,
+    title,
+    searchText,
+    status,
+    startKind,
+    startValue,
+    startTimeZone,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dav_journal_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DavJournalEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('component_id')) {
+      context.handle(
+        _componentIdMeta,
+        componentId.isAcceptableOrUnknown(
+          data['component_id']!,
+          _componentIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_componentIdMeta);
+    }
+    if (data.containsKey('dav_object_id')) {
+      context.handle(
+        _davObjectIdMeta,
+        davObjectId.isAcceptableOrUnknown(
+          data['dav_object_id']!,
+          _davObjectIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_davObjectIdMeta);
+    }
+    if (data.containsKey('collection_id')) {
+      context.handle(
+        _collectionIdMeta,
+        collectionId.isAcceptableOrUnknown(
+          data['collection_id']!,
+          _collectionIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_collectionIdMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('uid')) {
+      context.handle(
+        _uidMeta,
+        uid.isAcceptableOrUnknown(data['uid']!, _uidMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_uidMeta);
+    }
+    if (data.containsKey('recurrence_id_key')) {
+      context.handle(
+        _recurrenceIdKeyMeta,
+        recurrenceIdKey.isAcceptableOrUnknown(
+          data['recurrence_id_key']!,
+          _recurrenceIdKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('search_text')) {
+      context.handle(
+        _searchTextMeta,
+        searchText.isAcceptableOrUnknown(data['search_text']!, _searchTextMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_searchTextMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('start_kind')) {
+      context.handle(
+        _startKindMeta,
+        startKind.isAcceptableOrUnknown(data['start_kind']!, _startKindMeta),
+      );
+    }
+    if (data.containsKey('start_value')) {
+      context.handle(
+        _startValueMeta,
+        startValue.isAcceptableOrUnknown(data['start_value']!, _startValueMeta),
+      );
+    }
+    if (data.containsKey('start_time_zone')) {
+      context.handle(
+        _startTimeZoneMeta,
+        startTimeZone.isAcceptableOrUnknown(
+          data['start_time_zone']!,
+          _startTimeZoneMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {componentId};
+  @override
+  DavJournalEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DavJournalEntry(
+      componentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}component_id'],
+      )!,
+      davObjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dav_object_id'],
+      )!,
+      collectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}collection_id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      uid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uid'],
+      )!,
+      recurrenceIdKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recurrence_id_key'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      searchText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}search_text'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      ),
+      startKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}start_kind'],
+      ),
+      startValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}start_value'],
+      ),
+      startTimeZone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}start_time_zone'],
+      ),
+    );
+  }
+
+  @override
+  $DavJournalEntriesTable createAlias(String alias) {
+    return $DavJournalEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class DavJournalEntry extends DataClass implements Insertable<DavJournalEntry> {
+  final String componentId;
+  final String davObjectId;
+  final String collectionId;
+  final String accountId;
+  final String uid;
+  final String? recurrenceIdKey;
+  final String? title;
+  final String searchText;
+  final String? status;
+  final String? startKind;
+  final String? startValue;
+  final String? startTimeZone;
+  const DavJournalEntry({
+    required this.componentId,
+    required this.davObjectId,
+    required this.collectionId,
+    required this.accountId,
+    required this.uid,
+    this.recurrenceIdKey,
+    this.title,
+    required this.searchText,
+    this.status,
+    this.startKind,
+    this.startValue,
+    this.startTimeZone,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['component_id'] = Variable<String>(componentId);
+    map['dav_object_id'] = Variable<String>(davObjectId);
+    map['collection_id'] = Variable<String>(collectionId);
+    map['account_id'] = Variable<String>(accountId);
+    map['uid'] = Variable<String>(uid);
+    if (!nullToAbsent || recurrenceIdKey != null) {
+      map['recurrence_id_key'] = Variable<String>(recurrenceIdKey);
+    }
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    map['search_text'] = Variable<String>(searchText);
+    if (!nullToAbsent || status != null) {
+      map['status'] = Variable<String>(status);
+    }
+    if (!nullToAbsent || startKind != null) {
+      map['start_kind'] = Variable<String>(startKind);
+    }
+    if (!nullToAbsent || startValue != null) {
+      map['start_value'] = Variable<String>(startValue);
+    }
+    if (!nullToAbsent || startTimeZone != null) {
+      map['start_time_zone'] = Variable<String>(startTimeZone);
+    }
+    return map;
+  }
+
+  DavJournalEntriesCompanion toCompanion(bool nullToAbsent) {
+    return DavJournalEntriesCompanion(
+      componentId: Value(componentId),
+      davObjectId: Value(davObjectId),
+      collectionId: Value(collectionId),
+      accountId: Value(accountId),
+      uid: Value(uid),
+      recurrenceIdKey: recurrenceIdKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recurrenceIdKey),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      searchText: Value(searchText),
+      status: status == null && nullToAbsent
+          ? const Value.absent()
+          : Value(status),
+      startKind: startKind == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startKind),
+      startValue: startValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startValue),
+      startTimeZone: startTimeZone == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startTimeZone),
+    );
+  }
+
+  factory DavJournalEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DavJournalEntry(
+      componentId: serializer.fromJson<String>(json['componentId']),
+      davObjectId: serializer.fromJson<String>(json['davObjectId']),
+      collectionId: serializer.fromJson<String>(json['collectionId']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      uid: serializer.fromJson<String>(json['uid']),
+      recurrenceIdKey: serializer.fromJson<String?>(json['recurrenceIdKey']),
+      title: serializer.fromJson<String?>(json['title']),
+      searchText: serializer.fromJson<String>(json['searchText']),
+      status: serializer.fromJson<String?>(json['status']),
+      startKind: serializer.fromJson<String?>(json['startKind']),
+      startValue: serializer.fromJson<String?>(json['startValue']),
+      startTimeZone: serializer.fromJson<String?>(json['startTimeZone']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'componentId': serializer.toJson<String>(componentId),
+      'davObjectId': serializer.toJson<String>(davObjectId),
+      'collectionId': serializer.toJson<String>(collectionId),
+      'accountId': serializer.toJson<String>(accountId),
+      'uid': serializer.toJson<String>(uid),
+      'recurrenceIdKey': serializer.toJson<String?>(recurrenceIdKey),
+      'title': serializer.toJson<String?>(title),
+      'searchText': serializer.toJson<String>(searchText),
+      'status': serializer.toJson<String?>(status),
+      'startKind': serializer.toJson<String?>(startKind),
+      'startValue': serializer.toJson<String?>(startValue),
+      'startTimeZone': serializer.toJson<String?>(startTimeZone),
+    };
+  }
+
+  DavJournalEntry copyWith({
+    String? componentId,
+    String? davObjectId,
+    String? collectionId,
+    String? accountId,
+    String? uid,
+    Value<String?> recurrenceIdKey = const Value.absent(),
+    Value<String?> title = const Value.absent(),
+    String? searchText,
+    Value<String?> status = const Value.absent(),
+    Value<String?> startKind = const Value.absent(),
+    Value<String?> startValue = const Value.absent(),
+    Value<String?> startTimeZone = const Value.absent(),
+  }) => DavJournalEntry(
+    componentId: componentId ?? this.componentId,
+    davObjectId: davObjectId ?? this.davObjectId,
+    collectionId: collectionId ?? this.collectionId,
+    accountId: accountId ?? this.accountId,
+    uid: uid ?? this.uid,
+    recurrenceIdKey: recurrenceIdKey.present
+        ? recurrenceIdKey.value
+        : this.recurrenceIdKey,
+    title: title.present ? title.value : this.title,
+    searchText: searchText ?? this.searchText,
+    status: status.present ? status.value : this.status,
+    startKind: startKind.present ? startKind.value : this.startKind,
+    startValue: startValue.present ? startValue.value : this.startValue,
+    startTimeZone: startTimeZone.present
+        ? startTimeZone.value
+        : this.startTimeZone,
+  );
+  DavJournalEntry copyWithCompanion(DavJournalEntriesCompanion data) {
+    return DavJournalEntry(
+      componentId: data.componentId.present
+          ? data.componentId.value
+          : this.componentId,
+      davObjectId: data.davObjectId.present
+          ? data.davObjectId.value
+          : this.davObjectId,
+      collectionId: data.collectionId.present
+          ? data.collectionId.value
+          : this.collectionId,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      uid: data.uid.present ? data.uid.value : this.uid,
+      recurrenceIdKey: data.recurrenceIdKey.present
+          ? data.recurrenceIdKey.value
+          : this.recurrenceIdKey,
+      title: data.title.present ? data.title.value : this.title,
+      searchText: data.searchText.present
+          ? data.searchText.value
+          : this.searchText,
+      status: data.status.present ? data.status.value : this.status,
+      startKind: data.startKind.present ? data.startKind.value : this.startKind,
+      startValue: data.startValue.present
+          ? data.startValue.value
+          : this.startValue,
+      startTimeZone: data.startTimeZone.present
+          ? data.startTimeZone.value
+          : this.startTimeZone,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavJournalEntry(')
+          ..write('componentId: $componentId, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('collectionId: $collectionId, ')
+          ..write('accountId: $accountId, ')
+          ..write('uid: $uid, ')
+          ..write('recurrenceIdKey: $recurrenceIdKey, ')
+          ..write('title: $title, ')
+          ..write('searchText: $searchText, ')
+          ..write('status: $status, ')
+          ..write('startKind: $startKind, ')
+          ..write('startValue: $startValue, ')
+          ..write('startTimeZone: $startTimeZone')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    componentId,
+    davObjectId,
+    collectionId,
+    accountId,
+    uid,
+    recurrenceIdKey,
+    title,
+    searchText,
+    status,
+    startKind,
+    startValue,
+    startTimeZone,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DavJournalEntry &&
+          other.componentId == this.componentId &&
+          other.davObjectId == this.davObjectId &&
+          other.collectionId == this.collectionId &&
+          other.accountId == this.accountId &&
+          other.uid == this.uid &&
+          other.recurrenceIdKey == this.recurrenceIdKey &&
+          other.title == this.title &&
+          other.searchText == this.searchText &&
+          other.status == this.status &&
+          other.startKind == this.startKind &&
+          other.startValue == this.startValue &&
+          other.startTimeZone == this.startTimeZone);
+}
+
+class DavJournalEntriesCompanion extends UpdateCompanion<DavJournalEntry> {
+  final Value<String> componentId;
+  final Value<String> davObjectId;
+  final Value<String> collectionId;
+  final Value<String> accountId;
+  final Value<String> uid;
+  final Value<String?> recurrenceIdKey;
+  final Value<String?> title;
+  final Value<String> searchText;
+  final Value<String?> status;
+  final Value<String?> startKind;
+  final Value<String?> startValue;
+  final Value<String?> startTimeZone;
+  final Value<int> rowid;
+  const DavJournalEntriesCompanion({
+    this.componentId = const Value.absent(),
+    this.davObjectId = const Value.absent(),
+    this.collectionId = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.uid = const Value.absent(),
+    this.recurrenceIdKey = const Value.absent(),
+    this.title = const Value.absent(),
+    this.searchText = const Value.absent(),
+    this.status = const Value.absent(),
+    this.startKind = const Value.absent(),
+    this.startValue = const Value.absent(),
+    this.startTimeZone = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DavJournalEntriesCompanion.insert({
+    required String componentId,
+    required String davObjectId,
+    required String collectionId,
+    required String accountId,
+    required String uid,
+    this.recurrenceIdKey = const Value.absent(),
+    this.title = const Value.absent(),
+    required String searchText,
+    this.status = const Value.absent(),
+    this.startKind = const Value.absent(),
+    this.startValue = const Value.absent(),
+    this.startTimeZone = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : componentId = Value(componentId),
+       davObjectId = Value(davObjectId),
+       collectionId = Value(collectionId),
+       accountId = Value(accountId),
+       uid = Value(uid),
+       searchText = Value(searchText);
+  static Insertable<DavJournalEntry> custom({
+    Expression<String>? componentId,
+    Expression<String>? davObjectId,
+    Expression<String>? collectionId,
+    Expression<String>? accountId,
+    Expression<String>? uid,
+    Expression<String>? recurrenceIdKey,
+    Expression<String>? title,
+    Expression<String>? searchText,
+    Expression<String>? status,
+    Expression<String>? startKind,
+    Expression<String>? startValue,
+    Expression<String>? startTimeZone,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (componentId != null) 'component_id': componentId,
+      if (davObjectId != null) 'dav_object_id': davObjectId,
+      if (collectionId != null) 'collection_id': collectionId,
+      if (accountId != null) 'account_id': accountId,
+      if (uid != null) 'uid': uid,
+      if (recurrenceIdKey != null) 'recurrence_id_key': recurrenceIdKey,
+      if (title != null) 'title': title,
+      if (searchText != null) 'search_text': searchText,
+      if (status != null) 'status': status,
+      if (startKind != null) 'start_kind': startKind,
+      if (startValue != null) 'start_value': startValue,
+      if (startTimeZone != null) 'start_time_zone': startTimeZone,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DavJournalEntriesCompanion copyWith({
+    Value<String>? componentId,
+    Value<String>? davObjectId,
+    Value<String>? collectionId,
+    Value<String>? accountId,
+    Value<String>? uid,
+    Value<String?>? recurrenceIdKey,
+    Value<String?>? title,
+    Value<String>? searchText,
+    Value<String?>? status,
+    Value<String?>? startKind,
+    Value<String?>? startValue,
+    Value<String?>? startTimeZone,
+    Value<int>? rowid,
+  }) {
+    return DavJournalEntriesCompanion(
+      componentId: componentId ?? this.componentId,
+      davObjectId: davObjectId ?? this.davObjectId,
+      collectionId: collectionId ?? this.collectionId,
+      accountId: accountId ?? this.accountId,
+      uid: uid ?? this.uid,
+      recurrenceIdKey: recurrenceIdKey ?? this.recurrenceIdKey,
+      title: title ?? this.title,
+      searchText: searchText ?? this.searchText,
+      status: status ?? this.status,
+      startKind: startKind ?? this.startKind,
+      startValue: startValue ?? this.startValue,
+      startTimeZone: startTimeZone ?? this.startTimeZone,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (componentId.present) {
+      map['component_id'] = Variable<String>(componentId.value);
+    }
+    if (davObjectId.present) {
+      map['dav_object_id'] = Variable<String>(davObjectId.value);
+    }
+    if (collectionId.present) {
+      map['collection_id'] = Variable<String>(collectionId.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (uid.present) {
+      map['uid'] = Variable<String>(uid.value);
+    }
+    if (recurrenceIdKey.present) {
+      map['recurrence_id_key'] = Variable<String>(recurrenceIdKey.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (searchText.present) {
+      map['search_text'] = Variable<String>(searchText.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (startKind.present) {
+      map['start_kind'] = Variable<String>(startKind.value);
+    }
+    if (startValue.present) {
+      map['start_value'] = Variable<String>(startValue.value);
+    }
+    if (startTimeZone.present) {
+      map['start_time_zone'] = Variable<String>(startTimeZone.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavJournalEntriesCompanion(')
+          ..write('componentId: $componentId, ')
+          ..write('davObjectId: $davObjectId, ')
+          ..write('collectionId: $collectionId, ')
+          ..write('accountId: $accountId, ')
+          ..write('uid: $uid, ')
+          ..write('recurrenceIdKey: $recurrenceIdKey, ')
+          ..write('title: $title, ')
+          ..write('searchText: $searchText, ')
+          ..write('status: $status, ')
+          ..write('startKind: $startKind, ')
+          ..write('startValue: $startValue, ')
+          ..write('startTimeZone: $startTimeZone, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -30567,6 +31559,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DavObjectsTable davObjects = $DavObjectsTable(this);
   late final $DavObjectComponentsTable davObjectComponents =
       $DavObjectComponentsTable(this);
+  late final $DavJournalEntriesTable davJournalEntries =
+      $DavJournalEntriesTable(this);
   late final $DavConflictSnapshotsTable davConflictSnapshots =
       $DavConflictSnapshotsTable(this);
   late final $TaskListsTable taskLists = $TaskListsTable(this);
@@ -30625,6 +31619,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     davCollections,
     davObjects,
     davObjectComponents,
+    davJournalEntries,
     davConflictSnapshots,
     taskLists,
     tasks,
@@ -30727,6 +31722,34 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('dav_object_components', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_object_components',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_journal_entries', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_objects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_journal_entries', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_journal_entries', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_journal_entries', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -30981,6 +32004,7 @@ typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
   Value<String> authState,
   Value<bool> calendarsEnabled,
   Value<bool> tasksEnabled,
+  Value<bool> journalsEnabled,
   Value<String> grantedScopes,
   required String createdAtUtc,
   required String updatedAtUtc,
@@ -31004,6 +32028,7 @@ typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
   Value<String> authState,
   Value<bool> calendarsEnabled,
   Value<bool> tasksEnabled,
+  Value<bool> journalsEnabled,
   Value<String> grantedScopes,
   Value<String> createdAtUtc,
   Value<String> updatedAtUtc,
@@ -31168,6 +32193,27 @@ final class $$AccountsTableReferences
     ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_davObjectsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$DavJournalEntriesTable, List<DavJournalEntry>>
+  _davJournalEntriesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davJournalEntries,
+        aliasName: 'accounts__id__dav_journal_entries__account_id',
+      );
+
+  $$DavJournalEntriesTableProcessedTableManager get davJournalEntriesRefs {
+    final manager = $$DavJournalEntriesTableTableManager(
+      $_db,
+      $_db.davJournalEntries,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davJournalEntriesRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -31506,6 +32552,11 @@ class $$AccountsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get journalsEnabled => $composableBuilder(
+    column: $table.journalsEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get grantedScopes => $composableBuilder(
     column: $table.grantedScopes,
     builder: (column) => ColumnFilters(column),
@@ -31705,6 +32756,31 @@ class $$AccountsTableFilterComposer
           }) => $$DavObjectsTableFilterComposer(
             $db: $db,
             $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> davJournalEntriesRefs(
+    Expression<bool> Function($$DavJournalEntriesTableFilterComposer f) f,
+  ) {
+    final $$DavJournalEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davJournalEntries,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavJournalEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.davJournalEntries,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -32095,6 +33171,11 @@ class $$AccountsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get journalsEnabled => $composableBuilder(
+    column: $table.journalsEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get grantedScopes => $composableBuilder(
     column: $table.grantedScopes,
     builder: (column) => ColumnOrderings(column),
@@ -32190,6 +33271,11 @@ class $$AccountsTableAnnotationComposer
 
   GeneratedColumn<bool> get tasksEnabled => $composableBuilder(
     column: $table.tasksEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get journalsEnabled => $composableBuilder(
+    column: $table.journalsEnabled,
     builder: (column) => column,
   );
 
@@ -32401,6 +33487,32 @@ class $$AccountsTableAnnotationComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<T> davJournalEntriesRefs<T extends Object>(
+    Expression<T> Function($$DavJournalEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$DavJournalEntriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davJournalEntries,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavJournalEntriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davJournalEntries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 
@@ -32731,6 +33843,7 @@ class $$AccountsTableTableManager
             bool davCollectionCreationsRefs,
             bool davCollectionsRefs,
             bool davObjectsRefs,
+            bool davJournalEntriesRefs,
             bool davConflictSnapshotsRefs,
             bool taskListsRefs,
             bool tasksRefs,
@@ -32772,6 +33885,7 @@ class $$AccountsTableTableManager
                 Value<String> authState = const Value.absent(),
                 Value<bool> calendarsEnabled = const Value.absent(),
                 Value<bool> tasksEnabled = const Value.absent(),
+                Value<bool> journalsEnabled = const Value.absent(),
                 Value<String> grantedScopes = const Value.absent(),
                 Value<String> createdAtUtc = const Value.absent(),
                 Value<String> updatedAtUtc = const Value.absent(),
@@ -32794,6 +33908,7 @@ class $$AccountsTableTableManager
                 authState: authState,
                 calendarsEnabled: calendarsEnabled,
                 tasksEnabled: tasksEnabled,
+                journalsEnabled: journalsEnabled,
                 grantedScopes: grantedScopes,
                 createdAtUtc: createdAtUtc,
                 updatedAtUtc: updatedAtUtc,
@@ -32818,6 +33933,7 @@ class $$AccountsTableTableManager
                 Value<String> authState = const Value.absent(),
                 Value<bool> calendarsEnabled = const Value.absent(),
                 Value<bool> tasksEnabled = const Value.absent(),
+                Value<bool> journalsEnabled = const Value.absent(),
                 Value<String> grantedScopes = const Value.absent(),
                 required String createdAtUtc,
                 required String updatedAtUtc,
@@ -32840,6 +33956,7 @@ class $$AccountsTableTableManager
                 authState: authState,
                 calendarsEnabled: calendarsEnabled,
                 tasksEnabled: tasksEnabled,
+                journalsEnabled: journalsEnabled,
                 grantedScopes: grantedScopes,
                 createdAtUtc: createdAtUtc,
                 updatedAtUtc: updatedAtUtc,
@@ -32865,6 +33982,7 @@ class $$AccountsTableTableManager
                 davCollectionCreationsRefs = false,
                 davCollectionsRefs = false,
                 davObjectsRefs = false,
+                davJournalEntriesRefs = false,
                 davConflictSnapshotsRefs = false,
                 taskListsRefs = false,
                 tasksRefs = false,
@@ -32888,6 +34006,7 @@ class $$AccountsTableTableManager
                     if (davCollectionCreationsRefs) db.davCollectionCreations,
                     if (davCollectionsRefs) db.davCollections,
                     if (davObjectsRefs) db.davObjects,
+                    if (davJournalEntriesRefs) db.davJournalEntries,
                     if (davConflictSnapshotsRefs) db.davConflictSnapshots,
                     if (taskListsRefs) db.taskLists,
                     if (tasksRefs) db.tasks,
@@ -33040,6 +34159,26 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).davObjectsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
+                          typedResults: items,
+                        ),
+                      if (davJournalEntriesRefs)
+                        await $_getPrefetchedDataByColumns<
+                          Account,
+                          $AccountsTable,
+                          DavJournalEntry,
+                          $DavJournalEntriesTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._davJournalEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davJournalEntriesRefs,
                           currentColumn: 'id',
                           referencedColumn: 'account_id',
                           typedResults: items,
@@ -33312,6 +34451,7 @@ typedef $$AccountsTableProcessedTableManager =
         bool davCollectionCreationsRefs,
         bool davCollectionsRefs,
         bool davObjectsRefs,
+        bool davJournalEntriesRefs,
         bool davConflictSnapshotsRefs,
         bool taskListsRefs,
         bool tasksRefs,
@@ -36107,6 +37247,9 @@ typedef $$DavCollectionsTableCreateCompanionBuilder =
       Value<bool> readOnly,
       Value<bool> eventProjectionEnabled,
       Value<bool> taskProjectionEnabled,
+      Value<bool> journalProjectionEnabled,
+      Value<bool> journalsSelected,
+      Value<bool> journalInventoryComplete,
       Value<bool> eventsSelected,
       Value<bool> tasksSelected,
       Value<bool> serverMissing,
@@ -36146,6 +37289,9 @@ typedef $$DavCollectionsTableUpdateCompanionBuilder =
       Value<bool> readOnly,
       Value<bool> eventProjectionEnabled,
       Value<bool> taskProjectionEnabled,
+      Value<bool> journalProjectionEnabled,
+      Value<bool> journalsSelected,
+      Value<bool> journalInventoryComplete,
       Value<bool> eventsSelected,
       Value<bool> tasksSelected,
       Value<bool> serverMissing,
@@ -36197,6 +37343,27 @@ final class $$DavCollectionsTableReferences
     ).filter((f) => f.collectionId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_davObjectsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$DavJournalEntriesTable, List<DavJournalEntry>>
+  _davJournalEntriesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davJournalEntries,
+        aliasName: 'dav_collections__id__dav_journal_entries__collection_id',
+      );
+
+  $$DavJournalEntriesTableProcessedTableManager get davJournalEntriesRefs {
+    final manager = $$DavJournalEntriesTableTableManager(
+      $_db,
+      $_db.davJournalEntries,
+    ).filter((f) => f.collectionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davJournalEntriesRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -36452,6 +37619,21 @@ class $$DavCollectionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get journalProjectionEnabled => $composableBuilder(
+    column: $table.journalProjectionEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get journalsSelected => $composableBuilder(
+    column: $table.journalsSelected,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get journalInventoryComplete => $composableBuilder(
+    column: $table.journalInventoryComplete,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get eventsSelected => $composableBuilder(
     column: $table.eventsSelected,
     builder: (column) => ColumnFilters(column),
@@ -36541,6 +37723,31 @@ class $$DavCollectionsTableFilterComposer
           }) => $$DavObjectsTableFilterComposer(
             $db: $db,
             $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> davJournalEntriesRefs(
+    Expression<bool> Function($$DavJournalEntriesTableFilterComposer f) f,
+  ) {
+    final $$DavJournalEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davJournalEntries,
+      getReferencedColumn: (t) => t.collectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavJournalEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.davJournalEntries,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -36830,6 +38037,21 @@ class $$DavCollectionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get journalProjectionEnabled => $composableBuilder(
+    column: $table.journalProjectionEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get journalsSelected => $composableBuilder(
+    column: $table.journalsSelected,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get journalInventoryComplete => $composableBuilder(
+    column: $table.journalInventoryComplete,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get eventsSelected => $composableBuilder(
     column: $table.eventsSelected,
     builder: (column) => ColumnOrderings(column),
@@ -37017,6 +38239,21 @@ class $$DavCollectionsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get journalProjectionEnabled => $composableBuilder(
+    column: $table.journalProjectionEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get journalsSelected => $composableBuilder(
+    column: $table.journalsSelected,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get journalInventoryComplete => $composableBuilder(
+    column: $table.journalInventoryComplete,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get eventsSelected => $composableBuilder(
     column: $table.eventsSelected,
     builder: (column) => column,
@@ -37110,6 +38347,32 @@ class $$DavCollectionsTableAnnotationComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<T> davJournalEntriesRefs<T extends Object>(
+    Expression<T> Function($$DavJournalEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$DavJournalEntriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davJournalEntries,
+          getReferencedColumn: (t) => t.collectionId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavJournalEntriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davJournalEntries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 
@@ -37281,6 +38544,7 @@ class $$DavCollectionsTableTableManager
           PrefetchHooks Function({
             bool accountId,
             bool davObjectsRefs,
+            bool davJournalEntriesRefs,
             bool davConflictSnapshotsRefs,
             bool taskListsRefs,
             bool tasksRefs,
@@ -37329,6 +38593,9 @@ class $$DavCollectionsTableTableManager
                 Value<bool> readOnly = const Value.absent(),
                 Value<bool> eventProjectionEnabled = const Value.absent(),
                 Value<bool> taskProjectionEnabled = const Value.absent(),
+                Value<bool> journalProjectionEnabled = const Value.absent(),
+                Value<bool> journalsSelected = const Value.absent(),
+                Value<bool> journalInventoryComplete = const Value.absent(),
                 Value<bool> eventsSelected = const Value.absent(),
                 Value<bool> tasksSelected = const Value.absent(),
                 Value<bool> serverMissing = const Value.absent(),
@@ -37366,6 +38633,9 @@ class $$DavCollectionsTableTableManager
                 readOnly: readOnly,
                 eventProjectionEnabled: eventProjectionEnabled,
                 taskProjectionEnabled: taskProjectionEnabled,
+                journalProjectionEnabled: journalProjectionEnabled,
+                journalsSelected: journalsSelected,
+                journalInventoryComplete: journalInventoryComplete,
                 eventsSelected: eventsSelected,
                 tasksSelected: tasksSelected,
                 serverMissing: serverMissing,
@@ -37405,6 +38675,9 @@ class $$DavCollectionsTableTableManager
                 Value<bool> readOnly = const Value.absent(),
                 Value<bool> eventProjectionEnabled = const Value.absent(),
                 Value<bool> taskProjectionEnabled = const Value.absent(),
+                Value<bool> journalProjectionEnabled = const Value.absent(),
+                Value<bool> journalsSelected = const Value.absent(),
+                Value<bool> journalInventoryComplete = const Value.absent(),
                 Value<bool> eventsSelected = const Value.absent(),
                 Value<bool> tasksSelected = const Value.absent(),
                 Value<bool> serverMissing = const Value.absent(),
@@ -37442,6 +38715,9 @@ class $$DavCollectionsTableTableManager
                 readOnly: readOnly,
                 eventProjectionEnabled: eventProjectionEnabled,
                 taskProjectionEnabled: taskProjectionEnabled,
+                journalProjectionEnabled: journalProjectionEnabled,
+                journalsSelected: journalsSelected,
+                journalInventoryComplete: journalInventoryComplete,
                 eventsSelected: eventsSelected,
                 tasksSelected: tasksSelected,
                 serverMissing: serverMissing,
@@ -37466,6 +38742,7 @@ class $$DavCollectionsTableTableManager
               ({
                 accountId = false,
                 davObjectsRefs = false,
+                davJournalEntriesRefs = false,
                 davConflictSnapshotsRefs = false,
                 taskListsRefs = false,
                 tasksRefs = false,
@@ -37477,6 +38754,7 @@ class $$DavCollectionsTableTableManager
                   db: db,
                   explicitlyWatchedTables: [
                     if (davObjectsRefs) db.davObjects,
+                    if (davJournalEntriesRefs) db.davJournalEntries,
                     if (davConflictSnapshotsRefs) db.davConflictSnapshots,
                     if (taskListsRefs) db.taskLists,
                     if (tasksRefs) db.tasks,
@@ -37532,6 +38810,26 @@ class $$DavCollectionsTableTableManager
                                 table,
                                 p0,
                               ).davObjectsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'collection_id',
+                          typedResults: items,
+                        ),
+                      if (davJournalEntriesRefs)
+                        await $_getPrefetchedDataByColumns<
+                          DavCollection,
+                          $DavCollectionsTable,
+                          DavJournalEntry,
+                          $DavJournalEntriesTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionsTableReferences
+                              ._davJournalEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davJournalEntriesRefs,
                           currentColumn: 'id',
                           referencedColumn: 'collection_id',
                           typedResults: items,
@@ -37679,6 +38977,7 @@ typedef $$DavCollectionsTableProcessedTableManager =
       PrefetchHooks Function({
         bool accountId,
         bool davObjectsRefs,
+        bool davJournalEntriesRefs,
         bool davConflictSnapshotsRefs,
         bool taskListsRefs,
         bool tasksRefs,
@@ -37793,6 +39092,27 @@ final class $$DavObjectsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _davObjectComponentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$DavJournalEntriesTable, List<DavJournalEntry>>
+  _davJournalEntriesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davJournalEntries,
+        aliasName: 'dav_objects__id__dav_journal_entries__dav_object_id',
+      );
+
+  $$DavJournalEntriesTableProcessedTableManager get davJournalEntriesRefs {
+    final manager = $$DavJournalEntriesTableTableManager(
+      $_db,
+      $_db.davJournalEntries,
+    ).filter((f) => f.davObjectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davJournalEntriesRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -38046,6 +39366,31 @@ class $$DavObjectsTableFilterComposer
           }) => $$DavObjectComponentsTableFilterComposer(
             $db: $db,
             $table: $db.davObjectComponents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> davJournalEntriesRefs(
+    Expression<bool> Function($$DavJournalEntriesTableFilterComposer f) f,
+  ) {
+    final $$DavJournalEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davJournalEntries,
+      getReferencedColumn: (t) => t.davObjectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavJournalEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.davJournalEntries,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -38477,6 +39822,32 @@ class $$DavObjectsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> davJournalEntriesRefs<T extends Object>(
+    Expression<T> Function($$DavJournalEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$DavJournalEntriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davJournalEntries,
+          getReferencedColumn: (t) => t.davObjectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavJournalEntriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davJournalEntries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> davConflictSnapshotsRefs<T extends Object>(
     Expression<T> Function($$DavConflictSnapshotsTableAnnotationComposer a) f,
   ) {
@@ -38596,6 +39967,7 @@ class $$DavObjectsTableTableManager
             bool accountId,
             bool collectionId,
             bool davObjectComponentsRefs,
+            bool davJournalEntriesRefs,
             bool davConflictSnapshotsRefs,
             bool tasksRefs,
             bool pendingOpsRefs,
@@ -38722,6 +40094,7 @@ class $$DavObjectsTableTableManager
                 accountId = false,
                 collectionId = false,
                 davObjectComponentsRefs = false,
+                davJournalEntriesRefs = false,
                 davConflictSnapshotsRefs = false,
                 tasksRefs = false,
                 pendingOpsRefs = false,
@@ -38731,6 +40104,7 @@ class $$DavObjectsTableTableManager
                   db: db,
                   explicitlyWatchedTables: [
                     if (davObjectComponentsRefs) db.davObjectComponents,
+                    if (davJournalEntriesRefs) db.davJournalEntries,
                     if (davConflictSnapshotsRefs) db.davConflictSnapshots,
                     if (tasksRefs) db.tasks,
                     if (pendingOpsRefs) db.pendingOps,
@@ -38795,6 +40169,26 @@ class $$DavObjectsTableTableManager
                                 table,
                                 p0,
                               ).davObjectComponentsRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_object_id',
+                          typedResults: items,
+                        ),
+                      if (davJournalEntriesRefs)
+                        await $_getPrefetchedDataByColumns<
+                          DavObject,
+                          $DavObjectsTable,
+                          DavJournalEntry,
+                          $DavJournalEntriesTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavObjectsTableReferences
+                              ._davJournalEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavObjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davJournalEntriesRefs,
                           currentColumn: 'id',
                           referencedColumn: 'dav_object_id',
                           typedResults: items,
@@ -38903,6 +40297,7 @@ typedef $$DavObjectsTableProcessedTableManager =
         bool accountId,
         bool collectionId,
         bool davObjectComponentsRefs,
+        bool davJournalEntriesRefs,
         bool davConflictSnapshotsRefs,
         bool tasksRefs,
         bool pendingOpsRefs,
@@ -38965,6 +40360,28 @@ final class $$DavObjectComponentsTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$DavJournalEntriesTable, List<DavJournalEntry>>
+  _davJournalEntriesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.davJournalEntries,
+        aliasName:
+            'dav_object_components__id__dav_journal_entries__component_id',
+      );
+
+  $$DavJournalEntriesTableProcessedTableManager get davJournalEntriesRefs {
+    final manager = $$DavJournalEntriesTableTableManager(
+      $_db,
+      $_db.davJournalEntries,
+    ).filter((f) => f.componentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davJournalEntriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 
@@ -39081,6 +40498,31 @@ class $$DavObjectComponentsTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> davJournalEntriesRefs(
+    Expression<bool> Function($$DavJournalEntriesTableFilterComposer f) f,
+  ) {
+    final $$DavJournalEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davJournalEntries,
+      getReferencedColumn: (t) => t.componentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavJournalEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.davJournalEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 
   Expression<bool> tasksRefs(
@@ -39283,6 +40725,32 @@ class $$DavObjectComponentsTableAnnotationComposer
     return composer;
   }
 
+  Expression<T> davJournalEntriesRefs<T extends Object>(
+    Expression<T> Function($$DavJournalEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$DavJournalEntriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.davJournalEntries,
+          getReferencedColumn: (t) => t.componentId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavJournalEntriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davJournalEntries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> tasksRefs<T extends Object>(
     Expression<T> Function($$TasksTableAnnotationComposer a) f,
   ) {
@@ -39349,6 +40817,7 @@ class $$DavObjectComponentsTableTableManager
           DavObjectComponent,
           PrefetchHooks Function({
             bool davObjectId,
+            bool davJournalEntriesRefs,
             bool tasksRefs,
             bool calendarEventsRefs,
           })
@@ -39437,12 +40906,14 @@ class $$DavObjectComponentsTableTableManager
           prefetchHooksCallback:
               ({
                 davObjectId = false,
+                davJournalEntriesRefs = false,
                 tasksRefs = false,
                 calendarEventsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
+                    if (davJournalEntriesRefs) db.davJournalEntries,
                     if (tasksRefs) db.tasks,
                     if (calendarEventsRefs) db.calendarEvents,
                   ],
@@ -39480,6 +40951,26 @@ class $$DavObjectComponentsTableTableManager
                       },
                   getPrefetchedDataCallback: (items) async {
                     return [
+                      if (davJournalEntriesRefs)
+                        await $_getPrefetchedDataByColumns<
+                          DavObjectComponent,
+                          $DavObjectComponentsTable,
+                          DavJournalEntry,
+                          $DavJournalEntriesTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavObjectComponentsTableReferences
+                              ._davJournalEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavObjectComponentsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davJournalEntriesRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'component_id',
+                          typedResults: items,
+                        ),
                       if (tasksRefs)
                         await $_getPrefetchedDataByColumns<
                           DavObjectComponent,
@@ -39542,8 +41033,752 @@ typedef $$DavObjectComponentsTableProcessedTableManager =
       DavObjectComponent,
       PrefetchHooks Function({
         bool davObjectId,
+        bool davJournalEntriesRefs,
         bool tasksRefs,
         bool calendarEventsRefs,
+      })
+    >;
+typedef $$DavJournalEntriesTableCreateCompanionBuilder =
+    DavJournalEntriesCompanion Function({
+      required String componentId,
+      required String davObjectId,
+      required String collectionId,
+      required String accountId,
+      required String uid,
+      Value<String?> recurrenceIdKey,
+      Value<String?> title,
+      required String searchText,
+      Value<String?> status,
+      Value<String?> startKind,
+      Value<String?> startValue,
+      Value<String?> startTimeZone,
+      Value<int> rowid,
+    });
+typedef $$DavJournalEntriesTableUpdateCompanionBuilder =
+    DavJournalEntriesCompanion Function({
+      Value<String> componentId,
+      Value<String> davObjectId,
+      Value<String> collectionId,
+      Value<String> accountId,
+      Value<String> uid,
+      Value<String?> recurrenceIdKey,
+      Value<String?> title,
+      Value<String> searchText,
+      Value<String?> status,
+      Value<String?> startKind,
+      Value<String?> startValue,
+      Value<String?> startTimeZone,
+      Value<int> rowid,
+    });
+
+final class $$DavJournalEntriesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $DavJournalEntriesTable,
+          DavJournalEntry
+        > {
+  $$DavJournalEntriesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $DavObjectComponentsTable _componentIdTable(_$AppDatabase db) =>
+      db.davObjectComponents.createAlias(
+        'dav_journal_entries__component_id__dav_object_components__id',
+      );
+
+  $$DavObjectComponentsTableProcessedTableManager get componentId {
+    final $_column = $_itemColumn<String>('component_id')!;
+
+    final manager = $$DavObjectComponentsTableTableManager(
+      $_db,
+      $_db.davObjectComponents,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_componentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) => db.davObjects
+      .createAlias('dav_journal_entries__dav_object_id__dav_objects__id');
+
+  $$DavObjectsTableProcessedTableManager get davObjectId {
+    final $_column = $_itemColumn<String>('dav_object_id')!;
+
+    final manager = $$DavObjectsTableTableManager(
+      $_db,
+      $_db.davObjects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_davObjectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DavCollectionsTable _collectionIdTable(_$AppDatabase db) => db
+      .davCollections
+      .createAlias('dav_journal_entries__collection_id__dav_collections__id');
+
+  $$DavCollectionsTableProcessedTableManager get collectionId {
+    final $_column = $_itemColumn<String>('collection_id')!;
+
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_collectionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias('dav_journal_entries__account_id__accounts__id');
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$DavJournalEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $DavJournalEntriesTable> {
+  $$DavJournalEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get uid => $composableBuilder(
+    column: $table.uid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get searchText => $composableBuilder(
+    column: $table.searchText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get startKind => $composableBuilder(
+    column: $table.startKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get startValue => $composableBuilder(
+    column: $table.startValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get startTimeZone => $composableBuilder(
+    column: $table.startTimeZone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$DavObjectComponentsTableFilterComposer get componentId {
+    final $$DavObjectComponentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.componentId,
+      referencedTable: $db.davObjectComponents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectComponentsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjectComponents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavObjectsTableFilterComposer get davObjectId {
+    final $$DavObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableFilterComposer get collectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.collectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavJournalEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DavJournalEntriesTable> {
+  $$DavJournalEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get uid => $composableBuilder(
+    column: $table.uid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get searchText => $composableBuilder(
+    column: $table.searchText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get startKind => $composableBuilder(
+    column: $table.startKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get startValue => $composableBuilder(
+    column: $table.startValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get startTimeZone => $composableBuilder(
+    column: $table.startTimeZone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$DavObjectComponentsTableOrderingComposer get componentId {
+    final $$DavObjectComponentsTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.componentId,
+          referencedTable: $db.davObjectComponents,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavObjectComponentsTableOrderingComposer(
+                $db: $db,
+                $table: $db.davObjectComponents,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$DavObjectsTableOrderingComposer get davObjectId {
+    final $$DavObjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableOrderingComposer get collectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.collectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavJournalEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DavJournalEntriesTable> {
+  $$DavJournalEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get uid =>
+      $composableBuilder(column: $table.uid, builder: (column) => column);
+
+  GeneratedColumn<String> get recurrenceIdKey => $composableBuilder(
+    column: $table.recurrenceIdKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get searchText => $composableBuilder(
+    column: $table.searchText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get startKind =>
+      $composableBuilder(column: $table.startKind, builder: (column) => column);
+
+  GeneratedColumn<String> get startValue => $composableBuilder(
+    column: $table.startValue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get startTimeZone => $composableBuilder(
+    column: $table.startTimeZone,
+    builder: (column) => column,
+  );
+
+  $$DavObjectComponentsTableAnnotationComposer get componentId {
+    final $$DavObjectComponentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.componentId,
+          referencedTable: $db.davObjectComponents,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DavObjectComponentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.davObjectComponents,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$DavObjectsTableAnnotationComposer get davObjectId {
+    final $$DavObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.davObjectId,
+      referencedTable: $db.davObjects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DavCollectionsTableAnnotationComposer get collectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.collectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavJournalEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DavJournalEntriesTable,
+          DavJournalEntry,
+          $$DavJournalEntriesTableFilterComposer,
+          $$DavJournalEntriesTableOrderingComposer,
+          $$DavJournalEntriesTableAnnotationComposer,
+          $$DavJournalEntriesTableCreateCompanionBuilder,
+          $$DavJournalEntriesTableUpdateCompanionBuilder,
+          (DavJournalEntry, $$DavJournalEntriesTableReferences),
+          DavJournalEntry,
+          PrefetchHooks Function({
+            bool componentId,
+            bool davObjectId,
+            bool collectionId,
+            bool accountId,
+          })
+        > {
+  $$DavJournalEntriesTableTableManager(
+    _$AppDatabase db,
+    $DavJournalEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DavJournalEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DavJournalEntriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DavJournalEntriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> componentId = const Value.absent(),
+                Value<String> davObjectId = const Value.absent(),
+                Value<String> collectionId = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<String> uid = const Value.absent(),
+                Value<String?> recurrenceIdKey = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String> searchText = const Value.absent(),
+                Value<String?> status = const Value.absent(),
+                Value<String?> startKind = const Value.absent(),
+                Value<String?> startValue = const Value.absent(),
+                Value<String?> startTimeZone = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavJournalEntriesCompanion(
+                componentId: componentId,
+                davObjectId: davObjectId,
+                collectionId: collectionId,
+                accountId: accountId,
+                uid: uid,
+                recurrenceIdKey: recurrenceIdKey,
+                title: title,
+                searchText: searchText,
+                status: status,
+                startKind: startKind,
+                startValue: startValue,
+                startTimeZone: startTimeZone,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String componentId,
+                required String davObjectId,
+                required String collectionId,
+                required String accountId,
+                required String uid,
+                Value<String?> recurrenceIdKey = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                required String searchText,
+                Value<String?> status = const Value.absent(),
+                Value<String?> startKind = const Value.absent(),
+                Value<String?> startValue = const Value.absent(),
+                Value<String?> startTimeZone = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavJournalEntriesCompanion.insert(
+                componentId: componentId,
+                davObjectId: davObjectId,
+                collectionId: collectionId,
+                accountId: accountId,
+                uid: uid,
+                recurrenceIdKey: recurrenceIdKey,
+                title: title,
+                searchText: searchText,
+                status: status,
+                startKind: startKind,
+                startValue: startValue,
+                startTimeZone: startTimeZone,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DavJournalEntriesTable, DavJournalEntry>(table),
+                  $$DavJournalEntriesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                componentId = false,
+                davObjectId = false,
+                collectionId = false,
+                accountId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (componentId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.componentId,
+                            referencedTable: $$DavJournalEntriesTableReferences
+                                ._componentIdTable(db),
+                            referencedColumn: $$DavJournalEntriesTableReferences
+                                ._componentIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (davObjectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.davObjectId,
+                            referencedTable: $$DavJournalEntriesTableReferences
+                                ._davObjectIdTable(db),
+                            referencedColumn: $$DavJournalEntriesTableReferences
+                                ._davObjectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (collectionId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.collectionId,
+                            referencedTable: $$DavJournalEntriesTableReferences
+                                ._collectionIdTable(db),
+                            referencedColumn: $$DavJournalEntriesTableReferences
+                                ._collectionIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (accountId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.accountId,
+                            referencedTable: $$DavJournalEntriesTableReferences
+                                ._accountIdTable(db),
+                            referencedColumn: $$DavJournalEntriesTableReferences
+                                ._accountIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$DavJournalEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DavJournalEntriesTable,
+      DavJournalEntry,
+      $$DavJournalEntriesTableFilterComposer,
+      $$DavJournalEntriesTableOrderingComposer,
+      $$DavJournalEntriesTableAnnotationComposer,
+      $$DavJournalEntriesTableCreateCompanionBuilder,
+      $$DavJournalEntriesTableUpdateCompanionBuilder,
+      (DavJournalEntry, $$DavJournalEntriesTableReferences),
+      DavJournalEntry,
+      PrefetchHooks Function({
+        bool componentId,
+        bool davObjectId,
+        bool collectionId,
+        bool accountId,
       })
     >;
 typedef $$DavConflictSnapshotsTableCreateCompanionBuilder =
@@ -53482,6 +55717,8 @@ class $AppDatabaseManager {
       $$DavObjectsTableTableManager(_db, _db.davObjects);
   $$DavObjectComponentsTableTableManager get davObjectComponents =>
       $$DavObjectComponentsTableTableManager(_db, _db.davObjectComponents);
+  $$DavJournalEntriesTableTableManager get davJournalEntries =>
+      $$DavJournalEntriesTableTableManager(_db, _db.davJournalEntries);
   $$DavConflictSnapshotsTableTableManager get davConflictSnapshots =>
       $$DavConflictSnapshotsTableTableManager(_db, _db.davConflictSnapshots);
   $$TaskListsTableTableManager get taskLists =>

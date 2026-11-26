@@ -1427,5 +1427,21 @@
   "taskReminderRequiresAnchor": "移除开始时间或截止时间前，请先调整以其为基准的提醒。",
   "attachmentInvalidOrTooLarge": "此附件无效或超过大小限制。",
   "moveEvent": "移动日程",
-  "agendaLoadMoreDays": "加载更多日期"
+  "agendaLoadMoreDays": "加载更多日期",
+  "journals": "日志",
+  "newJournal": "新建条目",
+  "newJournalCollection": "新建日志集合",
+  "journalCollection": "日志集合",
+  "untitledJournal": "无标题条目",
+  "journalNoEntries": "未找到日志条目。",
+  "journalOperationFailed": "日志操作失败。",
+  "journalDated": "有日期的条目",
+  "journalDate": "日期",
+  "journalStatus": "状态",
+  "journalAddDescription": "添加描述",
+  "journalRemoveDescription": "移除描述",
+  "journalDuplicate": "复制条目",
+  "journalDeleteSeries": "删除整条日志及其重复项？",
+  "journalFloatingTime": "本地时间",
+  "journalZonedTime": "带时区的时间"
 }

@@ -1942,8 +1942,8 @@ final nextcloudSchedulingServiceProvider =
       ),
     );
 
-final davCalendarCollectionMutationClientForAccountProvider =
-    Provider.family<DavCalendarCollectionMutationClient, String>((
+final davCalendarCollectionMutationServiceForAccountProvider =
+    Provider.family<DavCalendarCollectionMutationService, String>((
       ref,
       accountId,
     ) {
@@ -1960,6 +1960,13 @@ final davCalendarCollectionMutationClientForAccountProvider =
             .requireNetwork,
       );
     });
+
+final davCalendarCollectionMutationClientForAccountProvider =
+    Provider.family<DavCalendarCollectionMutationClient, String>(
+      (ref, accountId) => ref.watch(
+        davCalendarCollectionMutationServiceForAccountProvider(accountId),
+      ),
+    );
 
 final calendarCollectionCreationServiceProvider =
     Provider<CalendarCollectionCreator>((ref) {

@@ -4131,4 +4131,53 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get agendaLoadMoreDays => 'Загрузить следующие дни';
+
+  @override
+  String get journals => 'Журналы';
+
+  @override
+  String get newJournal => 'Новая запись';
+
+  @override
+  String get newJournalCollection => 'Новая коллекция журналов';
+
+  @override
+  String get journalCollection => 'Коллекция журналов';
+
+  @override
+  String get untitledJournal => 'Запись без названия';
+
+  @override
+  String get journalNoEntries => 'Записи журнала не найдены.';
+
+  @override
+  String get journalOperationFailed =>
+      'Не удалось выполнить действие с журналом.';
+
+  @override
+  String get journalDated => 'Записи с датой';
+
+  @override
+  String get journalDate => 'Дата';
+
+  @override
+  String get journalStatus => 'Статус';
+
+  @override
+  String get journalAddDescription => 'Добавить описание';
+
+  @override
+  String get journalRemoveDescription => 'Удалить описание';
+
+  @override
+  String get journalDuplicate => 'Создать копию записи';
+
+  @override
+  String get journalDeleteSeries => 'Удалить всю запись со всеми повторениями?';
+
+  @override
+  String get journalFloatingTime => 'Местное время';
+
+  @override
+  String get journalZonedTime => 'Время с часовым поясом';
 }
