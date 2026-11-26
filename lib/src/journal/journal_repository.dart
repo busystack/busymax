@@ -3,6 +3,8 @@ import 'package:uuid/uuid.dart';
 
 import '../dav/dav_errors.dart';
 import '../dav/ical/ical_document.dart';
+import '../dav/ical/ical_recurrence.dart';
+import '../dav/ical/ical_semantics.dart';
 import '../dav/ical/ical_timezone.dart';
 import '../dav/mutation/dav_conditional_mutation_service.dart';
 import '../dav/mutation/dav_mutation_patch.dart';
@@ -15,6 +17,8 @@ import '../providers/busy_provider.dart';
 import 'journal_component.dart';
 
 enum JournalDateFilter { all, dated, undated }
+
+enum JournalFrequency { daily, weekly, monthly, yearly }
 
 final class JournalSnapshot {
   const JournalSnapshot({
@@ -139,6 +143,11 @@ final class JournalRepository {
             ..limit(1))
           .watchSingleOrNull();
 
+  Stream<DavConflictSnapshot?> watchConflict(String id) =>
+      (database.select(database.davConflictSnapshots)
+            ..where((row) => row.id.equals(id) & row.resolvedAtUtc.isNull()))
+          .watchSingleOrNull();
+
   Future<JournalSnapshot> read(DavJournalEntry entry) =>
       database.transaction(() async {
         final collection = await _source(entry.accountId, entry.collectionId);
@@ -170,7 +179,15 @@ final class JournalRepository {
     IcalProperty? start,
     List<DavRawPropertyValue> descriptions = const [],
     List<DavRawPropertyValue> attachments = const [],
+    JournalFrequency? frequency,
   }) {
+    if (frequency != null && parseIcalTemporal(start) == null) {
+      throw const DavException(
+        kind: DavErrorKind.invalidCalendarData,
+        code: 'IcalJournalRecurrenceNeedsStart',
+        safeMessage: 'A repeating journal needs a date.',
+      );
+    }
     final uid = '${const Uuid().v4()}@busymax.local';
     final utc = DateTime.now().toUtc().toIso8601String();
     final timestamp = '${utc.replaceAll(RegExp('[-:]'), '').split('.').first}Z';
@@ -185,6 +202,8 @@ final class JournalRepository {
         if (title != null) _property('SUMMARY', encodeIcalText(title)),
         if (status != null) _property('STATUS', status),
         if (start != null) start.deepCopy(),
+        if (frequency != null)
+          _property('RRULE', 'FREQ=${frequency.name.toUpperCase()}'),
         for (final description in descriptions)
           _property('DESCRIPTION', description.value, description.parameters),
         for (final attachment in attachments)
@@ -197,6 +216,13 @@ final class JournalRepository {
       IcalDocument.create(components: [component]).serialize(),
     );
   }
+
+  List<IcalOccurrence> occurrences(JournalSnapshot snapshot, DateTime month) =>
+      IcalRecurrenceExpander().expand(
+        IcalSemanticDocument.parse(snapshot.effectiveRawIcs),
+        rangeStartUtc: DateTime.utc(month.year, month.month),
+        rangeEndUtc: DateTime.utc(month.year, month.month + 1),
+      );
 
   Future<void> duplicate(JournalSnapshot snapshot) {
     final uid = '${const Uuid().v4()}@busymax.local';

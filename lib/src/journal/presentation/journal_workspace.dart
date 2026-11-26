@@ -8,7 +8,9 @@ import '../../app/app_bootstrap.dart';
 import '../../dav/dav_errors.dart';
 import '../../dav/ical/ical_attachments.dart';
 import '../../dav/ical/ical_document.dart';
+import '../../dav/ical/ical_recurrence.dart';
 import '../../dav/ical/dav_native_import.dart';
+import '../../dav/mutation/dav_conflict_repository.dart';
 import '../../dav/mutation/dav_mutation_patch.dart';
 import '../../dav/storage/dav_collection_capabilities.dart';
 import '../../db/app_database.dart';
@@ -71,6 +73,10 @@ final _journalEntries = StreamProvider.autoDispose
 final _pending = StreamProvider.autoDispose.family<PendingOp?, String>(
   (ref, id) => ref.watch(_journalRepository).watchPending(id),
 );
+final _journalConflict = StreamProvider.autoDispose
+    .family<DavConflictSnapshot?, String>(
+      (ref, id) => ref.watch(_journalRepository).watchConflict(id),
+    );
 
 class JournalWorkspace extends ConsumerStatefulWidget {
   const JournalWorkspace({required this.controls, this.files, super.key});
@@ -146,6 +152,17 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
     final pending = current == null
         ? null
         : ref.watch(_pending(current.entry.davObjectId)).valueOrNull;
+    final conflictId = pending?.conflictSnapshotId;
+    final conflict = conflictId == null
+        ? null
+        : ref.watch(_journalConflict(conflictId)).valueOrNull;
+    final resolution = conflict == null
+        ? null
+        : ref
+              .watch(davConflictsStreamProvider)
+              .valueOrNull
+              ?.where((item) => item.id == conflict.id)
+              .firstOrNull;
     final authoringOffline =
         pending?.operationType == 'dav.create' &&
         pending?.state == 'pending' &&
@@ -154,7 +171,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         ? caps?.canAttemptCreateJournal ?? false
         : (authoringOffline ||
                   editorSource?.journalInventoryComplete == true) &&
-              caps?.canAttemptUpdateJournal == true;
+              caps?.canAttemptUpdateJournal == true &&
+              pending?.state != 'conflict';
     final filterSource = filteredSource?.id ?? '';
     final entries = ref.watch(
       _journalEntries((filterSource, _query, _dates, _offset)),
@@ -195,13 +213,38 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         writable: writable,
         busy: _busy,
         error: _error,
+        conflict: conflict == null || resolution == null
+            ? null
+            : _JournalConflict(
+                snapshot: conflict,
+                capabilities: resolution,
+                ui: ui,
+                busy: _busy,
+                resolve: (choice) => _run(() async {
+                  await ref
+                      .read(davConflictResolutionServiceProvider)
+                      .resolve(conflict.id, choice);
+                  if (mounted) _closeEntry();
+                }),
+              ),
         close: _closeEntry,
+        occurrences:
+            current == null ||
+                !current.component.component.properties.any(
+                  (property) => const {
+                    'RRULE',
+                    'RDATE',
+                    'RECURRENCE-ID',
+                  }.contains(property.name),
+                )
+            ? null
+            : (month) => repository.occurrences(current, month),
         files: widget.files,
         run: _run,
         export: current == null || widget.files == null
             ? null
             : () => _run(() => widget.files!.export(current.effectiveRawIcs)),
-        save: (title, start, status, descriptions, attachments) =>
+        save: (title, start, status, descriptions, attachments, frequency) =>
             _run(() async {
               if (current == null) {
                 await repository.create(
@@ -211,6 +254,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                   status: status,
                   descriptions: descriptions,
                   attachments: attachments,
+                  frequency: frequency,
                 );
               } else {
                 final original = current.component;
@@ -243,7 +287,10 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                 _closeEntry();
               }
             }),
-        duplicate: current != null && caps?.canAttemptCreateJournal == true
+        duplicate:
+            current != null &&
+                caps?.canAttemptCreateJournal == true &&
+                pending?.state != 'conflict'
             ? () => _run(() async {
                 await repository.duplicate(current);
                 if (mounted) {
@@ -254,6 +301,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         delete:
             current != null &&
                 caps?.canAttemptDeleteJournal == true &&
+                pending?.state != 'conflict' &&
                 (editorSource?.journalInventoryComplete == true ||
                     authoringOffline)
             ? () => _run(() async {
@@ -573,12 +621,91 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
   }
 }
 
+class _JournalConflict extends StatelessWidget {
+  const _JournalConflict({
+    required this.snapshot,
+    required this.capabilities,
+    required this.ui,
+    required this.busy,
+    required this.resolve,
+  });
+
+  final DavConflictSnapshot snapshot;
+  final DavConflictEntity capabilities;
+  final JournalControls ui;
+  final bool busy;
+  final ValueChanged<DavConflictResolution> resolve;
+
+  List<IcalComponent> _components(String raw) {
+    if (raw.isEmpty) return const [];
+    try {
+      return IcalDocument.parse(raw).calendarComponents
+          .where((component) => component.name == 'VJOURNAL')
+          .toList(growable: false);
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.conflictBlocked),
+        for (final (label, raw) in [
+          (l10n.pendingLocally, snapshot.localCandidateRawIcs),
+          (l10n.keepServerVersion, snapshot.remoteRawIcs),
+        ]) ...[
+          Text(label),
+          for (final component in _components(raw))
+            for (final property in component.properties)
+              if (const {
+                'SUMMARY',
+                'DESCRIPTION',
+                'DTSTART',
+                'RECURRENCE-ID',
+                'STATUS',
+              }.contains(property.name))
+                Text(property.decodedTextValue),
+        ],
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final (choice, label, allowed) in [
+              (
+                DavConflictResolution.keepServer,
+                l10n.keepServerVersion,
+                capabilities.canKeepServer,
+              ),
+              (
+                DavConflictResolution.reapplyLocal,
+                l10n.reapplyLocalChange,
+                capabilities.canReapplyLocal,
+              ),
+              (
+                DavConflictResolution.duplicateLocal,
+                l10n.duplicateLocalItem,
+                capabilities.canDuplicate,
+              ),
+            ])
+              ui.button(label, !busy && allowed ? () => resolve(choice) : null),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 typedef _JournalSave = Future<void> Function(
   String? title,
   IcalProperty? start,
   String? status,
   List<DavRawPropertyValue> descriptions,
   List<DavRawPropertyValue> attachments,
+  JournalFrequency? frequency,
 );
 
 class _JournalEditor extends StatefulWidget {
@@ -594,6 +721,8 @@ class _JournalEditor extends StatefulWidget {
     required this.save,
     required this.files,
     required this.run,
+    this.conflict,
+    this.occurrences,
     this.delete,
     this.duplicate,
     this.export,
@@ -609,6 +738,8 @@ class _JournalEditor extends StatefulWidget {
   final _JournalSave save;
   final JournalFileActions? files;
   final Future<void> Function(Future<void> Function()) run;
+  final Widget? conflict;
+  final List<IcalOccurrence> Function(DateTime month)? occurrences;
   final VoidCallback? delete;
   final VoidCallback? duplicate;
   final VoidCallback? export;
@@ -680,6 +811,8 @@ class _JournalEditorState extends State<_JournalEditor> {
   );
   late String _status = widget.snapshot?.component.status ?? '';
   late String _mode = widget.snapshot?.component.start?.kind.name ?? '';
+  String _frequency = '';
+  DateTime? _occurrenceMonth;
   late final _descriptions = [
     for (final property
         in widget.snapshot?.component.descriptions ?? const <IcalProperty>[])
@@ -860,6 +993,75 @@ class _JournalEditorState extends State<_JournalEditor> {
     );
   }
 
+  List<Widget> _occurrenceControls(AppLocalizations l10n) {
+    final ui = widget.ui;
+    final month = _occurrenceMonth;
+    if (widget.occurrences == null) return const [];
+    if (month == null) {
+      return [
+        ui.button(l10n.repeat, () {
+          final now = DateTime.now();
+          setState(() => _occurrenceMonth = DateTime.utc(now.year, now.month));
+        }),
+      ];
+    }
+    List<IcalOccurrence> rows = const [];
+    String? failure;
+    try {
+      rows = widget.occurrences!(month);
+    } on DavException catch (error) {
+      failure = error.safeMessage;
+    } on FormatException {
+      failure = l10n.journalOperationFailed;
+    }
+    return [
+      Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          ui.button(
+            l10n.previousMonth,
+            () => setState(
+              () =>
+                  _occurrenceMonth = DateTime.utc(month.year, month.month - 1),
+            ),
+          ),
+          Text(month.toIso8601String().substring(0, 7)),
+          ui.button(
+            l10n.nextMonth,
+            () => setState(
+              () =>
+                  _occurrenceMonth = DateTime.utc(month.year, month.month + 1),
+            ),
+          ),
+          ui.button(l10n.close, () => setState(() => _occurrenceMonth = null)),
+        ],
+      ),
+      if (failure != null)
+        Text(failure)
+      else if (rows.isEmpty)
+        Text(l10n.journalNoEntries)
+      else
+        SizedBox(
+          height: 120,
+          child: ListView.builder(
+            primary: false,
+            itemCount: rows.length,
+            itemBuilder: (_, index) {
+              final occurrence = rows[index];
+              return Text(
+                [
+                  occurrence.start.rawValue,
+                  occurrence.summary,
+                  if (occurrence.isCancelled) 'CANCELLED',
+                ].nonNulls.join(' · '),
+              );
+            },
+          ),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -875,6 +1077,7 @@ class _JournalEditorState extends State<_JournalEditor> {
         ),
         if (widget.error != null)
           Semantics(liveRegion: true, child: Text(widget.error!)),
+        if (widget.conflict case final conflict?) conflict,
         if (canEdit) ...[
           ui.input(l10n.title, controller: _title),
           ui.choose(l10n.journalDate, _mode, [
@@ -890,6 +1093,14 @@ class _JournalEditorState extends State<_JournalEditor> {
               controller: _date,
             ),
           if (_mode == 'tzidDateTime') ui.input('TZID', controller: _zone),
+          if (snapshot == null && _mode.isNotEmpty)
+            ui.choose(l10n.repeat, _frequency, [
+              (id: '', label: l10n.repeatNone),
+              (id: 'daily', label: l10n.repeatDaily),
+              (id: 'weekly', label: l10n.repeatWeekly),
+              (id: 'monthly', label: l10n.repeatMonthly),
+              (id: 'yearly', label: l10n.repeatYearly),
+            ], (value) => setState(() => _frequency = value)),
           ui.choose(l10n.journalStatus, _status, [
             for (final status in {...knownStatuses, _status})
               (id: status, label: status.isEmpty ? '—' : status),
@@ -940,6 +1151,7 @@ class _JournalEditorState extends State<_JournalEditor> {
             ),
         ],
         ..._attachmentControls(l10n, canEdit),
+        ..._occurrenceControls(l10n),
         if (snapshot != null) ...[
           for (final property in snapshot.component.component.properties)
             if (!const {
@@ -974,6 +1186,9 @@ class _JournalEditorState extends State<_JournalEditor> {
                                 parameters: property.parameters,
                               ),
                           ],
+                          _mode.isEmpty || _frequency.isEmpty
+                              ? null
+                              : JournalFrequency.values.byName(_frequency),
                         );
                       },
                 primary: true,

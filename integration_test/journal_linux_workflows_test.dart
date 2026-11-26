@@ -40,6 +40,19 @@ void main() {
       expect(authority.scheme, 'https');
       final username = fixture['username'] as String;
       final password = fixture['password'] as String;
+      final secret = provider == 'caldav'
+          ? CalDavSecretRecord(
+              serviceAuthority: authority,
+              username: username,
+              password: password,
+            )
+          : NextcloudSecretRecord(
+              canonicalServer: authority,
+              loginName: username,
+              appPassword: password,
+            );
+      final credentialAuthority =
+          (secret as DavCertificateCredential).certificateAuthority;
       http.Client client() => IOClient(
         HttpClient(
           context: SecurityContext(withTrustedRoots: true)
@@ -112,7 +125,7 @@ void main() {
                 AccountsCompanion.insert(
                   id: accountId,
                   provider: provider,
-                  authority: authority.toString(),
+                  authority: credentialAuthority.toString(),
                   providerAccountId: username,
                   credentialKind: provider == 'caldav'
                       ? 'caldav_password'
@@ -124,20 +137,7 @@ void main() {
                   updatedAtUtc: '2026-11-26T00:00:00Z',
                 ),
               );
-          await secrets.saveCredential(
-            accountId,
-            provider == 'caldav'
-                ? CalDavSecretRecord(
-                    serviceAuthority: authority,
-                    username: username,
-                    password: password,
-                  )
-                : NextcloudSecretRecord(
-                    canonicalServer: authority,
-                    loginName: username,
-                    appPassword: password,
-                  ),
-          );
+          await secrets.saveCredential(accountId, secret);
           await sync(full: true);
         });
         await tester.pumpWidget(
@@ -169,7 +169,7 @@ void main() {
         expect(remote.statusCode, 207);
         expect(remote.body, contains('VJOURNAL'));
 
-        await tester.tap(find.text('New journal'));
+        await tester.tap(find.text('New entry'));
         await _until(tester, _input('Title'));
         await tester.enterText(_input('Title'), 'Journal café');
         await tester.tap(find.text('Add description'));

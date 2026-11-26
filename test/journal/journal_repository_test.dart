@@ -147,6 +147,26 @@ void main() {
     await repository.deleteResource(retained);
     expect(await repository.watchEntries().first, isEmpty);
     expect(await db.select(db.pendingOps).get(), isEmpty);
+
+    final start = IcalDocument.parse(journal(['DTSTART;VALUE=DATE:20261126']))
+        .calendarComponents
+        .single
+        .firstProperty('DTSTART')!;
+    await repository.create(
+      sources.single,
+      start: start,
+      frequency: JournalFrequency.daily,
+    );
+    final repeating = await repository.read(
+      (await repository.watchEntries().first).single,
+    );
+    expect(repeating.effectiveRawIcs, contains('RRULE:FREQ=DAILY'));
+    expect(
+      repository
+          .occurrences(repeating, DateTime.utc(2026, 11))
+          .map((occurrence) => occurrence.start.rawValue),
+      ['20261126', '20261127', '20261128', '20261129', '20261130'],
+    );
   });
 
   test('title edit retains raw description lines and opaque extensions', () {
