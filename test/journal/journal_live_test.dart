@@ -111,25 +111,35 @@ void main() {
         final home = (await discovery.discover(correlationId: 'journal-home'))
             .service
             .calendarHomeHref;
-        final collectionUri = Uri.parse(
+        final homeUri = Uri.parse(
           home.toString().endsWith('/') ? '$home' : '$home/',
-        ).resolve('journal-qa-${const Uuid().v4()}/');
-        final created = await request(
-          'MKCALENDAR',
-          collectionUri,
-          headers: {'Content-Type': 'application/xml; charset=utf-8'},
-          body: '''
+        );
+        Future<Uri> createCollection(List<String> types) async {
+          final uri = homeUri.resolve('journal-qa-${const Uuid().v4()}/');
+          final components = types
+              .map((type) => '<c:comp name="$type"/>')
+              .join();
+          final created = await request(
+            'MKCALENDAR',
+            uri,
+            headers: {'Content-Type': 'application/xml; charset=utf-8'},
+            body:
+                '''
         <c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
           <d:set><d:prop><d:displayname>Journal QA</d:displayname>
-          <c:supported-calendar-component-set><c:comp name="VJOURNAL"/></c:supported-calendar-component-set>
+          <c:supported-calendar-component-set>$components</c:supported-calendar-component-set>
           </d:prop></d:set>
         </c:mkcalendar>''',
-        );
-        expect(created.statusCode, 201);
-        addTearDown(() async {
-          final deleted = await request('DELETE', collectionUri);
-          expect(deleted.statusCode, anyOf(200, 204));
-        });
+          );
+          expect(created.statusCode, 201);
+          addTearDown(() async {
+            final deleted = await request('DELETE', uri);
+            expect(deleted.statusCode, anyOf(200, 204));
+          });
+          return uri;
+        }
+
+        final collectionUri = await createCollection(['VJOURNAL']);
         await DavDiscoveryRepository(database: database)
             .commitSuccessfulInventory(
               await discovery.discover(correlationId: 'journal-inventory'),
@@ -140,7 +150,8 @@ void main() {
             ).watchSources().first).singleWhere(
               (row) => Uri.parse(row.requestUri).path == collectionUri.path,
             );
-        Future<void> pull() async {
+        Future<void> pull([DavCollection? source]) async {
+          final target = source ?? collection;
           await DavSyncEngine(
             database: database,
             objectRepository: DavObjectRepository(database: database),
@@ -149,12 +160,12 @@ void main() {
               profile: profile,
               accountAuthority: authority,
               accountId: accountId,
-              collectionId: collection.id,
-              collectionUri: collectionUri,
+              collectionId: target.id,
+              collectionUri: Uri.parse(target.requestUri),
               credential: credential,
             ),
             accountId: accountId,
-            collectionId: collection.id,
+            collectionId: target.id,
             provider: provider,
           ).synchronize(correlationId: 'journal-pull');
         }
@@ -261,6 +272,67 @@ void main() {
             authority.resolve(pending.davMemberHref!),
           );
           expect(rejected.statusCode, 404);
+
+          final mixedUri = await createCollection([
+            'VEVENT',
+            'VTODO',
+            'VJOURNAL',
+          ]);
+          await DavDiscoveryRepository(
+            database: database,
+          ).commitSuccessfulInventory(
+            await discovery.discover(correlationId: 'journal-mixed-inventory'),
+          );
+          final mixed = (await journals.watchSources().first).singleWhere(
+            (row) => Uri.parse(row.requestUri).path == mixedUri.path,
+          );
+          expect(mixed.supportedComponentMask, 11);
+          for (final component in ['VEVENT', 'VTODO', 'VJOURNAL']) {
+            final member = await request(
+              'PUT',
+              mixedUri.resolve('$component.ics'),
+              body:
+                  'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live fixture//EN\r\n'
+                  'BEGIN:$component\r\nUID:mixed-$component\r\nDTSTAMP:20261125T080000Z\r\n'
+                  'DTSTART:20261126T090000Z\r\nEND:$component\r\nEND:VCALENDAR\r\n',
+              headers: {
+                'Content-Type': 'text/calendar; charset=utf-8',
+                'If-None-Match': '*',
+              },
+            );
+            expect(member.statusCode, 201);
+          }
+          await pull(mixed);
+          final members = database.select(database.davObjects)
+            ..where((row) => row.collectionId.equals(mixed.id));
+          expect(
+            (await members.get()).map((row) => row.componentMask),
+            unorderedEquals([1, 2, 8]),
+          );
+          expect(
+            (await journals.watchEntries(collectionId: mixed.id).first)
+                .single
+                .uid,
+            'mixed-VJOURNAL',
+          );
+          final collectionRow = database.select(database.davCollections)
+            ..where((row) => row.id.equals(mixed.id));
+          final syncToken = (await collectionRow.getSingle()).syncToken;
+          expect(syncToken, isNotNull);
+          await (database.update(
+            database.davCollections,
+          )..where((row) => row.id.equals(mixed.id))).write(
+            const DavCollectionsCompanion(journalsSelected: Value(false)),
+          );
+          expect(
+            await journals.watchEntries(collectionId: mixed.id).first,
+            isEmpty,
+          );
+          expect(
+            (await members.get()).map((row) => row.componentMask),
+            unorderedEquals([1, 2, 8]),
+          );
+          expect((await collectionRow.getSingle()).syncToken, syncToken);
         }
       },
       skip: fixture == null
