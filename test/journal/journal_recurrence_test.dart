@@ -17,6 +17,44 @@ void main() {
   const first = 'BEGIN:VJOURNAL\r\nUID:same\r\nDTSTAMP:20261125T000000Z\r\n';
   const last = 'END:VJOURNAL\r\n';
 
+  test('old subdaily journal rules spend their budget inside the query', () {
+    for (final (rule, rangeStart, rangeEnd, expected) in [
+      (
+        'FREQ=MINUTELY;BYHOUR=9;BYMINUTE=0',
+        DateTime.utc(2026, 11),
+        DateTime.utc(2026, 12),
+        [for (var day = 1; day <= 30; day++) DateTime.utc(2026, 11, day, 9)],
+      ),
+      (
+        'FREQ=SECONDLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0',
+        DateTime.utc(2026, 11, 27, 8),
+        DateTime.utc(2026, 11, 27, 10),
+        [DateTime.utc(2026, 11, 27, 9)],
+      ),
+      (
+        'FREQ=HOURLY;BYHOUR=9',
+        DateTime.utc(2026, 11, 27, 8),
+        DateTime.utc(2026, 11, 27, 10),
+        [DateTime.utc(2026, 11, 27, 9)],
+      ),
+    ]) {
+      final document = IcalSemanticDocument.parse(
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Journal QA//EN\r\n'
+        '$first'
+        'DTSTART:20240101T090000Z\r\nRRULE:$rule\r\n'
+        '$last'
+        'END:VCALENDAR\r\n',
+      );
+      expect(
+        IcalRecurrenceExpander()
+            .expand(document, rangeStartUtc: rangeStart, rangeEndUtc: rangeEnd)
+            .map((instance) => instance.start.localValue),
+        expected,
+        reason: rule,
+      );
+    }
+  });
+
   test('journal periods supply occurrence starts but no serialized end', () {
     final rows = occurrences(
       '$first'

@@ -28,6 +28,8 @@ final class DavCollectionSettingsEntity {
     required this.lastSyncAtUtc,
     required this.syncErrorCode,
     required this.capabilities,
+    this.supportsJournals = false,
+    this.journalsSelected = false,
     this.canRemoveCollection = false,
     this.ownership = DavCollectionOwnership.unknown,
     this.collectionRemovalPermissionKnown = true,
@@ -46,8 +48,10 @@ final class DavCollectionSettingsEntity {
   final DavCollectionOwnership ownership;
   final bool supportsEvents;
   final bool supportsTasks;
+  final bool supportsJournals;
   final bool eventsSelected;
   final bool tasksSelected;
+  final bool journalsSelected;
   final DateTime? lastSyncAtUtc;
   final String? syncErrorCode;
   final CollectionCapabilities capabilities;
@@ -291,6 +295,35 @@ final class DavSettingsRepository {
     await _onVisibilityChanged?.call(collection.accountId);
   }
 
+  Future<void> setJournalsSelected(String collectionId, bool selected) async {
+    final collection = await _requiredCollection(collectionId);
+    if (!collection.journalProjectionEnabled) return;
+    await (_database.update(
+      _database.davCollections,
+    )..where((row) => row.id.equals(collectionId))).write(
+      DavCollectionsCompanion(
+        journalsSelected: Value(selected),
+        updatedAtUtc: Value(DateTime.now().toUtc().toIso8601String()),
+      ),
+    );
+    await _onVisibilityChanged?.call(collection.accountId);
+  }
+
+  Future<void> setJournalsEnabled(String accountId, bool enabled) async {
+    await (_database.update(_database.accounts)..where(
+          (row) =>
+              row.id.equals(accountId) &
+              row.provider.isIn(['caldav', 'nextcloud']),
+        ))
+        .write(
+          AccountsCompanion(
+            journalsEnabled: Value(enabled),
+            updatedAtUtc: Value(DateTime.now().toUtc().toIso8601String()),
+          ),
+        );
+    await _onVisibilityChanged?.call(accountId);
+  }
+
   Future<DavCollection> _requiredCollection(String id) {
     return (_database.select(_database.davCollections)..where(
           (row) =>
@@ -328,8 +361,10 @@ DavCollectionSettingsEntity _fromRow(
     ownership: ownership,
     supportsEvents: collection.eventProjectionEnabled,
     supportsTasks: collection.taskProjectionEnabled,
+    supportsJournals: collection.journalProjectionEnabled,
     eventsSelected: collection.eventsSelected,
     tasksSelected: collection.tasksSelected,
+    journalsSelected: collection.journalsSelected,
     lastSyncAtUtc: DateTime.tryParse(collection.lastSyncAtUtc ?? '')?.toUtc(),
     syncErrorCode: cursor?.lastFailureCode ?? service?.lastDiscoveryErrorCode,
     capabilities: capabilities,

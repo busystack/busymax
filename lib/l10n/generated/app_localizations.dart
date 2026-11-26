@@ -6880,6 +6880,66 @@ abstract class AppLocalizations {
   /// **'The journal operation failed.'**
   String get journalOperationFailed;
 
+  /// No description provided for @journalDraftSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft saved on this device'**
+  String get journalDraftSaved;
+
+  /// No description provided for @journalDraftWriteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The journal draft could not be saved on this device.'**
+  String get journalDraftWriteFailed;
+
+  /// No description provided for @journalDraftStale.
+  ///
+  /// In en, this message translates to:
+  /// **'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.'**
+  String get journalDraftStale;
+
+  /// No description provided for @journalEditOccurrence.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit this occurrence'**
+  String get journalEditOccurrence;
+
+  /// No description provided for @journalEditFuture.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit this and future occurrences'**
+  String get journalEditFuture;
+
+  /// No description provided for @journalMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Move journal entry'**
+  String get journalMove;
+
+  /// No description provided for @journalExportCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Export journal collection'**
+  String get journalExportCollection;
+
+  /// No description provided for @journalDeleteCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete collection'**
+  String get journalDeleteCollection;
+
+  /// No description provided for @journalDeleteCollectionConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete this collection and all its contents?'**
+  String get journalDeleteCollectionConfirmation;
+
+  /// No description provided for @journalCollectionHasDrafts.
+  ///
+  /// In en, this message translates to:
+  /// **'Save or discard the journal drafts in this collection before deleting it.'**
+  String get journalCollectionHasDrafts;
+
   /// No description provided for @journalDated.
   ///
   /// In en, this message translates to:

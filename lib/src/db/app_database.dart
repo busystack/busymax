@@ -33,6 +33,7 @@ part 'daos/tasks_dao.dart';
     DavObjects,
     DavObjectComponents,
     DavJournalEntries,
+    DavJournalDrafts,
     DavConflictSnapshots,
     TaskLists,
     Tasks,

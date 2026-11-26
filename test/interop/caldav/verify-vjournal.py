@@ -2,6 +2,7 @@
 """Run available journal checks and fail if the required matrix is incomplete."""
 
 import argparse
+import base64
 import datetime as dt
 import hashlib
 import json
@@ -11,6 +12,7 @@ import re
 import subprocess
 import sys
 import uuid
+from urllib.parse import urlsplit
 
 FIXTURES = Path(__file__).resolve().parent
 BUSYMAX = FIXTURES.parents[2]
@@ -31,6 +33,10 @@ def main():
     parser.add_argument('--nextcloud', type=Path, required=True)
     parser.add_argument('--fixture', type=Path, required=True, help='Private two-account JSON')
     parser.add_argument('--artifacts', type=Path, required=True)
+    parser.add_argument('--android-device', help='Serial of the isolated Android QA device')
+    parser.add_argument('--android-aapt', type=Path, help='Official Android build-tools aapt executable')
+    parser.add_argument('--windows-runner', type=Path,
+                        help='Authorized executable that runs the Windows native journal suite')
     args = parser.parse_args()
     artifact = args.artifacts.resolve() / ('vjournal-' + uuid.uuid4().hex[:12])
     artifact.mkdir(parents=True, mode=0o700)
@@ -72,7 +78,7 @@ def main():
         'busymax': commit(BUSYMAX),
         'server': candidate_info['sourceCommit'],
         'serverSchema': candidate_info['schema'],
-        'busymaxSchema': 27,
+        'busymaxSchema': 28,
         'jarSha256': candidate_info['jarSha256'],
         'busyStackImage': candidate_info['imageId'],
         'nextcloud': {key: nextcloud_info[key] for key in (
@@ -83,20 +89,70 @@ def main():
         'nativeMatrix': {},
     }
     results = evidence['gates']
-    environment = dict(os.environ, BUSYMAX_JOURNAL_LIVE_FIXTURE=str(fixture))
+    environment = dict(os.environ, BUSYMAX_JOURNAL_LIVE_FIXTURE=str(fixture),
+                       BUSYMAX_JOURNAL_CORPUS=str(corpus))
 
-    def run(label, command, *, named=()):
+    def run(label, command, *, named=(), extra_env=None):
         log = artifact / (label + '.log')
         started = utc()
         with log.open('w') as output:
-            process = subprocess.run(command, cwd=BUSYMAX, env=environment,
-                                     stdout=output, stderr=subprocess.STDOUT)
+            try:
+                process = subprocess.run(command, cwd=BUSYMAX, env={**environment, **(extra_env or {})},
+                                         stdout=output, stderr=subprocess.STDOUT)
+                code = process.returncode
+            except OSError as error:
+                output.write(str(error) + '\n')
+                code = 127
         content = log.read_text(errors='replace')
         missing = [name for name in named
                    if not re.search(r'^\d\d:\d\d \+\d+.*: .*' + re.escape(name) + r'$', content, re.M)]
-        results[label] = dict(started=started, finished=utc(), exitCode=process.returncode,
+        results[label] = dict(started=started, finished=utc(), exitCode=code,
                               command=command, missing=missing, log=log.name)
-        print(f'{label} completed with status {process.returncode}', flush=True)
+        print(f'{label} completed with status {code}', flush=True)
+        return code == 0 and not missing
+
+    def android(provider, profile):
+        if not args.android_device or not args.android_aapt:
+            return 'not run: supply --android-device and --android-aapt'
+        configuration = dict(profile)
+        configuration['ca'] = Path(configuration.pop('caFile')).read_text()
+        port = urlsplit(configuration['authority']).port
+        if not port or urlsplit(configuration['authority']).hostname != 'localhost':
+            return 'not run: Android fixture requires a TLS localhost endpoint with an explicit port'
+        private = artifact / f'android-{provider}-private.json'
+        with os.fdopen(os.open(private, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600), 'w') as stream:
+            json.dump({'BUSYMAX_JOURNAL_PROVIDER': provider,
+                       'BUSYMAX_JOURNAL_NATIVE_FIXTURE': base64.b64encode(
+                           json.dumps(configuration).encode()).decode()}, stream)
+        serial = args.android_device
+        suffix = 'caldavqa' if provider == 'caldav' else 'nextcloudqa'
+        package_id = 'io.busystack.busymax.' + suffix
+        flags = {'ORG_GRADLE_PROJECT_busymaxTestSigning': 'true',
+                 'ORG_GRADLE_PROJECT_busymaxCalDavQa': str(provider == 'caldav').lower(),
+                 'ORG_GRADLE_PROJECT_busymaxNextcloudQa': str(provider == 'nextcloud').lower()}
+        native = 'integration_test/journal_android_workflows_test.dart'
+        define = '--dart-define-from-file=' + str(private)
+        tcp = f'tcp:{port}'
+        try:
+            if not run(f'android-{provider}-reverse', ['adb', '-s', serial, 'reverse', tcp, tcp]):
+                return 'not run: fixture port mapping failed'
+            if not run(f'android-{provider}-build', ['flutter', 'build', 'apk', '--debug',
+                       '--target=' + native, define], extra_env=flags):
+                return 'not run: APK build failed'
+            apk = BUSYMAX / 'build/app/outputs/flutter-apk/app-debug.apk'
+            badging = subprocess.run([str(args.android_aapt.resolve()), 'dump', 'badging', str(apk)],
+                                     text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            match = re.search(r"^package: name='([^']+)'", badging.stdout, re.M)
+            if badging.returncode or not match or match[1] != package_id:
+                return 'not run: verified APK application ID did not match the QA package'
+            results[f'android-{provider}-apk'] = {'applicationId': package_id,
+                                                 'sha256': hashlib.file_digest(apk.open('rb'), 'sha256').hexdigest()}
+            passed = run(f'android-{provider}-native', ['flutter', 'test', native, '-d', serial,
+                         '--no-uninstall', define, '--reporter', 'expanded'], extra_env=flags,
+                         named=[f'Android journal collection and editor on {provider}'])
+            return 'smoke passed; full cell incomplete' if passed else 'executed, smoke failed'
+        finally:
+            private.unlink(missing_ok=True)
 
     probe = server / 'qualification/clients/journal-admission.py'
     for provider, directory, dav_path in (
@@ -126,13 +182,22 @@ def main():
                     if linux['exitCode'] == 0 and not linux['missing']
                     else 'partial workflow failed or a required case was absent'
                 )
+            elif platform == 'android':
+                result = android(provider, profiles[provider])
+            elif args.windows_runner:
+                passed = run(f'windows-{provider}-native', [str(args.windows_runner.resolve()), provider],
+                             named=[f'Windows journal collection and editor on {provider}'])
+                result = 'smoke passed; full cell incomplete' if passed else 'executed, smoke failed'
             else:
-                result = 'required native journal workflow unavailable'
+                result = 'not run: supply --windows-runner'
             evidence['nativeMatrix'][f'{platform}/{provider}'] = result
     evidence['finished'] = utc()
     (artifact / 'manifest.json').write_text(json.dumps(evidence, indent=2) + '\n')
-    print(f'Required matrix incomplete. Evidence is in {artifact}', flush=True)
-    return 1
+    complete = (all(outcome == 'pass' for outcome in evidence['nativeMatrix'].values())
+                and all(gate.get('exitCode', 0) == 0 and not gate.get('missing')
+                        for gate in results.values()))
+    print(f'Required matrix {"passed" if complete else "incomplete"}. Evidence is in {artifact}', flush=True)
+    return 0 if complete else 1
 
 
 if __name__ == '__main__':

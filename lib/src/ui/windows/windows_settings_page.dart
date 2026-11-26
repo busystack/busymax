@@ -1076,6 +1076,22 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                         ),
                   if (values[index].provider == BusyProvider.nextcloud ||
                       values[index].provider == BusyProvider.caldav)
+                    ListTile(
+                      title: Text(l10n.journals),
+                      trailing: ToggleSwitch(
+                        key: ValueKey(
+                          'dav-account-journals-${values[index].id}',
+                        ),
+                        checked: values[index].journalsEnabled,
+                        onChanged: (enabled) => unawaited(
+                          ref
+                              .read(davSettingsRepositoryProvider)
+                              .setJournalsEnabled(values[index].id, enabled),
+                        ),
+                      ),
+                    ),
+                  if (values[index].provider == BusyProvider.nextcloud ||
+                      values[index].provider == BusyProvider.caldav)
                     for (final collection
                         in ref
                                 .watch(davCollectionsStreamProvider)
@@ -1083,7 +1099,8 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                             const [])
                       if (collection.accountId == values[index].id &&
                           (collection.supportsEvents ||
-                              collection.supportsTasks))
+                              collection.supportsTasks ||
+                              collection.supportsJournals))
                         ListTile(
                           title: Text(collection.name),
                           trailing: _WindowsCollectionRefresh(
@@ -1093,10 +1110,33 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                             ),
                             label: l10n.refreshCollection,
                           ),
-                          subtitle: Text(
-                            !collection.capabilities.permissionsKnown
-                                ? l10n.davPermissionsUnknown
-                                : l10n.collectionSettings,
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                !collection.capabilities.permissionsKnown
+                                    ? l10n.davPermissionsUnknown
+                                    : collection.readOnly
+                                    ? l10n.readOnlySharedCollection
+                                    : l10n.collectionSettings,
+                              ),
+                              if (collection.supportsJournals)
+                                ToggleSwitch(
+                                  key: ValueKey(
+                                    'dav-journals-toggle-${collection.id}',
+                                  ),
+                                  content: Text(l10n.journals),
+                                  checked: collection.journalsSelected,
+                                  onChanged: (selected) => unawaited(
+                                    ref
+                                        .read(davSettingsRepositoryProvider)
+                                        .setJournalsSelected(
+                                          collection.id,
+                                          selected,
+                                        ),
+                                  ),
+                                ),
+                            ],
                           ),
                           onPressed: () =>
                               collection.provider == BusyProvider.caldav

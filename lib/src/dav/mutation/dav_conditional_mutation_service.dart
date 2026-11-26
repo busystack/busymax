@@ -787,13 +787,21 @@ final class DavConditionalMutationService {
     DavMutationPatch? postMovePatch,
     bool reconcileFirst = false,
   }) async {
-    final canDelete = isEvent
+    final sourceSemantic = IcalSemanticDocument.parse(baselineRawIcs);
+    final journal = sourceSemantic.dominantComponentType == 'VJOURNAL';
+    final canDelete = journal
+        ? sourceCapabilities.canAttemptDeleteJournal
+        : isEvent
         ? sourceCapabilities.canAttemptDeleteEvent
         : sourceCapabilities.canAttemptDeleteTask;
-    final canCreate = isEvent
+    final canCreate = journal
+        ? destinationCapabilities.canAttemptCreateJournal
+        : isEvent
         ? destinationCapabilities.canAttemptCreateEvent
         : destinationCapabilities.canAttemptCreateTask;
-    final canUpdate = isEvent
+    final canUpdate = journal
+        ? destinationCapabilities.canAttemptUpdateJournal
+        : isEvent
         ? destinationCapabilities.canAttemptUpdateEvent
         : destinationCapabilities.canAttemptUpdateTask;
     if (baselineEtag.isEmpty ||
@@ -806,10 +814,13 @@ final class DavConditionalMutationService {
         sourceUri.port != destinationUri.port) {
       throw _readOnlyError(correlationId);
     }
-    final sourceSemantic = IcalSemanticDocument.parse(baselineRawIcs);
     if (sourceSemantic.components.isEmpty ||
         sourceSemantic.components.first.componentType !=
-            (isEvent ? 'VEVENT' : 'VTODO') ||
+            (journal
+                ? 'VJOURNAL'
+                : isEvent
+                ? 'VEVENT'
+                : 'VTODO') ||
         (postMovePatch != null &&
             (postMovePatch.target.componentType !=
                     sourceSemantic.components.first.componentType ||

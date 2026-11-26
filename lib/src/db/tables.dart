@@ -245,6 +245,18 @@ class DavJournalEntries extends Table {
   Set<Column<Object>> get primaryKey => {componentId};
 }
 
+/// Unsubmitted editor changes in the same profile as their journal source.
+class DavJournalDrafts extends Table {
+  TextColumn get id => text()();
+  TextColumn get collectionId =>
+      text().references(DavCollections, #id, onDelete: KeyAction.cascade)();
+  TextColumn get baselineDigest => text().nullable()();
+  TextColumn get contentJson => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class DavConflictSnapshots extends Table {
   TextColumn get id => text()();
   TextColumn get accountId =>

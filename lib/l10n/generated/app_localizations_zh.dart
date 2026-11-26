@@ -3926,6 +3926,40 @@ class AppLocalizationsZh extends AppLocalizations {
   String get journalOperationFailed => '日志操作失败。';
 
   @override
+  String get journalDraftSaved => 'Draft saved on this device';
+
+  @override
+  String get journalDraftWriteFailed =>
+      'The journal draft could not be saved on this device.';
+
+  @override
+  String get journalDraftStale =>
+      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+
+  @override
+  String get journalEditOccurrence => 'Edit this occurrence';
+
+  @override
+  String get journalEditFuture => 'Edit this and future occurrences';
+
+  @override
+  String get journalMove => 'Move journal entry';
+
+  @override
+  String get journalExportCollection => 'Export journal collection';
+
+  @override
+  String get journalDeleteCollection => 'Delete collection';
+
+  @override
+  String get journalDeleteCollectionConfirmation =>
+      'Permanently delete this collection and all its contents?';
+
+  @override
+  String get journalCollectionHasDrafts =>
+      'Save or discard the journal drafts in this collection before deleting it.';
+
+  @override
   String get journalDated => '有日期的条目';
 
   @override

@@ -216,10 +216,19 @@ void main() {
         final peerEdit = await request(
           'PUT',
           href,
-          body: original.body.replaceFirst(
-            'STATUS:DRAFT',
-            'STATUS:FINAL\r\nX-JOURNAL:preserved',
-          ),
+          body: original.body
+              .replaceFirst(
+                'SUMMARY:New journal',
+                'SUMMARY;LANGUAGE=fr;X-QA=title:',
+              )
+              .replaceFirst(
+                'STATUS:DRAFT',
+                'STATUS;X-QA=status:FINAL\r\nX-JOURNAL:preserved',
+              )
+              .replaceFirst(
+                RegExp(r'DTSTAMP:[^\r\n]+'),
+                'DTSTAMP:20261125T080000Z\r\nLAST-MODIFIED:20261125T080000Z',
+              ),
           headers: {
             'Content-Type': 'text/calendar; charset=utf-8',
             'If-Match': original.headers['etag']!,
@@ -230,12 +239,36 @@ void main() {
         final entry =
             (await journals.watchEntries(search: 'second body').first).single;
         expect(entry.status, 'FINAL');
+        journals = JournalRepository(
+          database,
+          nowUtc: () => DateTime.utc(2026, 11, 26, 13),
+        );
+        await journals.edit(await journals.read(entry), [
+          DavPatchOperation.setRaw('STATUS', 'DRAFT', preserveParameters: true),
+        ]);
+        final emptySummary = (await journals.read(entry)).effectiveRawIcs;
+        expect(emptySummary, contains('SUMMARY;LANGUAGE=fr;X-QA=title:\r\n'));
         await journals.edit(await journals.read(entry), [
           DavPatchOperation.setText('SUMMARY', 'Edited journal'),
         ]);
+        const titleLine = 'SUMMARY;LANGUAGE=fr;X-QA=title:Edited journal';
+        const statusLine = 'STATUS;X-QA=status:DRAFT';
+        const stamp = 'DTSTAMP:20261126T130000Z';
+        const modified = 'LAST-MODIFIED:20261126T130000Z';
+        final pendingRevision = (await journals.read(entry)).effectiveRawIcs;
+        for (final expected in [titleLine, statusLine, stamp, modified]) {
+          expect(pendingRevision, contains(expected));
+        }
+        await database.close();
+        database = AppDatabase(NativeDatabase(file));
+        journals = JournalRepository(database);
+        expect((await journals.read(entry)).effectiveRawIcs, pendingRevision);
         expect((await replay()).appliedCount, 1);
         final edited = await request('GET', href);
-        expect(edited.body, contains('SUMMARY:Edited journal'));
+        expect(edited.statusCode, 200);
+        for (final expected in [titleLine, statusLine, stamp, modified]) {
+          expect(edited.body, contains(expected));
+        }
         expect(edited.body, contains('X-JOURNAL:preserved'));
         expect(edited.body, contains('DESCRIPTION:Second body'));
         await journals.deleteResource(await journals.read(entry));
@@ -243,35 +276,199 @@ void main() {
         expect((await request('GET', href)).statusCode, 404);
         await pull();
         expect(await journals.watchEntries().first, isEmpty);
-        if (provider == BusyProvider.nextcloud) {
-          const period = 'RDATE;VALUE=PERIOD:20261127T090000Z/PT2H';
-          const original =
+        if (provider == BusyProvider.caldav) {
+          final nestedHref = collectionUri.resolve('nested-status.ics');
+          const status =
+              'BEGIN:VSTATUS\r\nSTATUS:FINAL\r\n'
+              'COMMENT:Journal review\r\nEND:VSTATUS';
+          const participant =
+              'BEGIN:PARTICIPANT\r\nUID:journal-author\r\n'
+              'PARTICIPANT-TYPE:CONTACT\r\nCALENDAR-ADDRESS:mailto:journal@example.invalid\r\n'
+              'STATUS:AUTHOR\r\nBEGIN:VSTATUS\r\nSTATUS:AUTHOR\r\n'
+              'COMMENT:Participant review\r\nEND:VSTATUS\r\nEND:PARTICIPANT';
+          const nested =
               'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live fixture//EN\r\n'
-              'BEGIN:VJOURNAL\r\nUID:journal-period-live-test\r\n'
-              'DTSTAMP:20261125T080000Z\r\nDTSTART:20261126T090000Z\r\n'
-              '$period\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
-          final result = (await DavNativeImportService(database).import(
-            accountId: accountId,
-            collectionId: collection.id,
-            preview: NextcloudNativeImportPreview.parse(
-              IcalDocument.parse(original),
-            ),
-          )).single;
-          expect(result.status, NativeImportItemStatus.queued);
-          expect((await replay()).appliedCount, 0);
+              'BEGIN:VJOURNAL\r\nUID:journal-status-test\r\nDTSTAMP:20261125T080000Z\r\n'
+              'DTSTART:20261126T090000Z\r\nRRULE:FREQ=DAILY;COUNT=2\r\n'
+              'STATUS:DRAFT\r\nEND:VJOURNAL\r\n'
+              'BEGIN:VJOURNAL\r\nUID:journal-status-test\r\nDTSTAMP:20261125T080000Z\r\n'
+              'RECURRENCE-ID:20261127T090000Z\r\nDTSTART:20261127T100000Z\r\n'
+              'STATUS:FINAL\r\n$status\r\n$participant\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+          final response = await request(
+            'PUT',
+            nestedHref,
+            body: nested,
+            headers: {
+              'Content-Type': 'text/calendar; charset=utf-8',
+              'If-None-Match': '*',
+            },
+          );
+          expect(response.statusCode, 201);
+          await pull();
+          final rows = await journals
+              .watchEntries(collectionId: collection.id)
+              .first;
+          final master = rows.singleWhere((row) => row.recurrenceIdKey == null);
+          final detached = rows.singleWhere(
+            (row) => row.recurrenceIdKey != null,
+          );
+          await journals.edit(await journals.read(master), [
+            DavPatchOperation.setText('SUMMARY', 'Master edited offline'),
+          ]);
+          await journals.edit(await journals.read(detached), [
+            DavPatchOperation.setText('SUMMARY', 'Detached edited offline'),
+          ]);
           final pending = await database
               .select(database.pendingOps)
               .getSingle();
-          expect(pending.entityType, 'journal');
-          final retained = (await DavNativeExportService(
-            database,
-          ).collection(accountId, collection.id)).single;
-          expect(retained.rawIcs, original);
-          final rejected = await request(
-            'GET',
-            authority.resolve(pending.davMemberHref!),
+          expect(pending.attemptCount, 0);
+          expect(pending.mutationPatchJson, contains('VSTATUS'));
+          final effective = (await journals.read(detached)).effectiveRawIcs;
+          expect(effective, contains(status));
+          expect(effective, contains(participant));
+          await database.close();
+          database = AppDatabase(NativeDatabase(file));
+          journals = JournalRepository(database);
+          expect((await journals.read(detached)).effectiveRawIcs, effective);
+          expect((await replay()).appliedCount, 1);
+          final persisted = await request('GET', nestedHref);
+          expect(persisted.body, effective);
+        }
+        if (provider == BusyProvider.nextcloud) {
+          final corpusPath =
+              Platform.environment['BUSYMAX_JOURNAL_CORPUS'] ??
+              '../caldav-server/qualification/fixtures/vjournal/admission-v1.json';
+          final corpus = jsonDecode(File(corpusPath).readAsStringSync()) as Map;
+          const rejectedIds = {
+            'J12-link-uid',
+            'J12-link-xml',
+            'J12-related-uid',
+            'J15-start-end',
+            'J15-start-duration',
+          };
+          String journalBody(String uid, List<String> lines) => [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//BusyMax//Live fixture//EN',
+            'BEGIN:VJOURNAL',
+            'UID:$uid',
+            'DTSTAMP:20261125T080000Z',
+            ...lines,
+            'END:VJOURNAL',
+            'END:VCALENDAR',
+            '',
+          ].join('\r\n');
+          const calendarHeaders = {
+            'Content-Type': 'text/calendar; charset=utf-8',
+          };
+          final targetCreated = await request(
+            'PUT',
+            collectionUri.resolve('link-target.ics'),
+            body: journalBody('target-fixture', [
+              'SUMMARY:Same collection link target',
+            ]),
+            headers: {...calendarHeaders, 'If-None-Match': '*'},
           );
-          expect(rejected.statusCode, 404);
+          expect(targetCreated.statusCode, 201);
+          final exercised = <String>{};
+          for (final item in (corpus['cases'] as List).cast<Map>()) {
+            final id = item['id'] as String;
+            if (!rejectedIds.contains(id)) continue;
+            final lines = (item['journal'] as List).cast<String>();
+            final createUid = 'create-$id';
+            final original = journalBody(createUid, lines);
+            final preview = NextcloudNativeImportPreview.parse(
+              IcalDocument.parse(original),
+            );
+            final enqueued = preview.resources.single.rawIcs;
+            expect(enqueued.replaceAll(RegExp(r'\r\n[ \t]'), ''), original);
+            final result = (await DavNativeImportService(database).import(
+              accountId: accountId,
+              collectionId: collection.id,
+              preview: preview,
+            )).single;
+            expect(result.status, NativeImportItemStatus.queued, reason: id);
+            final updateUid = 'update-$id';
+            final updateHref = collectionUri.resolve('$updateUid.ics');
+            expect(
+              (await request(
+                'PUT',
+                updateHref,
+                body: journalBody(updateUid, [
+                  'SUMMARY:Before rejected update',
+                ]),
+                headers: {...calendarHeaders, 'If-None-Match': '*'},
+              )).statusCode,
+              201,
+            );
+            final previous = await request('GET', updateHref);
+            expect(previous.statusCode, 200);
+            await pull();
+            Future<DavJournalEntry> entryWithUid(String uid) async =>
+                (await journals.watchEntries(collectionId: collection.id).first)
+                    .singleWhere((entry) => entry.uid == uid);
+            final toUpdate = await entryWithUid(updateUid);
+            await journals.edit(await journals.read(toUpdate), [
+              for (final property in IcalDocument.parse(
+                original,
+              ).calendarComponents.single.properties)
+                if (!const {'UID', 'DTSTAMP'}.contains(property.name))
+                  DavPatchOperation.setRaw(
+                    property.name,
+                    property.rawValue,
+                    parameters: property.parameters,
+                  ),
+            ]);
+            final intendedUpdate = (await journals.read(toUpdate))
+                .effectiveRawIcs;
+            expect((await replay()).appliedCount, 0, reason: id);
+            final create = await entryWithUid(createUid);
+            for (final entry in [create, toUpdate]) {
+              final pending =
+                  await (database.select(database.pendingOps)
+                        ..where((p) => p.davObjectId.equals(entry.davObjectId)))
+                      .getSingle();
+              expect(pending.entityType, 'journal');
+              expect(pending.state, anyOf('retry', 'failed'), reason: id);
+              expect(pending.lastErrorCode, isNotNull, reason: id);
+              if (entry.uid == createUid) {
+                expect(
+                  (await request(
+                    'GET',
+                    authority.resolve(pending.davMemberHref!),
+                  )).statusCode,
+                  404,
+                  reason: id,
+                );
+              }
+            }
+            final after = await request('GET', updateHref);
+            expect(after.statusCode, 200);
+            expect(after.bodyBytes, previous.bodyBytes, reason: id);
+            expect(after.headers['etag'], previous.headers['etag'], reason: id);
+            await database.close();
+            database = AppDatabase(NativeDatabase(file));
+            journals = JournalRepository(database);
+            final exported = await DavNativeExportService(database)
+                .collection(accountId, collection.id);
+            expect(
+              exported.singleWhere((item) => item.uid == createUid).rawIcs,
+              enqueued,
+              reason: id,
+            );
+            expect(
+              exported.singleWhere((item) => item.uid == updateUid).rawIcs,
+              intendedUpdate,
+              reason: id,
+            );
+            expect(
+              (await journals.read(await entryWithUid(updateUid)))
+                  .effectiveRawIcs,
+              intendedUpdate,
+            );
+            exercised.add(id);
+          }
+          expect(exercised, rejectedIds);
 
           final mixedUri = await createCollection([
             'VEVENT',

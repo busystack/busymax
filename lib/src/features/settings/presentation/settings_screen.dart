@@ -2349,7 +2349,8 @@ class _AccountManagementSection extends ConsumerWidget {
                     for (final collection in davCollections)
                       if (collection.accountId == account.id &&
                           (collection.supportsEvents ||
-                              collection.supportsTasks))
+                              collection.supportsTasks ||
+                              collection.supportsJournals))
                         collection,
                   ],
                   onEventsSelected: onEventsSelected,
@@ -4515,6 +4516,18 @@ class _DavCollectionsCard extends ConsumerWidget {
       titleStyle: _settingsAccountSubsectionStyle(context),
       filled: true,
       children: [
+        if (account.provider == BusyProvider.caldav ||
+            account.provider == BusyProvider.nextcloud)
+          BusyMaxSwitchRow(
+            key: ValueKey('dav-account-journals-${account.id}'),
+            title: context.l10n.journals,
+            value: account.journalsEnabled,
+            onChanged: (enabled) => unawaited(
+              ref
+                  .read(davSettingsRepositoryProvider)
+                  .setJournalsEnabled(account.id, enabled),
+            ),
+          ),
         if (collections.isEmpty)
           BusyMaxActionRow(
             title: feedback != null
@@ -4598,7 +4611,8 @@ class _DavCollectionItemState extends ConsumerState<_DavCollectionItem> {
               collectionId: collection.id,
             ),
           );
-    if (!(collection.supportsEvents && collection.supportsTasks)) {
+    if (!collection.supportsJournals &&
+        !(collection.supportsEvents && collection.supportsTasks)) {
       return Row(
         children: [
           Expanded(
@@ -4652,22 +4666,35 @@ class _DavCollectionItemState extends ConsumerState<_DavCollectionItem> {
         ),
         child: Column(
           children: [
-            BusyMaxSwitchRow(
-              key: ValueKey('dav-events-toggle-${collection.id}'),
-              title: l10n.calendarContent,
-              value: collection.eventsSelected,
-              onChanged: (selected) =>
-                  widget.onEventsSelected(collection, selected),
-              leading: const Icon(YaruIcons.calendar),
-            ),
-            BusyMaxSwitchRow(
-              key: ValueKey('dav-tasks-toggle-${collection.id}'),
-              title: l10n.taskContent,
-              value: collection.tasksSelected,
-              onChanged: (selected) =>
-                  widget.onTasksSelected(collection, selected),
-              leading: const Icon(YaruIcons.checkmark),
-            ),
+            if (collection.supportsEvents)
+              BusyMaxSwitchRow(
+                key: ValueKey('dav-events-toggle-${collection.id}'),
+                title: l10n.calendarContent,
+                value: collection.eventsSelected,
+                onChanged: (selected) =>
+                    widget.onEventsSelected(collection, selected),
+                leading: const Icon(YaruIcons.calendar),
+              ),
+            if (collection.supportsTasks)
+              BusyMaxSwitchRow(
+                key: ValueKey('dav-tasks-toggle-${collection.id}'),
+                title: l10n.taskContent,
+                value: collection.tasksSelected,
+                onChanged: (selected) =>
+                    widget.onTasksSelected(collection, selected),
+                leading: const Icon(YaruIcons.checkmark),
+              ),
+            if (collection.supportsJournals)
+              BusyMaxSwitchRow(
+                key: ValueKey('dav-journals-toggle-${collection.id}'),
+                title: l10n.journals,
+                value: collection.journalsSelected,
+                onChanged: (selected) => unawaited(
+                  ref
+                      .read(davSettingsRepositoryProvider)
+                      .setJournalsSelected(collection.id, selected),
+                ),
+              ),
           ],
         ),
       ),

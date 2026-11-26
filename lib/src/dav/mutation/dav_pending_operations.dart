@@ -932,18 +932,28 @@ final class DavPendingOperationQueue {
     final destinationCapabilities = collectionCapabilitiesFromStored(
       destination.collection,
     );
-    if (source.provider == BusyProvider.caldav &&
+    final journal = target.componentType.toUpperCase() == 'VJOURNAL';
+    if ((source.provider == BusyProvider.caldav || journal) &&
         !sourceCapabilities.supportsMove) {
       throw _invalidPendingOperation();
     }
     final event = _componentIsEvent(target.componentType);
-    final canDelete = event
+    final canDelete = journal
+        ? source.account.journalsEnabled &&
+              source.collection.journalInventoryComplete &&
+              sourceCapabilities.canAttemptDeleteJournal
+        : event
         ? sourceCapabilities.canAttemptDeleteEvent
         : sourceCapabilities.canAttemptDeleteTask;
-    final canCreate = event
+    final canCreate = journal
+        ? destination.account.journalsEnabled &&
+              destinationCapabilities.canAttemptCreateJournal
+        : event
         ? destinationCapabilities.canAttemptCreateEvent
         : destinationCapabilities.canAttemptCreateTask;
-    final canUpdate = event
+    final canUpdate = journal
+        ? destinationCapabilities.canAttemptUpdateJournal
+        : event
         ? destinationCapabilities.canAttemptUpdateEvent
         : destinationCapabilities.canAttemptUpdateTask;
     if (!canDelete ||
@@ -1056,7 +1066,7 @@ final class DavPendingOperationQueue {
         destinationCollectionHref: Value(destination.collection.hrefKey),
         destinationMemberHref: Value(destinationUri.path),
         retryClassification: const Value('conditional_move'),
-        taskId: Value(event ? null : localProjectionId),
+        taskId: Value(event || journal ? null : localProjectionId),
         eventId: Value(event ? localProjectionId : null),
         dependsOnOpId: Value(dependency),
         requestJson: jsonEncode({
@@ -1305,9 +1315,8 @@ final class DavPendingOperationsReplayer {
           continue;
         }
         try {
-          final source = collectionCapabilitiesFromStored(
-            await _requiredCollection(op),
-          );
+          final sourceCollection = await _requiredCollection(op);
+          final source = collectionCapabilitiesFromStored(sourceCollection);
           if (!source.permissionsKnown || !source.canRead) continue;
           final event = switch (op.operationType) {
             'dav.create' =>
@@ -1315,15 +1324,27 @@ final class DavPendingOperationsReplayer {
             'dav.update' => _decodePatch(op).target.componentType == 'VEVENT',
             _ => _deleteIsEvent(op),
           };
-          final permitted = switch (op.operationType) {
-            'dav.create' =>
-              event ? source.canCreateEvent : source.canCreateTask,
-            'dav.update' =>
-              event ? source.canUpdateEvent : source.canUpdateTask,
-            'dav.delete' ||
-            'dav.move' => event ? source.canDeleteEvent : source.canDeleteTask,
-            _ => false,
-          };
+          final journal = op.entityType == 'journal';
+          final permitted = journal
+              ? switch (op.operationType) {
+                  'dav.create' => source.canAttemptCreateJournal,
+                  'dav.update' =>
+                    sourceCollection.journalInventoryComplete &&
+                        source.canAttemptUpdateJournal,
+                  'dav.delete' || 'dav.move' =>
+                    sourceCollection.journalInventoryComplete &&
+                        source.canAttemptDeleteJournal,
+                  _ => false,
+                }
+              : switch (op.operationType) {
+                  'dav.create' =>
+                    event ? source.canCreateEvent : source.canCreateTask,
+                  'dav.update' =>
+                    event ? source.canUpdateEvent : source.canUpdateTask,
+                  'dav.delete' || 'dav.move' =>
+                    event ? source.canDeleteEvent : source.canDeleteTask,
+                  _ => false,
+                };
           if (!permitted) continue;
           if (op.operationType == 'dav.move') {
             final destination = collectionCapabilitiesFromStored(
@@ -1332,7 +1353,9 @@ final class DavPendingOperationsReplayer {
             if (!source.supportsMove ||
                 !destination.permissionsKnown ||
                 !destination.canRead ||
-                !(event
+                !(journal
+                    ? destination.canAttemptCreateJournal
+                    : event
                     ? destination.canCreateEvent
                     : destination.canCreateTask)) {
               continue;
@@ -1549,7 +1572,8 @@ final class DavPendingOperationsReplayer {
     final allowDeletedMoveSource =
         op.operationType == 'dav.move' && reconcileFirst;
     if (op.operationType == 'dav.move') {
-      if (account.provider == 'caldav' && !capabilities.supportsMove) {
+      if ((account.provider == 'caldav' || op.entityType == 'journal') &&
+          !capabilities.supportsMove) {
         throw const DavException(
           kind: DavErrorKind.protocol,
           code: 'DavMoveUnsupported',

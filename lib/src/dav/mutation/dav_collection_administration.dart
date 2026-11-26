@@ -316,6 +316,17 @@ final class DavCollectionAdministration {
     String title,
     Set<String> components, {
     DavCancellationToken? cancellation,
+  }) async => (await createWithIdentity(
+    title,
+    components,
+    cancellation: cancellation,
+  )).outcome;
+
+  Future<({DavCollectionAdministrationOutcome outcome, Uri memberUri})>
+  createWithIdentity(
+    String title,
+    Set<String> components, {
+    DavCancellationToken? cancellation,
   }) async {
     if (title.trim().isEmpty ||
         title.length > 1024 ||
@@ -345,8 +356,7 @@ final class DavCollectionAdministration {
     if (existing.any(
       (r) =>
           components.contains('VEVENT') && r.eventProjectionEnabled ||
-          components.contains('VTODO') && r.taskProjectionEnabled ||
-          components.contains('VJOURNAL') && r.journalProjectionEnabled,
+          components.contains('VTODO') && r.taskProjectionEnabled,
     )) {
       throw _error(409, 'DavCollectionNameConflict');
     }
@@ -374,7 +384,10 @@ final class DavCollectionAdministration {
             createdAtUtc: DateTime.now().toUtc().toIso8601String(),
           ),
         );
-    return resumeCreation(id, cancellation: cancellation);
+    return (
+      outcome: await resumeCreation(id, cancellation: cancellation),
+      memberUri: target,
+    );
   }
 
   /// Only a persisted, account-bound operation ID authorizes recovery/retry.

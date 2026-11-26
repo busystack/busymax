@@ -1,4 +1,5 @@
 import '../../dav/ical/ical_attachments.dart';
+import '../../dav/ical/dav_native_import.dart' show NativeImportResource;
 import '../../features/attachments/presentation/dav_attachment_file_name.dart';
 import '../../features/sync/sync_request.dart';
 import '../../features/sync/sync_activity_icon.dart';
@@ -590,6 +591,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                                   export: _exportJournalFile,
                                   pickAttachment: _pickJournalAttachment,
                                   saveAttachment: _saveJournalAttachment,
+                                  exportCollection: _exportJournalCollection,
                                 ),
                               ),
                             ),
@@ -6614,3 +6616,16 @@ Future<void> _exportJournalFile(String raw) async {
     bytes: Uint8List.fromList(utf8.encode(raw)),
   );
 }
+
+Future<String?> _exportJournalCollection(List<NativeImportResource> journals) =>
+    BusyMaxAndroidPlatform.instance.exportDocumentTree(
+      folderName:
+          'BusyMax-journals-${DateTime.now().toUtc().millisecondsSinceEpoch}',
+      resources: [
+        for (final (index, journal) in journals.indexed)
+          AndroidExportResource(
+            name: 'resource-${index + 1}.ics',
+            bytes: Uint8List.fromList(utf8.encode(journal.rawIcs)),
+          ),
+      ],
+    );

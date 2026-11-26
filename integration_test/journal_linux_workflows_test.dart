@@ -223,10 +223,31 @@ void main() {
         await tester.tap(find.textContaining('Peer edit'));
         await _until(tester, _input('Title'));
         await tester.enterText(_input('Title'), 'Local edit');
+        await _editorAction(tester, find.widgetWithText(FilledButton, 'Close'));
+        await _until(tester, _input('Search'));
+        expect(
+          tester.widget<TextField>(_input('Search')).controller?.text,
+          'second body',
+        );
+        expect(find.textContaining('Peer edit'), findsOneWidget);
+        await tester.tap(find.textContaining('Peer edit'));
+        await _until(tester, _input('Title'));
+        expect(
+          tester.widget<TextField>(_input('Title')).controller?.text,
+          'Local edit',
+        );
         await _editorAction(
           tester,
           find.widgetWithText(ElevatedButton, 'Save'),
         );
+        await _until(tester, find.textContaining('Local edit'));
+        expect(
+          tester.widget<TextField>(_input('Search')).controller?.text,
+          'second body',
+        );
+        await tester.enterText(_input('Search'), 'absent from journal');
+        await _until(tester, find.textContaining('Local edit'), absent: true);
+        await tester.enterText(_input('Search'), '');
         await _until(tester, find.textContaining('Local edit'));
         await _refresh(tester);
         final edited = (await tester.runAsync(

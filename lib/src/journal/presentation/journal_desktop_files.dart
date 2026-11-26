@@ -3,6 +3,7 @@ import 'package:file_selector/file_selector.dart';
 import '../../dav/ical/ical_attachments.dart';
 import '../../features/attachments/presentation/dav_attachment_desktop_save.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
+import '../../ui/common/schedule/native_collection_export.dart';
 import 'journal_workspace.dart';
 
 const journalDesktopFiles = JournalFileActions(
@@ -10,6 +11,7 @@ const journalDesktopFiles = JournalFileActions(
   export: _exportJournalFile,
   pickAttachment: _pickJournalAttachment,
   saveAttachment: saveDavInlineAttachmentToDesktop,
+  exportCollection: exportNativeCollectionWithDirectoryDialog,
 );
 
 Future<JournalAttachmentFile?> _pickJournalAttachment() async {

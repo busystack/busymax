@@ -395,33 +395,37 @@ final class IcalDocumentPatcher {
     String propertyName,
     String? rawValue, {
     List<IcalParameter> parameters = const [],
+    bool preserveParameters = false,
   }) {
     final component = requireComponent(key);
     _replaceSingleton(
       component,
       propertyName,
       rawValue,
-      parameters: parameters,
+      parameters: preserveParameters ? null : parameters,
     );
   }
 
   void replaceSingletonText(
     IcalComponentKey key,
     String propertyName,
-    String? value,
-  ) {
+    String? value, {
+    bool preserveParameters = false,
+  }) {
     replaceSingletonRaw(
       key,
       propertyName,
       value == null ? null : encodeIcalText(value),
+      preserveParameters: preserveParameters,
     );
   }
 
   void replaceRepeatedRaw(
     IcalComponentKey key,
     String propertyName,
-    List<({String value, List<IcalParameter> parameters})> values,
-  ) {
+    List<({String value, List<IcalParameter> parameters})> values, {
+    List<String?>? groups,
+  }) {
     final component = requireComponent(key);
     final upper = _validatePropertyName(propertyName);
     final indexes = <int>[];
@@ -439,9 +443,9 @@ final class IcalDocumentPatcher {
       }
       final replacements =
           [
-            for (final entry in values)
+            for (final (index, entry) in values.indexed)
               IcalProperty(
-                group: null,
+                group: groups?[index],
                 name: upper,
                 parameters: List.of(entry.parameters),
                 rawValue: entry.value,
@@ -508,7 +512,7 @@ final class IcalDocumentPatcher {
     IcalComponent component,
     String propertyName,
     String? rawValue, {
-    required List<IcalParameter> parameters,
+    required List<IcalParameter>? parameters,
   }) {
     final upper = _validatePropertyName(propertyName);
     final indexes = <int>[];
@@ -525,10 +529,21 @@ final class IcalDocumentPatcher {
       }
       return;
     }
+    final original = indexes.isEmpty
+        ? null
+        : component.children[indexes.first] as IcalProperty;
+    if (original != null && parameters == null && indexes.length == 1) {
+      if (original.rawValue != rawValue) {
+        original
+          ..rawValue = rawValue
+          ..isDirty = true;
+      }
+      return;
+    }
     final replacement = IcalProperty(
-      group: null,
+      group: component.name == 'VJOURNAL' ? original?.group : null,
       name: upper,
-      parameters: List.of(parameters),
+      parameters: List.of(parameters ?? original?.parameters ?? const []),
       rawValue: rawValue,
       originalPhysicalLines: const [],
       isDirty: true,

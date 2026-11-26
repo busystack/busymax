@@ -23,9 +23,10 @@ enum DavCalendarCollectionCreationStatus {
 }
 
 final class DavCalendarCollectionCreationResult {
-  const DavCalendarCollectionCreationResult(this.status);
+  const DavCalendarCollectionCreationResult(this.status, {this.memberUri});
 
   final DavCalendarCollectionCreationStatus status;
+  final Uri? memberUri;
 
   bool get refreshPending =>
       status == DavCalendarCollectionCreationStatus.createdRefreshPending ||
@@ -97,16 +98,19 @@ final class DavCalendarCollectionMutationService
       _database.accounts,
     )..where((r) => r.id.equals(_accountId))).getSingleOrNull();
     if (account?.provider == 'caldav') {
-      final result = await DavCollectionAdministration(
-        database: _database,
-        creationGate: _creationGate,
-        secrets: _secretStore,
-        client: _httpClient,
-        accountId: _accountId,
-        refresh: _refreshAfterMutation,
-        requireNetwork: _requireNetwork,
-      ).create(displayName, {component}, cancellation: cancellationToken);
-      return DavCalendarCollectionCreationResult(switch (result) {
+      final result =
+          await DavCollectionAdministration(
+            database: _database,
+            creationGate: _creationGate,
+            secrets: _secretStore,
+            client: _httpClient,
+            accountId: _accountId,
+            refresh: _refreshAfterMutation,
+            requireNetwork: _requireNetwork,
+          ).createWithIdentity(displayName, {
+            component,
+          }, cancellation: cancellationToken);
+      return DavCalendarCollectionCreationResult(switch (result.outcome) {
         DavCollectionAdministrationOutcome.committed =>
           DavCalendarCollectionCreationStatus.created,
         DavCollectionAdministrationOutcome.refreshPending =>
@@ -115,19 +119,18 @@ final class DavCalendarCollectionMutationService
           DavCalendarCollectionCreationStatus.reconciled,
         DavCollectionAdministrationOutcome.reconciledRefreshPending =>
           DavCalendarCollectionCreationStatus.reconciledRefreshPending,
-      });
+      }, memberUri: result.memberUri);
     }
     cancellationToken?.throwIfCancelled();
     await _requireNetwork();
     final context = await _loadContext();
     final existing = await _activeCollections();
-    if (existing.any(
-      (collection) =>
-          (component == 'VJOURNAL'
-              ? collection.journalProjectionEnabled
-              : collection.eventProjectionEnabled) &&
-          collection.displayName == displayName,
-    )) {
+    if (component != 'VJOURNAL' &&
+        existing.any(
+          (collection) =>
+              collection.eventProjectionEnabled &&
+              collection.displayName == displayName,
+        )) {
       throw const DavException(
         kind: DavErrorKind.conflict,
         code: 'DavCalendarNameConflict',
@@ -189,12 +192,14 @@ final class DavCalendarCollectionMutationService
 
     try {
       await _refreshAfterMutation();
-      return const DavCalendarCollectionCreationResult(
+      return DavCalendarCollectionCreationResult(
         DavCalendarCollectionCreationStatus.created,
+        memberUri: targetUri,
       );
     } on Object {
-      return const DavCalendarCollectionCreationResult(
+      return DavCalendarCollectionCreationResult(
         DavCalendarCollectionCreationStatus.createdRefreshPending,
+        memberUri: targetUri,
       );
     }
   }

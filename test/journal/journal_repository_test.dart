@@ -198,6 +198,79 @@ void main() {
     );
   });
 
+  test('typed journal mutation rejects derived changes and unsafe date conversions', () {
+    const target = IcalComponentKey(
+      componentType: 'VJOURNAL',
+      uid: 'journal-fixture',
+    );
+    final now = DateTime.utc(2026, 11, 26);
+    String apply(String raw, DavPatchOperation operation) =>
+        DavMutationPatch.fromJsonString(
+          DavMutationPatch(
+            target: target,
+            scope: DavMutationScope.recurrenceMaster,
+            operations: [operation],
+          ).toJsonString(),
+        ).applyTo(raw, nowUtc: now);
+
+    final derived = journal([
+      'SUMMARY;DERIVED=TRUE:Source title',
+      'STATUS;DERIVED=TRUE:FINAL',
+      'DTSTART;VALUE=DATE;DERIVED=TRUE:20261126',
+      'DESCRIPTION;DERIVED=TRUE:Source description',
+      'ATTACH;DERIVED=TRUE:https://example.invalid/file',
+    ]);
+    expect(
+      apply(derived, DavPatchOperation.setText('COMMENT', 'Unrelated')),
+      contains('COMMENT:Unrelated'),
+    );
+    for (final operation in [
+      DavPatchOperation.setText('SUMMARY', 'New title'),
+      DavPatchOperation.setRaw('STATUS', 'DRAFT', preserveParameters: true),
+      DavPatchOperation.setRaw('DTSTART', '20261127', preserveParameters: true),
+      DavPatchOperation.replaceRepeatedRaw('DESCRIPTION', const []),
+      DavPatchOperation.replaceRepeatedRaw('ATTACH', const []),
+    ]) {
+      expect(
+        () => apply(derived, operation),
+        throwsA(
+          isA<DavException>().having(
+            (e) => e.code,
+            'code',
+            'IcalDerivedJournalProperty',
+          ),
+        ),
+      );
+    }
+
+    final dated =
+        journal([
+          'DTSTART;VALUE=DATE:20261126',
+          'RRULE:FREQ=DAILY;UNTIL=20261130',
+          'EXDATE;VALUE=DATE:20261127',
+        ]).replaceFirst(
+          'END:VCALENDAR\r\n',
+          'BEGIN:VJOURNAL\r\nUID:journal-fixture\r\nDTSTAMP:20261125T080000Z\r\n'
+              'RECURRENCE-ID;VALUE=DATE:20261128\r\nDTSTART;VALUE=DATE:20261129\r\n'
+              'END:VJOURNAL\r\nEND:VCALENDAR\r\n',
+        );
+    expect(
+      apply(dated, DavPatchOperation.setText('SUMMARY', 'Valid edit')),
+      contains('RECURRENCE-ID;VALUE=DATE:20261128'),
+    );
+    expect(
+      () =>
+          apply(dated, DavPatchOperation.setRaw('DTSTART', '20261126T090000Z')),
+      throwsA(
+        isA<DavException>().having(
+          (e) => e.code,
+          'code',
+          'IcalJournalRecurrenceDateMismatch',
+        ),
+      ),
+    );
+  });
+
   test('reordered remote descriptions prevent automatic body merge', () {
     final original = journal([bodyOne, bodyTwo]);
     final patch = DavMutationPatch(

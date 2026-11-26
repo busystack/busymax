@@ -26,16 +26,24 @@ enum DavPatchOperationType {
   replaceAlarm,
   addComponent,
   removeComponent,
+  reviseJournal,
+  replaceJournalResource,
 }
 
 final class DavRawPropertyValue {
-  const DavRawPropertyValue({required this.value, this.parameters = const []});
+  const DavRawPropertyValue({
+    required this.value,
+    this.parameters = const [],
+    this.group,
+  });
 
   final String value;
   final List<IcalParameter> parameters;
+  final String? group;
 
   Map<String, Object?> toJson() => {
     'value': value,
+    if (group != null) 'group': group,
     'parameters': [
       for (final parameter in parameters)
         {
@@ -50,6 +58,7 @@ final class DavRawPropertyValue {
       DavRawPropertyValue(
         value: _requiredStringAllowEmpty(json, 'value'),
         parameters: _parameters(json['parameters']),
+        group: json['group'] as String?,
       );
 }
 
@@ -60,6 +69,7 @@ final class DavPatchOperation {
     this.value,
     this.values = const [],
     this.parameters = const [],
+    this.preserveParameters = false,
     this.percentComplete,
     this.completedAtUtc,
     this.alarmIndex,
@@ -79,11 +89,13 @@ final class DavPatchOperation {
     String propertyName,
     String? value, {
     List<IcalParameter> parameters = const [],
+    bool preserveParameters = false,
   }) => DavPatchOperation._(
     type: DavPatchOperationType.setRaw,
     propertyName: _validatedEditableProperty(propertyName),
     value: value,
     parameters: List.unmodifiable(parameters),
+    preserveParameters: preserveParameters,
   );
 
   factory DavPatchOperation.replaceRepeatedRaw(
@@ -150,6 +162,20 @@ final class DavPatchOperation {
         componentKey: componentKey,
       );
 
+  factory DavPatchOperation.reviseJournal(DateTime revision) =>
+      DavPatchOperation._(
+        type: DavPatchOperationType.reviseJournal,
+        propertyName: 'DTSTAMP',
+        value: _utcIcal(revision),
+      );
+
+  factory DavPatchOperation.replaceJournalResource(String rawIcs) =>
+      DavPatchOperation._(
+        type: DavPatchOperationType.replaceJournalResource,
+        propertyName: 'COMPONENT-SET',
+        value: rawIcs,
+      );
+
   factory DavPatchOperation.fromJson(Map<String, Object?> json) {
     final typeName = _requiredString(json, 'type');
     final type = DavPatchOperationType.values
@@ -166,6 +192,7 @@ final class DavPatchOperation {
         propertyName,
         json['value'] as String?,
         parameters: _parameters(json['parameters']),
+        preserveParameters: json['preserveParameters'] == true,
       ),
       DavPatchOperationType.replaceRepeatedRaw =>
         DavPatchOperation.replaceRepeatedRaw(
@@ -197,6 +224,15 @@ final class DavPatchOperation {
               ? null
               : _componentKeyFromJson(_requiredMap(json, 'componentKey')),
         ),
+      DavPatchOperationType.reviseJournal => DavPatchOperation._(
+        type: type,
+        propertyName: 'DTSTAMP',
+        value: _requiredString(json, 'value'),
+      ),
+      DavPatchOperationType.replaceJournalResource =>
+        DavPatchOperation.replaceJournalResource(
+          _requiredString(json, 'value'),
+        ),
     };
   }
 
@@ -205,6 +241,7 @@ final class DavPatchOperation {
   final String? value;
   final List<DavRawPropertyValue> values;
   final List<IcalParameter> parameters;
+  final bool preserveParameters;
   final int? percentComplete;
   final DateTime? completedAtUtc;
   final int? alarmIndex;
@@ -220,7 +257,9 @@ final class DavPatchOperation {
     },
     DavPatchOperationType.replaceAlarm => {'VALARM'},
     DavPatchOperationType.addComponent ||
-    DavPatchOperationType.removeComponent => {'COMPONENT-SET'},
+    DavPatchOperationType.removeComponent ||
+    DavPatchOperationType.replaceJournalResource => {'COMPONENT-SET'},
+    DavPatchOperationType.reviseJournal => const {},
     _ => {propertyName},
   };
 
@@ -228,6 +267,7 @@ final class DavPatchOperation {
     'type': type.name,
     'propertyName': propertyName,
     if (value != null) 'value': value,
+    if (preserveParameters) 'preserveParameters': true,
     if (parameters.isNotEmpty)
       'parameters': [
         for (final parameter in parameters)
@@ -358,8 +398,10 @@ final class DavMutationPatch {
   });
 
   String applyTo(String rawIcs, {required DateTime nowUtc}) {
-    final document = IcalDocument.parse(rawIcs);
-    final patcher = IcalDocumentPatcher(document);
+    var document = IcalDocument.parse(rawIcs);
+    var patcher = IcalDocumentPatcher(document);
+    final isJournal = target.componentType.toUpperCase() == 'VJOURNAL';
+    final protected = isJournal ? _derivedJournalProperties(document) : null;
     for (final operation in operations) {
       switch (operation.type) {
         case DavPatchOperationType.setText:
@@ -367,6 +409,7 @@ final class DavMutationPatch {
             target,
             operation.propertyName,
             operation.value,
+            preserveParameters: isJournal,
           );
         case DavPatchOperationType.setRaw:
           patcher.replaceSingletonRaw(
@@ -374,12 +417,18 @@ final class DavMutationPatch {
             operation.propertyName,
             operation.value,
             parameters: operation.parameters,
+            preserveParameters: operation.preserveParameters,
           );
         case DavPatchOperationType.replaceRepeatedRaw:
-          patcher.replaceRepeatedRaw(target, operation.propertyName, [
-            for (final value in operation.values)
-              (value: value.value, parameters: value.parameters),
-          ]);
+          patcher.replaceRepeatedRaw(
+            target,
+            operation.propertyName,
+            [
+              for (final value in operation.values)
+                (value: value.value, parameters: value.parameters),
+            ],
+            groups: [for (final value in operation.values) value.group],
+          );
         case DavPatchOperationType.setTaskProgress:
           _applyTaskProgress(
             patcher,
@@ -399,6 +448,48 @@ final class DavMutationPatch {
           patcher.addComponent(operation.component!.deepCopy());
         case DavPatchOperationType.removeComponent:
           patcher.removeComponent(operation.componentKey ?? target);
+        case DavPatchOperationType.reviseJournal:
+          if (!isJournal) throw _invalidPatch();
+          final component = patcher.requireComponent(target);
+          for (final name in const ['DTSTAMP', 'LAST-MODIFIED']) {
+            final property = component.firstProperty(name);
+            if ((name == 'DTSTAMP' || property != null) &&
+                !isDerivedJournalProperty(property)) {
+              patcher.replaceSingletonRaw(
+                target,
+                name,
+                operation.value!,
+                preserveParameters: true,
+              );
+            }
+          }
+        case DavPatchOperationType.replaceJournalResource:
+          if (!isJournal) throw _invalidPatch();
+          patcher.requireComponent(target);
+          document = IcalDocument.parse(operation.value!);
+          if (document.calendarComponents.any(
+                (c) =>
+                    c.name != 'VTIMEZONE' &&
+                    (c.name != 'VJOURNAL' ||
+                        c.firstProperty('UID')?.rawValue != target.uid),
+              ) ||
+              !document.calendarComponents.any((c) => c.name == 'VJOURNAL')) {
+            throw _invalidPatch();
+          }
+          patcher = IcalDocumentPatcher(document);
+      }
+    }
+    if (protected != null) {
+      final updated = _derivedJournalProperties(document);
+      if (protected.entries.any(
+        (entry) => (updated[entry.key] ?? 0) < entry.value,
+      )) {
+        throw const DavException(
+          kind: DavErrorKind.invalidCalendarData,
+          code: 'IcalDerivedJournalProperty',
+          safeMessage:
+              'A derived journal field can only be changed at its source.',
+        );
       }
     }
     final serialized = document.serialize();
@@ -413,6 +504,36 @@ final class DavMutationPatch {
     }
     return complete;
   }
+}
+
+Map<String, int> _derivedJournalProperties(IcalDocument document) {
+  final lines = <String, int>{};
+  void collect(IcalComponent component, String path) {
+    for (final property in component.properties.where(
+      isDerivedJournalProperty,
+    )) {
+      final key = '$path\u0000${property.serializeLogicalLine()}';
+      lines.update(key, (count) => count + 1, ifAbsent: () => 1);
+    }
+    final positions = <String, int>{};
+    for (final child in component.components) {
+      final index = positions.update(
+        child.name,
+        (n) => n + 1,
+        ifAbsent: () => 0,
+      );
+      final uid = child.firstProperty('UID')?.rawValue;
+      collect(child, '$path\u0000${child.name}\u0000${uid ?? index}');
+    }
+  }
+
+  for (final component in document.calendarComponents) {
+    if (component.name != 'VJOURNAL') continue;
+    final uid = component.firstProperty('UID')?.rawValue;
+    final id = icalRecurrenceIdKey(component.firstProperty('RECURRENCE-ID'));
+    collect(component, '$uid\u0000$id');
+  }
+  return lines;
 }
 
 void _applyTaskProgress(
@@ -610,6 +731,7 @@ IcalComponent _componentFromJson(Map<String, Object?> json) {
     'PARTICIPANT',
     'VLOCATION',
     'VRESOURCE',
+    'VSTATUS',
   }.contains(name)) {
     throw _invalidPatch();
   }
@@ -637,8 +759,13 @@ IcalComponent _componentFromJson(Map<String, Object?> json) {
           'PARTICIPANT',
           'VLOCATION',
           'VRESOURCE',
+          'VSTATUS',
         }.contains(nested.name),
-        'PARTICIPANT' => const {'VLOCATION', 'VRESOURCE'}.contains(nested.name),
+        'PARTICIPANT' => const {
+          'VLOCATION',
+          'VRESOURCE',
+          'VSTATUS',
+        }.contains(nested.name),
         'VEVENT' || 'VTODO' => nested.name == 'VALARM',
         _ => false,
       };

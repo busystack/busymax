@@ -1071,7 +1071,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         (ref.watch(davCollectionsStreamProvider).valueOrNull ?? []).where(
           (c) =>
               c.accountId == account.id &&
-              (c.supportsEvents || c.supportsTasks),
+              (c.supportsEvents || c.supportsTasks || c.supportsJournals),
         );
     final pendingInvitations =
         ref
@@ -1090,6 +1090,18 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
               title: Text(account.displayLabel),
               subtitle: Text(_accountSubtitle(account)),
             ),
+            if (account.provider == BusyProvider.caldav ||
+                account.provider == BusyProvider.nextcloud)
+              SwitchListTile(
+                key: ValueKey('dav-account-journals-${account.id}'),
+                title: Text(context.l10n.journals),
+                value: account.journalsEnabled,
+                onChanged: (enabled) => unawaited(
+                  ref
+                      .read(davSettingsRepositoryProvider)
+                      .setJournalsEnabled(account.id, enabled),
+                ),
+              ),
             ListTile(
               key: ValueKey('account-recovery-${account.id}'),
               leading: SyncActivityIcon(
@@ -1305,6 +1317,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                         ref
                             .read(davSettingsRepositoryProvider)
                             .setTasksSelected(collection.id, value),
+                      ),
+                    ),
+                  if (collection.supportsJournals)
+                    SwitchListTile(
+                      key: ValueKey('dav-journals-toggle-${collection.id}'),
+                      title: Text(context.l10n.journals),
+                      value: collection.journalsSelected,
+                      onChanged: (selected) => unawaited(
+                        ref
+                            .read(davSettingsRepositoryProvider)
+                            .setJournalsSelected(collection.id, selected),
                       ),
                     ),
                 ],

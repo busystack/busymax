@@ -4,7 +4,7 @@ import 'app_database.dart';
 import 'location_migration.dart';
 import '../dav/storage/dav_object_repository.dart';
 
-const latestSchemaVersion = 27;
+const latestSchemaVersion = 28;
 
 /// A recoverable, non-secret diagnostic raised when an on-disk schema cannot
 /// be migrated without guessing remote identity or losing synchronized data.
@@ -214,6 +214,9 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
           // cursors, generations or pending-operation baselines.
           await DavObjectRepository(database: database)
               .backfillStoredJournals();
+        }
+        if (from < 28 && !await _hasTable(database, 'dav_journal_drafts')) {
+          await migrator.createTable(database.davJournalDrafts);
         }
         await _createIndexes(database);
         await createLocationLifecycleTriggers(database);

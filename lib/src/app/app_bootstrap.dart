@@ -1691,23 +1691,29 @@ authSessionControllerProvider =
       );
     });
 
+final davCollectionAdministrationProvider =
+    Provider.family<DavCollectionAdministration, String>(
+      (ref, accountId) => DavCollectionAdministration(
+        creationGate: ref.read(crossEngineAccountGateProvider),
+        database: ref.read(databaseProvider),
+        secrets: ref.read(secretStoreProvider),
+        client: ref.read(davAccountHttpClientProvider(accountId)),
+        accountId: accountId,
+        refresh: () => ref.read(signedInSyncRunnerProvider)(accountId, true),
+        requireNetwork: ref
+            .read(networkConnectivityMonitorProvider)
+            .requireNetwork,
+      ),
+    );
+
 final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
   return CalendarRepository(
     database: ref.watch(databaseProvider),
     localTimeZone: ref.watch(localTimeZoneProvider),
     nextcloudCollections: (accountId) =>
         ref.read(nextcloudCollectionServiceProvider(accountId)),
-    genericCollections: (accountId) => DavCollectionAdministration(
-      creationGate: ref.read(crossEngineAccountGateProvider),
-      database: ref.read(databaseProvider),
-      secrets: ref.read(secretStoreProvider),
-      client: ref.read(davAccountHttpClientProvider(accountId)),
-      accountId: accountId,
-      refresh: () => ref.read(signedInSyncRunnerProvider)(accountId, true),
-      requireNetwork: ref
-          .read(networkConnectivityMonitorProvider)
-          .requireNetwork,
-    ),
+    genericCollections: (accountId) =>
+        ref.read(davCollectionAdministrationProvider(accountId)),
     onNotificationScheduleChanged: () =>
         ref.read(notificationReconcilerProvider).reconcile(),
   );

@@ -9543,6 +9543,343 @@ class DavJournalEntriesCompanion extends UpdateCompanion<DavJournalEntry> {
   }
 }
 
+class $DavJournalDraftsTable extends DavJournalDrafts
+    with TableInfo<$DavJournalDraftsTable, DavJournalDraft> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DavJournalDraftsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _collectionIdMeta = const VerificationMeta(
+    'collectionId',
+  );
+  @override
+  late final GeneratedColumn<String> collectionId = GeneratedColumn<String>(
+    'collection_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES dav_collections (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _baselineDigestMeta = const VerificationMeta(
+    'baselineDigest',
+  );
+  @override
+  late final GeneratedColumn<String> baselineDigest = GeneratedColumn<String>(
+    'baseline_digest',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contentJsonMeta = const VerificationMeta(
+    'contentJson',
+  );
+  @override
+  late final GeneratedColumn<String> contentJson = GeneratedColumn<String>(
+    'content_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    collectionId,
+    baselineDigest,
+    contentJson,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dav_journal_drafts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DavJournalDraft> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('collection_id')) {
+      context.handle(
+        _collectionIdMeta,
+        collectionId.isAcceptableOrUnknown(
+          data['collection_id']!,
+          _collectionIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_collectionIdMeta);
+    }
+    if (data.containsKey('baseline_digest')) {
+      context.handle(
+        _baselineDigestMeta,
+        baselineDigest.isAcceptableOrUnknown(
+          data['baseline_digest']!,
+          _baselineDigestMeta,
+        ),
+      );
+    }
+    if (data.containsKey('content_json')) {
+      context.handle(
+        _contentJsonMeta,
+        contentJson.isAcceptableOrUnknown(
+          data['content_json']!,
+          _contentJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contentJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DavJournalDraft map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DavJournalDraft(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      collectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}collection_id'],
+      )!,
+      baselineDigest: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}baseline_digest'],
+      ),
+      contentJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_json'],
+      )!,
+    );
+  }
+
+  @override
+  $DavJournalDraftsTable createAlias(String alias) {
+    return $DavJournalDraftsTable(attachedDatabase, alias);
+  }
+}
+
+class DavJournalDraft extends DataClass implements Insertable<DavJournalDraft> {
+  final String id;
+  final String collectionId;
+  final String? baselineDigest;
+  final String contentJson;
+  const DavJournalDraft({
+    required this.id,
+    required this.collectionId,
+    this.baselineDigest,
+    required this.contentJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['collection_id'] = Variable<String>(collectionId);
+    if (!nullToAbsent || baselineDigest != null) {
+      map['baseline_digest'] = Variable<String>(baselineDigest);
+    }
+    map['content_json'] = Variable<String>(contentJson);
+    return map;
+  }
+
+  DavJournalDraftsCompanion toCompanion(bool nullToAbsent) {
+    return DavJournalDraftsCompanion(
+      id: Value(id),
+      collectionId: Value(collectionId),
+      baselineDigest: baselineDigest == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baselineDigest),
+      contentJson: Value(contentJson),
+    );
+  }
+
+  factory DavJournalDraft.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DavJournalDraft(
+      id: serializer.fromJson<String>(json['id']),
+      collectionId: serializer.fromJson<String>(json['collectionId']),
+      baselineDigest: serializer.fromJson<String?>(json['baselineDigest']),
+      contentJson: serializer.fromJson<String>(json['contentJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'collectionId': serializer.toJson<String>(collectionId),
+      'baselineDigest': serializer.toJson<String?>(baselineDigest),
+      'contentJson': serializer.toJson<String>(contentJson),
+    };
+  }
+
+  DavJournalDraft copyWith({
+    String? id,
+    String? collectionId,
+    Value<String?> baselineDigest = const Value.absent(),
+    String? contentJson,
+  }) => DavJournalDraft(
+    id: id ?? this.id,
+    collectionId: collectionId ?? this.collectionId,
+    baselineDigest: baselineDigest.present
+        ? baselineDigest.value
+        : this.baselineDigest,
+    contentJson: contentJson ?? this.contentJson,
+  );
+  DavJournalDraft copyWithCompanion(DavJournalDraftsCompanion data) {
+    return DavJournalDraft(
+      id: data.id.present ? data.id.value : this.id,
+      collectionId: data.collectionId.present
+          ? data.collectionId.value
+          : this.collectionId,
+      baselineDigest: data.baselineDigest.present
+          ? data.baselineDigest.value
+          : this.baselineDigest,
+      contentJson: data.contentJson.present
+          ? data.contentJson.value
+          : this.contentJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavJournalDraft(')
+          ..write('id: $id, ')
+          ..write('collectionId: $collectionId, ')
+          ..write('baselineDigest: $baselineDigest, ')
+          ..write('contentJson: $contentJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, collectionId, baselineDigest, contentJson);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DavJournalDraft &&
+          other.id == this.id &&
+          other.collectionId == this.collectionId &&
+          other.baselineDigest == this.baselineDigest &&
+          other.contentJson == this.contentJson);
+}
+
+class DavJournalDraftsCompanion extends UpdateCompanion<DavJournalDraft> {
+  final Value<String> id;
+  final Value<String> collectionId;
+  final Value<String?> baselineDigest;
+  final Value<String> contentJson;
+  final Value<int> rowid;
+  const DavJournalDraftsCompanion({
+    this.id = const Value.absent(),
+    this.collectionId = const Value.absent(),
+    this.baselineDigest = const Value.absent(),
+    this.contentJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DavJournalDraftsCompanion.insert({
+    required String id,
+    required String collectionId,
+    this.baselineDigest = const Value.absent(),
+    required String contentJson,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       collectionId = Value(collectionId),
+       contentJson = Value(contentJson);
+  static Insertable<DavJournalDraft> custom({
+    Expression<String>? id,
+    Expression<String>? collectionId,
+    Expression<String>? baselineDigest,
+    Expression<String>? contentJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (collectionId != null) 'collection_id': collectionId,
+      if (baselineDigest != null) 'baseline_digest': baselineDigest,
+      if (contentJson != null) 'content_json': contentJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DavJournalDraftsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? collectionId,
+    Value<String?>? baselineDigest,
+    Value<String>? contentJson,
+    Value<int>? rowid,
+  }) {
+    return DavJournalDraftsCompanion(
+      id: id ?? this.id,
+      collectionId: collectionId ?? this.collectionId,
+      baselineDigest: baselineDigest ?? this.baselineDigest,
+      contentJson: contentJson ?? this.contentJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (collectionId.present) {
+      map['collection_id'] = Variable<String>(collectionId.value);
+    }
+    if (baselineDigest.present) {
+      map['baseline_digest'] = Variable<String>(baselineDigest.value);
+    }
+    if (contentJson.present) {
+      map['content_json'] = Variable<String>(contentJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DavJournalDraftsCompanion(')
+          ..write('id: $id, ')
+          ..write('collectionId: $collectionId, ')
+          ..write('baselineDigest: $baselineDigest, ')
+          ..write('contentJson: $contentJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $DavConflictSnapshotsTable extends DavConflictSnapshots
     with TableInfo<$DavConflictSnapshotsTable, DavConflictSnapshot> {
   @override
@@ -31561,6 +31898,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $DavObjectComponentsTable(this);
   late final $DavJournalEntriesTable davJournalEntries =
       $DavJournalEntriesTable(this);
+  late final $DavJournalDraftsTable davJournalDrafts = $DavJournalDraftsTable(
+    this,
+  );
   late final $DavConflictSnapshotsTable davConflictSnapshots =
       $DavConflictSnapshotsTable(this);
   late final $TaskListsTable taskLists = $TaskListsTable(this);
@@ -31620,6 +31960,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     davObjects,
     davObjectComponents,
     davJournalEntries,
+    davJournalDrafts,
     davConflictSnapshots,
     taskLists,
     tasks,
@@ -31750,6 +32091,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('dav_journal_entries', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'dav_collections',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dav_journal_drafts', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -37369,6 +37717,26 @@ final class $$DavCollectionsTableReferences
     );
   }
 
+  static MultiTypedResultKey<$DavJournalDraftsTable, List<DavJournalDraft>>
+  _davJournalDraftsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.davJournalDrafts,
+    aliasName: 'dav_collections__id__dav_journal_drafts__collection_id',
+  );
+
+  $$DavJournalDraftsTableProcessedTableManager get davJournalDraftsRefs {
+    final manager = $$DavJournalDraftsTableTableManager(
+      $_db,
+      $_db.davJournalDrafts,
+    ).filter((f) => f.collectionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _davJournalDraftsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<
     $DavConflictSnapshotsTable,
     List<DavConflictSnapshot>
@@ -37748,6 +38116,31 @@ class $$DavCollectionsTableFilterComposer
           }) => $$DavJournalEntriesTableFilterComposer(
             $db: $db,
             $table: $db.davJournalEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> davJournalDraftsRefs(
+    Expression<bool> Function($$DavJournalDraftsTableFilterComposer f) f,
+  ) {
+    final $$DavJournalDraftsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davJournalDrafts,
+      getReferencedColumn: (t) => t.collectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavJournalDraftsTableFilterComposer(
+            $db: $db,
+            $table: $db.davJournalDrafts,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -38376,6 +38769,31 @@ class $$DavCollectionsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> davJournalDraftsRefs<T extends Object>(
+    Expression<T> Function($$DavJournalDraftsTableAnnotationComposer a) f,
+  ) {
+    final $$DavJournalDraftsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.davJournalDrafts,
+      getReferencedColumn: (t) => t.collectionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavJournalDraftsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davJournalDrafts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> davConflictSnapshotsRefs<T extends Object>(
     Expression<T> Function($$DavConflictSnapshotsTableAnnotationComposer a) f,
   ) {
@@ -38545,6 +38963,7 @@ class $$DavCollectionsTableTableManager
             bool accountId,
             bool davObjectsRefs,
             bool davJournalEntriesRefs,
+            bool davJournalDraftsRefs,
             bool davConflictSnapshotsRefs,
             bool taskListsRefs,
             bool tasksRefs,
@@ -38743,6 +39162,7 @@ class $$DavCollectionsTableTableManager
                 accountId = false,
                 davObjectsRefs = false,
                 davJournalEntriesRefs = false,
+                davJournalDraftsRefs = false,
                 davConflictSnapshotsRefs = false,
                 taskListsRefs = false,
                 tasksRefs = false,
@@ -38755,6 +39175,7 @@ class $$DavCollectionsTableTableManager
                   explicitlyWatchedTables: [
                     if (davObjectsRefs) db.davObjects,
                     if (davJournalEntriesRefs) db.davJournalEntries,
+                    if (davJournalDraftsRefs) db.davJournalDrafts,
                     if (davConflictSnapshotsRefs) db.davConflictSnapshots,
                     if (taskListsRefs) db.taskLists,
                     if (tasksRefs) db.tasks,
@@ -38830,6 +39251,26 @@ class $$DavCollectionsTableTableManager
                                 table,
                                 p0,
                               ).davJournalEntriesRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'collection_id',
+                          typedResults: items,
+                        ),
+                      if (davJournalDraftsRefs)
+                        await $_getPrefetchedDataByColumns<
+                          DavCollection,
+                          $DavCollectionsTable,
+                          DavJournalDraft,
+                          $DavJournalDraftsTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DavCollectionsTableReferences
+                              ._davJournalDraftsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DavCollectionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).davJournalDraftsRefs,
                           currentColumn: 'id',
                           referencedColumn: 'collection_id',
                           typedResults: items,
@@ -38978,6 +39419,7 @@ typedef $$DavCollectionsTableProcessedTableManager =
         bool accountId,
         bool davObjectsRefs,
         bool davJournalEntriesRefs,
+        bool davJournalDraftsRefs,
         bool davConflictSnapshotsRefs,
         bool taskListsRefs,
         bool tasksRefs,
@@ -41780,6 +42222,314 @@ typedef $$DavJournalEntriesTableProcessedTableManager =
         bool collectionId,
         bool accountId,
       })
+    >;
+typedef $$DavJournalDraftsTableCreateCompanionBuilder =
+    DavJournalDraftsCompanion Function({
+      required String id,
+      required String collectionId,
+      Value<String?> baselineDigest,
+      required String contentJson,
+      Value<int> rowid,
+    });
+typedef $$DavJournalDraftsTableUpdateCompanionBuilder =
+    DavJournalDraftsCompanion Function({
+      Value<String> id,
+      Value<String> collectionId,
+      Value<String?> baselineDigest,
+      Value<String> contentJson,
+      Value<int> rowid,
+    });
+
+final class $$DavJournalDraftsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $DavJournalDraftsTable, DavJournalDraft> {
+  $$DavJournalDraftsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $DavCollectionsTable _collectionIdTable(_$AppDatabase db) => db
+      .davCollections
+      .createAlias('dav_journal_drafts__collection_id__dav_collections__id');
+
+  $$DavCollectionsTableProcessedTableManager get collectionId {
+    final $_column = $_itemColumn<String>('collection_id')!;
+
+    final manager = $$DavCollectionsTableTableManager(
+      $_db,
+      $_db.davCollections,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_collectionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$DavJournalDraftsTableFilterComposer
+    extends Composer<_$AppDatabase, $DavJournalDraftsTable> {
+  $$DavJournalDraftsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baselineDigest => $composableBuilder(
+    column: $table.baselineDigest,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentJson => $composableBuilder(
+    column: $table.contentJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$DavCollectionsTableFilterComposer get collectionId {
+    final $$DavCollectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.collectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavJournalDraftsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DavJournalDraftsTable> {
+  $$DavJournalDraftsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baselineDigest => $composableBuilder(
+    column: $table.baselineDigest,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentJson => $composableBuilder(
+    column: $table.contentJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$DavCollectionsTableOrderingComposer get collectionId {
+    final $$DavCollectionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.collectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavJournalDraftsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DavJournalDraftsTable> {
+  $$DavJournalDraftsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get baselineDigest => $composableBuilder(
+    column: $table.baselineDigest,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contentJson => $composableBuilder(
+    column: $table.contentJson,
+    builder: (column) => column,
+  );
+
+  $$DavCollectionsTableAnnotationComposer get collectionId {
+    final $$DavCollectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.collectionId,
+      referencedTable: $db.davCollections,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DavCollectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.davCollections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DavJournalDraftsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DavJournalDraftsTable,
+          DavJournalDraft,
+          $$DavJournalDraftsTableFilterComposer,
+          $$DavJournalDraftsTableOrderingComposer,
+          $$DavJournalDraftsTableAnnotationComposer,
+          $$DavJournalDraftsTableCreateCompanionBuilder,
+          $$DavJournalDraftsTableUpdateCompanionBuilder,
+          (DavJournalDraft, $$DavJournalDraftsTableReferences),
+          DavJournalDraft,
+          PrefetchHooks Function({bool collectionId})
+        > {
+  $$DavJournalDraftsTableTableManager(
+    _$AppDatabase db,
+    $DavJournalDraftsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DavJournalDraftsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DavJournalDraftsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DavJournalDraftsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> collectionId = const Value.absent(),
+                Value<String?> baselineDigest = const Value.absent(),
+                Value<String> contentJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DavJournalDraftsCompanion(
+                id: id,
+                collectionId: collectionId,
+                baselineDigest: baselineDigest,
+                contentJson: contentJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String collectionId,
+                Value<String?> baselineDigest = const Value.absent(),
+                required String contentJson,
+                Value<int> rowid = const Value.absent(),
+              }) => DavJournalDraftsCompanion.insert(
+                id: id,
+                collectionId: collectionId,
+                baselineDigest: baselineDigest,
+                contentJson: contentJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DavJournalDraftsTable, DavJournalDraft>(table),
+                  $$DavJournalDraftsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({collectionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (collectionId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.collectionId,
+                        referencedTable: $$DavJournalDraftsTableReferences
+                            ._collectionIdTable(db),
+                        referencedColumn: $$DavJournalDraftsTableReferences
+                            ._collectionIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$DavJournalDraftsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DavJournalDraftsTable,
+      DavJournalDraft,
+      $$DavJournalDraftsTableFilterComposer,
+      $$DavJournalDraftsTableOrderingComposer,
+      $$DavJournalDraftsTableAnnotationComposer,
+      $$DavJournalDraftsTableCreateCompanionBuilder,
+      $$DavJournalDraftsTableUpdateCompanionBuilder,
+      (DavJournalDraft, $$DavJournalDraftsTableReferences),
+      DavJournalDraft,
+      PrefetchHooks Function({bool collectionId})
     >;
 typedef $$DavConflictSnapshotsTableCreateCompanionBuilder =
     DavConflictSnapshotsCompanion Function({
@@ -55719,6 +56469,8 @@ class $AppDatabaseManager {
       $$DavObjectComponentsTableTableManager(_db, _db.davObjectComponents);
   $$DavJournalEntriesTableTableManager get davJournalEntries =>
       $$DavJournalEntriesTableTableManager(_db, _db.davJournalEntries);
+  $$DavJournalDraftsTableTableManager get davJournalDrafts =>
+      $$DavJournalDraftsTableTableManager(_db, _db.davJournalDrafts);
   $$DavConflictSnapshotsTableTableManager get davConflictSnapshots =>
       $$DavConflictSnapshotsTableTableManager(_db, _db.davConflictSnapshots);
   $$TaskListsTableTableManager get taskLists =>

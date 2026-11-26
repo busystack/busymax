@@ -1,23 +1,29 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
+import '../../app/busymax_window_close.dart';
 import '../../dav/dav_errors.dart';
 import '../../dav/ical/ical_attachments.dart';
 import '../../dav/ical/ical_document.dart';
 import '../../dav/ical/ical_recurrence.dart';
 import '../../dav/ical/dav_native_import.dart';
+import '../../dav/ical/dav_native_export.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
 import '../../dav/mutation/dav_mutation_patch.dart';
 import '../../dav/storage/dav_collection_capabilities.dart';
+import '../../dav/xml/dav_xml.dart';
 import '../../db/app_database.dart';
 import '../../features/attachments/presentation/dav_attachment_file_name.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/sync/sync_request.dart';
 import '../../providers/busy_provider.dart';
+import '../journal_component.dart';
 import '../journal_repository.dart';
 
 typedef JournalChoice = ({String id, String label});
@@ -29,10 +35,12 @@ final class JournalFileActions {
     required this.export,
     required this.pickAttachment,
     required this.saveAttachment,
+    this.exportCollection,
   });
 
   final Future<List<int>?> Function() read;
   final Future<void> Function(String raw) export;
+  final Future<String?> Function(List<NativeImportResource>)? exportCollection;
   final Future<JournalAttachmentFile?> Function() pickAttachment;
   final Future<String?> Function(IcalAttachment) saveAttachment;
 }
@@ -91,25 +99,35 @@ class JournalWorkspace extends ConsumerStatefulWidget {
 class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
   String _source = '';
   String _query = '';
+  final _search = TextEditingController();
   JournalDateFilter _dates = JournalDateFilter.all;
   int _offset = 0;
   String? _error;
   JournalSnapshot? _open;
+  JournalOccurrenceDraft? _occurrenceEdit;
   DavCollection? _create;
   bool _busy = false;
   bool _createCollection = false;
+  bool _renameCollection = false;
+  bool _confirmCollectionRemoval = false;
   NextcloudNativeImportPreview? _import;
+  String? _importSource;
+  String? _moveSource;
   String? _notice;
   String _accountId = '';
   final _collectionName = TextEditingController();
+  final _rename = TextEditingController();
 
   @override
   void dispose() {
     _collectionName.dispose();
+    _rename.dispose();
+    _search.dispose();
     super.dispose();
   }
 
   Future<void> _run(Future<void> Function() operation) async {
+    if (_busy) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -132,6 +150,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
   void _closeEntry() => setState(() {
     _open = null;
     _create = null;
+    _occurrenceEdit = null;
+    _moveSource = null;
   });
 
   @override
@@ -198,17 +218,37 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
             .firstOrNull ??
         accountChoices.firstOrNull;
 
-    if (current != null && editorSource == null) {
-      return Align(
-        alignment: Alignment.topCenter,
-        child: ui.button(l10n.close, _closeEntry),
-      );
-    }
     if (current != null || _create != null) {
+      final occurrence = _occurrenceEdit;
+      final editing = occurrence?.component ?? current;
+      final draftId = current == null
+          ? 'new:${_create!.id}'
+          : occurrence == null
+          ? 'entry:${current.entry.componentId}'
+          : 'instance:${current.entry.componentId}:${editing!.entry.recurrenceIdKey}:${occurrence.thisAndFuture}';
+      final moveSources =
+          current == null ||
+              occurrence != null ||
+              !writable ||
+              caps?.supportsMove != true ||
+              caps?.canAttemptDeleteJournal != true ||
+              authoringOffline
+          ? const <DavCollection>[]
+          : sources
+                .where(
+                  (source) =>
+                      source.accountId == current.entry.accountId &&
+                      source.id != current.entry.collectionId &&
+                      collectionCapabilitiesFromStored(source)
+                          .canAttemptCreateJournal,
+                )
+                .toList();
       return _JournalEditor(
-        key: ValueKey(current?.entry.componentId ?? _create?.id),
+        key: ValueKey(draftId),
+        repository: repository,
+        draftId: draftId,
         ui: ui,
-        snapshot: current,
+        snapshot: editing,
         source: editorSource,
         writable: writable,
         busy: _busy,
@@ -230,6 +270,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         close: _closeEntry,
         occurrences:
             current == null ||
+                occurrence != null ||
                 !current.component.component.properties.any(
                   (property) => const {
                     'RRULE',
@@ -239,6 +280,44 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                 )
             ? null
             : (month) => repository.occurrences(current, month),
+        openOccurrence: current == null || occurrence != null || !writable
+            ? null
+            : (selected, future) => _run(() async {
+                final next = repository.inspectOccurrence(
+                  current,
+                  selected,
+                  thisAndFuture: future,
+                );
+                if (mounted) setState(() => _occurrenceEdit = next);
+              }),
+        occurrenceScope: occurrence?.thisAndFuture,
+        move: moveSources.isEmpty
+            ? null
+            : Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ui.choose(l10n.journalMove, _moveSource ?? '', [
+                    (id: '', label: l10n.journalCollection),
+                    for (final source in moveSources)
+                      (id: source.id, label: source.displayName),
+                  ], (value) => setState(() => _moveSource = value)),
+                  ui.button(
+                    l10n.journalMove,
+                    moveSources.any((s) => s.id == _moveSource)
+                        ? () => _run(() async {
+                            await repository.move(
+                              current!,
+                              moveSources.singleWhere(
+                                (s) => s.id == _moveSource,
+                              ),
+                            );
+                            if (mounted) _closeEntry();
+                          })
+                        : null,
+                  ),
+                ],
+              ),
         files: widget.files,
         run: _run,
         export: current == null || widget.files == null
@@ -246,49 +325,65 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
             : () => _run(() => widget.files!.export(current.effectiveRawIcs)),
         save: (title, start, status, descriptions, attachments, frequency) =>
             _run(() async {
-              if (current == null) {
-                await repository.create(
-                  _create!,
-                  title: title,
-                  start: start,
-                  status: status,
-                  descriptions: descriptions,
-                  attachments: attachments,
-                  frequency: frequency,
-                );
-              } else {
-                final original = current.component;
-                final before = original.component.firstProperty('DTSTART');
-                await repository.edit(current, [
-                  if (title != original.title)
-                    DavPatchOperation.setText('SUMMARY', title),
-                  if (status != original.status)
-                    DavPatchOperation.setRaw('STATUS', status),
-                  if (start?.serializeLogicalLine() !=
-                      before?.serializeLogicalLine())
-                    DavPatchOperation.setRaw(
-                      'DTSTART',
-                      start?.rawValue,
-                      parameters: start?.parameters ?? const [],
-                    ),
-                  if (!_sameProperties(original.descriptions, descriptions))
-                    DavPatchOperation.replaceRepeatedRaw(
-                      'DESCRIPTION',
-                      descriptions,
-                    ),
-                  if (!_sameProperties(
-                    original.component.propertiesNamed('ATTACH').toList(),
-                    attachments,
-                  ))
-                    DavPatchOperation.replaceRepeatedRaw('ATTACH', attachments),
-                ]);
-              }
+              await repository.database.transaction(() async {
+                if (current == null) {
+                  await repository.create(
+                    _create!,
+                    title: title,
+                    start: start,
+                    status: status,
+                    descriptions: descriptions,
+                    attachments: attachments,
+                    frequency: frequency,
+                  );
+                } else {
+                  final original = editing!.component;
+                  final before = original.component.firstProperty('DTSTART');
+                  final operations = [
+                    if (title != original.title)
+                      DavPatchOperation.setText('SUMMARY', title),
+                    if (status != original.status)
+                      DavPatchOperation.setRaw(
+                        'STATUS',
+                        status,
+                        preserveParameters: true,
+                      ),
+                    if (start?.serializeLogicalLine() !=
+                        before?.serializeLogicalLine())
+                      DavPatchOperation.setRaw(
+                        'DTSTART',
+                        start?.rawValue,
+                        parameters: start?.parameters ?? const [],
+                      ),
+                    if (!_sameProperties(original.descriptions, descriptions))
+                      DavPatchOperation.replaceRepeatedRaw(
+                        'DESCRIPTION',
+                        descriptions,
+                      ),
+                    if (!_sameProperties(
+                      original.component.propertiesNamed('ATTACH').toList(),
+                      attachments,
+                    ))
+                      DavPatchOperation.replaceRepeatedRaw(
+                        'ATTACH',
+                        attachments,
+                      ),
+                  ];
+                  if (occurrence == null) {
+                    await repository.edit(current, operations);
+                  } else {
+                    await repository.editOccurrence(occurrence, operations);
+                  }
+                }
+                await repository.discardDraft(draftId);
+              });
               if (mounted) {
                 _closeEntry();
               }
             }),
         duplicate:
             current != null &&
+                occurrence == null &&
                 caps?.canAttemptCreateJournal == true &&
                 pending?.state != 'conflict'
             ? () => _run(() async {
@@ -300,6 +395,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
             : null,
         delete:
             current != null &&
+                occurrence == null &&
                 caps?.canAttemptDeleteJournal == true &&
                 pending?.state != 'conflict' &&
                 (editorSource?.journalInventoryComplete == true ||
@@ -322,11 +418,29 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         .firstOrNull;
     final pendingImport = _import;
     if (pendingImport != null) {
+      final destinations = sources.where((source) {
+        final caps = collectionCapabilitiesFromStored(source);
+        return caps.canAttemptCreateJournal ||
+            (pendingImport.isJournalMessage && caps.canAttemptUpdateJournal);
+      }).toList();
+      final destination =
+          destinations
+              .where(
+                (source) => source.id == (_importSource ?? filteredSource?.id),
+              )
+              .firstOrNull ??
+          destinations.firstOrNull;
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Text(l10n.importIcsFile),
-          if (newSource != null) Text(newSource.displayName),
+          if (destination != null)
+            ui.choose(l10n.journalCollection, destination.id, [
+              for (final source in destinations)
+                (id: source.id, label: source.displayName),
+            ], (value) => setState(() => _importSource = value)),
+          if (pendingImport.isJournalMessage)
+            Text(pendingImport.schedulingMethod!),
           if (_error != null) Text(_error!),
           for (final entry in pendingImport.resources.take(100))
             Text(
@@ -336,7 +450,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                   l10n.untitledJournal,
             ),
           if (pendingImport.rejected.isNotEmpty ||
-              pendingImport.schedulingMethod != null)
+              (pendingImport.schedulingMethod != null &&
+                  !pendingImport.isJournalMessage))
             Text(l10n.journalOperationFailed),
           Wrap(
             spacing: 8,
@@ -344,17 +459,18 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
               ui.button(
                 l10n.save,
                 _busy ||
-                        newSource == null ||
+                        destination == null ||
                         pendingImport.resources.isEmpty ||
-                        pendingImport.schedulingMethod != null
+                        (pendingImport.schedulingMethod != null &&
+                            !pendingImport.isJournalMessage)
                     ? null
                     : () => _run(() async {
                         final results =
                             await DavNativeImportService(
                               ref.read(databaseProvider),
                             ).import(
-                              accountId: newSource.accountId,
-                              collectionId: newSource.id,
+                              accountId: destination.accountId,
+                              collectionId: destination.id,
                               preview: pendingImport,
                             );
                         if (mounted) {
@@ -384,6 +500,13 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
       );
     }
     final results = entries.valueOrNull ?? const [];
+    final settings = filteredSource == null
+        ? null
+        : ref
+              .watch(davCollectionsStreamProvider)
+              .valueOrNull
+              ?.where((collection) => collection.id == filteredSource.id)
+              .firstOrNull;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -410,6 +533,55 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                           setState(() => _createCollection = !_createCollection)
                     : null,
               ),
+              if (filteredSource != null &&
+                  widget.files?.exportCollection != null)
+                ui.button(
+                  l10n.journalExportCollection,
+                  _busy
+                      ? null
+                      : () => _run(() async {
+                          final resources =
+                              await DavNativeExportService(repository.database)
+                                  .collection(
+                                    filteredSource.accountId,
+                                    filteredSource.id,
+                                  );
+                          final path = await widget.files!.exportCollection!(
+                            resources
+                                .where(
+                                  (item) => item.componentType == 'VJOURNAL',
+                                )
+                                .toList(),
+                          );
+                          if (mounted && path != null) {
+                            setState(() => _notice = l10n.exportedFile(path));
+                          }
+                        }),
+                ),
+              if (settings?.capabilities.canMutateCollection == true &&
+                  filteredSource != null)
+                ui.button(
+                  l10n.rename,
+                  _busy
+                      ? null
+                      : () => setState(() {
+                          _rename.text = filteredSource.displayName;
+                          _renameCollection = !_renameCollection;
+                          _confirmCollectionRemoval = false;
+                        }),
+                ),
+              if (settings?.canRemoveCollection == true &&
+                  filteredSource != null)
+                ui.button(
+                  l10n.journalDeleteCollection,
+                  _busy
+                      ? null
+                      : () => setState(() {
+                          _confirmCollectionRemoval =
+                              !_confirmCollectionRemoval;
+                          _renameCollection = false;
+                        }),
+                ),
               if (widget.files != null)
                 ui.button(
                   l10n.importIcsFile,
@@ -482,7 +654,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                           .where(
                             (source) =>
                                 source.accountId == selectedAccount.id &&
-                                source.displayName == name,
+                                Uri.parse(source.requestUri) ==
+                                    result.memberUri,
                           )
                           .firstOrNull;
                       if (mounted) {
@@ -501,12 +674,97 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                     }),
             ),
           ],
+          if (_renameCollection &&
+              filteredSource != null &&
+              settings != null) ...[
+            ui.input(l10n.title, controller: _rename),
+            ui.button(
+              l10n.save,
+              _busy
+                  ? null
+                  : () => _run(() async {
+                      final value = _rename.text.trim();
+                      if (value.isEmpty) {
+                        throw const FormatException(
+                          'A collection name is required.',
+                        );
+                      }
+                      final changes = {
+                        const DavPropertyName(davNamespace, 'displayname'):
+                            value,
+                      };
+                      if (settings.provider == BusyProvider.nextcloud) {
+                        await ref
+                            .read(
+                              nextcloudCollectionServiceProvider(
+                                filteredSource.accountId,
+                              ),
+                            )
+                            .update(filteredSource.id, changes);
+                      } else {
+                        await ref
+                            .read(
+                              davCollectionAdministrationProvider(
+                                filteredSource.accountId,
+                              ),
+                            )
+                            .update(filteredSource.id, changes);
+                      }
+                      if (mounted) setState(() => _renameCollection = false);
+                    }),
+              primary: true,
+            ),
+          ],
+          if (_confirmCollectionRemoval &&
+              filteredSource != null &&
+              settings != null) ...[
+            Text(l10n.journalDeleteCollectionConfirmation),
+            ui.button(
+              l10n.delete,
+              _busy
+                  ? null
+                  : () => _run(() async {
+                      if (await repository.hasDrafts(filteredSource.id)) {
+                        throw DavException(
+                          kind: DavErrorKind.conflict,
+                          code: 'DavJournalDraftsRemain',
+                          safeMessage: l10n.journalCollectionHasDrafts,
+                        );
+                      }
+                      if (settings.provider == BusyProvider.nextcloud) {
+                        await ref
+                            .read(
+                              nextcloudCollectionServiceProvider(
+                                filteredSource.accountId,
+                              ),
+                            )
+                            .remove(filteredSource.id);
+                      } else {
+                        await ref
+                            .read(
+                              davCollectionAdministrationProvider(
+                                filteredSource.accountId,
+                              ),
+                            )
+                            .remove(filteredSource.id);
+                      }
+                      if (mounted) {
+                        setState(() {
+                          _source = '';
+                          _confirmCollectionRemoval = false;
+                          _offset = 0;
+                        });
+                      }
+                    }),
+            ),
+          ],
           if (_error != null) Semantics(liveRegion: true, child: Text(_error!)),
           if (_notice != null)
             Semantics(liveRegion: true, child: Text(_notice!)),
           const SizedBox(height: 12),
           ui.input(
             l10n.windowsSearch,
+            controller: _search,
             onChanged: (value) => setState(() {
               _query = value;
               _offset = 0;
@@ -526,6 +784,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                 ],
                 (value) => setState(() {
                   _source = value;
+                  _renameCollection = false;
+                  _confirmCollectionRemoval = false;
                   _offset = 0;
                 }),
               ),
@@ -711,6 +971,8 @@ typedef _JournalSave = Future<void> Function(
 class _JournalEditor extends StatefulWidget {
   const _JournalEditor({
     super.key,
+    required this.repository,
+    required this.draftId,
     required this.ui,
     required this.snapshot,
     required this.source,
@@ -723,12 +985,17 @@ class _JournalEditor extends StatefulWidget {
     required this.run,
     this.conflict,
     this.occurrences,
+    this.openOccurrence,
+    this.occurrenceScope,
     this.delete,
     this.duplicate,
     this.export,
+    this.move,
   });
 
   final JournalControls ui;
+  final JournalRepository repository;
+  final String draftId;
   final JournalSnapshot? snapshot;
   final DavCollection? source;
   final bool writable;
@@ -740,9 +1007,12 @@ class _JournalEditor extends StatefulWidget {
   final Future<void> Function(Future<void> Function()) run;
   final Widget? conflict;
   final List<IcalOccurrence> Function(DateTime month)? occurrences;
+  final void Function(IcalOccurrence, bool)? openOccurrence;
+  final bool? occurrenceScope;
   final VoidCallback? delete;
   final VoidCallback? duplicate;
   final VoidCallback? export;
+  final Widget? move;
 
   @override
   State<_JournalEditor> createState() => _JournalEditorState();
@@ -762,8 +1032,7 @@ class _DescriptionDraft {
   final TextEditingController language;
   final TextEditingController alternate;
 
-  bool get derived =>
-      original?.parameterValue('DERIVED')?.toUpperCase() == 'TRUE';
+  bool get derived => isDerivedJournalProperty(original);
 
   DavRawPropertyValue toRaw() {
     final parameters = [...?original?.parameters];
@@ -788,6 +1057,7 @@ class _DescriptionDraft {
           ? original!.rawValue
           : encodeIcalText(text.text),
       parameters: parameters,
+      group: original?.group,
     );
   }
 
@@ -823,6 +1093,182 @@ class _JournalEditorState extends State<_JournalEditor> {
   ];
   final _attachmentUrl = TextEditingController();
   bool _confirmDelete = false;
+  bool _loadingDraft = true;
+  bool _hasDraft = false;
+  bool _staleDraft = false;
+  bool _draftFailed = false;
+  bool _saving = false;
+  Future<void> _draftWrite = Future.value();
+  String? _lastDraftContent;
+
+  late final _baselineDigest = widget.snapshot == null
+      ? null
+      : sha256
+            .convert(utf8.encode(widget.snapshot!.effectiveRawIcs))
+            .toString();
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadDraft());
+  }
+
+  Future<void> _loadDraft() async {
+    try {
+      final draft = await widget.repository.readDraft(widget.draftId);
+      if (!mounted) return;
+      if (draft != null) {
+        final data = (jsonDecode(draft.contentJson) as Map)
+            .cast<String, Object?>();
+        _title.text = data['title'] as String;
+        _date.text = data['date'] as String;
+        _zone.text = data['zone'] as String;
+        _mode = data['mode'] as String;
+        _status = data['status'] as String;
+        _frequency = data['frequency'] as String;
+        for (final description in _descriptions) {
+          description.dispose();
+        }
+        _descriptions
+          ..clear()
+          ..addAll(
+            _draftProperties(data, 'DESCRIPTION').map(_DescriptionDraft.new),
+          );
+        _attachments
+          ..clear()
+          ..addAll(_draftProperties(data, 'ATTACH'));
+        _hasDraft = true;
+        _staleDraft = draft.baselineDigest != _baselineDigest;
+      }
+    } on Object {
+      _draftFailed = true;
+    }
+    if (!mounted) return;
+    for (final controller in [_title, _date, _zone]) {
+      controller.addListener(_persistDraft);
+    }
+    for (final description in _descriptions) {
+      _listenDescription(description);
+    }
+    _lastDraftContent = _draftContent();
+    setState(() => _loadingDraft = false);
+  }
+
+  Iterable<IcalProperty> _draftProperties(
+    Map<String, Object?> data,
+    String name,
+  ) => (data[name] as List).map((item) {
+    final value = DavRawPropertyValue.fromJson(
+      (item as Map).cast<String, Object?>(),
+    );
+    return IcalProperty(
+      group: value.group,
+      name: name,
+      parameters: value.parameters,
+      rawValue: value.value,
+      originalPhysicalLines: const [],
+    );
+  });
+
+  void _listenDescription(_DescriptionDraft draft) {
+    for (final controller in [draft.text, draft.language, draft.alternate]) {
+      controller.addListener(_persistDraft);
+    }
+  }
+
+  String _draftContent() => jsonEncode({
+    'title': _title.text,
+    'date': _date.text,
+    'zone': _zone.text,
+    'mode': _mode,
+    'status': _status,
+    'frequency': _frequency,
+    'DESCRIPTION': [for (final draft in _descriptions) draft.toRaw().toJson()],
+    'ATTACH': [
+      for (final property in _attachments)
+        DavRawPropertyValue(
+          value: property.rawValue,
+          parameters: property.parameters,
+          group: property.group,
+        ).toJson(),
+    ],
+  });
+
+  void _persistDraft() {
+    if (_loadingDraft || _saving || _staleDraft) return;
+    final collectionId = widget.source?.id ?? widget.snapshot?.collection.id;
+    if (collectionId == null) return;
+    final content = _draftContent();
+    if (content == _lastDraftContent) return;
+    _lastDraftContent = content;
+    if (!_hasDraft) setState(() => _hasDraft = true);
+    final repository = widget.repository;
+    final id = widget.draftId;
+    final digest = _baselineDigest;
+    _draftWrite = _draftWrite.then((_) async {
+      try {
+        await repository.saveDraft(
+          id: id,
+          collectionId: collectionId,
+          baselineDigest: digest,
+          contentJson: content,
+        );
+        if (mounted && _draftFailed) setState(() => _draftFailed = false);
+      } on Object {
+        if (mounted) setState(() => _draftFailed = true);
+      }
+    });
+  }
+
+  Future<bool> _flushDraft() async {
+    if (_saving || widget.busy) return false;
+    await _draftWrite;
+    return !_draftFailed;
+  }
+
+  void _changeDraft(VoidCallback change) {
+    if (_saving || widget.busy) return;
+    setState(change);
+    _persistDraft();
+  }
+
+  Future<void> _save() async {
+    if (_saving || widget.busy || _staleDraft || !widget.writable) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _saving = true);
+    try {
+      await _draftWrite;
+      if (!mounted || !widget.writable) return;
+      final oldTitle = widget.snapshot?.component.title;
+      await widget.save(
+        _title.text.isEmpty && oldTitle != '' ? null : _title.text,
+        _start(),
+        _status.isEmpty ? null : _status,
+        _descriptions.map((draft) => draft.toRaw()).toList(),
+        [
+          for (final property in _attachments)
+            DavRawPropertyValue(
+              value: property.rawValue,
+              parameters: property.parameters,
+              group: property.group,
+            ),
+        ],
+        _mode.isEmpty || _frequency.isEmpty
+            ? null
+            : JournalFrequency.values.byName(_frequency),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _discardDraft() async {
+    if (!await _flushDraft() || !mounted) return;
+    await widget.run(() async {
+      await widget.repository.discardDraft(widget.draftId);
+      if (mounted) widget.close();
+    });
+  }
 
   @override
   void dispose() {
@@ -849,6 +1295,7 @@ class _JournalEditorState extends State<_JournalEditor> {
         ),
       );
     });
+    _persistDraft();
   }
 
   List<Widget> _attachmentControls(AppLocalizations l10n, bool canEdit) {
@@ -898,7 +1345,7 @@ class _JournalEditorState extends State<_JournalEditor> {
                 l10n.removeAction,
                 widget.busy
                     ? null
-                    : () => setState(
+                    : () => _changeDraft(
                         () => _attachments.removeAt(attachment.index),
                       ),
               ),
@@ -1049,12 +1496,31 @@ class _JournalEditorState extends State<_JournalEditor> {
             itemCount: rows.length,
             itemBuilder: (_, index) {
               final occurrence = rows[index];
-              return Text(
-                [
-                  occurrence.start.rawValue,
-                  occurrence.summary,
-                  if (occurrence.isCancelled) 'CANCELLED',
-                ].nonNulls.join(' · '),
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    Text(
+                      [
+                        occurrence.start.rawValue,
+                        occurrence.summary,
+                        if (occurrence.isCancelled) 'CANCELLED',
+                      ].nonNulls.join(' · '),
+                    ),
+                    if (widget.openOccurrence case final open?) ...[
+                      ui.button(
+                        l10n.journalEditOccurrence,
+                        () => open(occurrence, false),
+                      ),
+                      ui.button(
+                        l10n.journalEditFuture,
+                        () => open(occurrence, true),
+                      ),
+                    ],
+                  ],
+                ),
               );
             },
           ),
@@ -1066,156 +1532,192 @@ class _JournalEditorState extends State<_JournalEditor> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final ui = widget.ui;
-    final canEdit = widget.writable || widget.snapshot == null;
+    final canEdit = widget.writable;
     final snapshot = widget.snapshot;
+    final component = snapshot?.component.component;
+    final title = component?.firstProperty('SUMMARY');
+    final status = component?.firstProperty('STATUS');
+    final derivedDate = isDerivedJournalProperty(_original);
     final knownStatuses = ['', 'DRAFT', 'FINAL', 'CANCELLED'];
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          widget.source?.displayName ?? snapshot?.collection.displayName ?? '',
-        ),
-        if (widget.error != null)
-          Semantics(liveRegion: true, child: Text(widget.error!)),
-        if (widget.conflict case final conflict?) conflict,
-        if (canEdit) ...[
-          ui.input(l10n.title, controller: _title),
-          ui.choose(l10n.journalDate, _mode, [
-            (id: '', label: l10n.noDate),
-            (id: 'date', label: l10n.journalDate),
-            (id: 'floatingDateTime', label: l10n.journalFloatingTime),
-            (id: 'utcDateTime', label: '${l10n.journalDate} (UTC)'),
-            (id: 'tzidDateTime', label: l10n.journalZonedTime),
-          ], (value) => setState(() => _mode = value)),
-          if (_mode.isNotEmpty)
-            ui.input(
-              _mode == 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DDTHH:MM:SS',
-              controller: _date,
-            ),
-          if (_mode == 'tzidDateTime') ui.input('TZID', controller: _zone),
-          if (snapshot == null && _mode.isNotEmpty)
-            ui.choose(l10n.repeat, _frequency, [
-              (id: '', label: l10n.repeatNone),
-              (id: 'daily', label: l10n.repeatDaily),
-              (id: 'weekly', label: l10n.repeatWeekly),
-              (id: 'monthly', label: l10n.repeatMonthly),
-              (id: 'yearly', label: l10n.repeatYearly),
-            ], (value) => setState(() => _frequency = value)),
-          ui.choose(l10n.journalStatus, _status, [
-            for (final status in {...knownStatuses, _status})
-              (id: status, label: status.isEmpty ? '—' : status),
-          ], (value) => setState(() => _status = value)),
-          for (final draft in _descriptions) ...[
-            const SizedBox(height: 12),
-            KeyedSubtree(
-              key: ObjectKey(draft),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (draft.derived)
-                    Text(draft.original!.serializeLogicalLine())
-                  else ...[
+    if (_loadingDraft) return const SizedBox.shrink();
+    final locked = _saving || widget.busy;
+    return BusyMaxWindowCloseGuard(
+      onCloseRequested: _flushDraft,
+      child: PopScope(
+        canPop: !locked,
+        child: AbsorbPointer(
+          absorbing: locked,
+          child: ExcludeFocus(
+            excluding: locked,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  widget.source?.displayName ??
+                      snapshot?.collection.displayName ??
+                      '',
+                ),
+                if (widget.occurrenceScope case final future?)
+                  Text(
+                    future
+                        ? l10n.journalEditFuture
+                        : l10n.journalEditOccurrence,
+                  ),
+                if (widget.error != null)
+                  Semantics(liveRegion: true, child: Text(widget.error!)),
+                if (_draftFailed) Text(l10n.journalDraftWriteFailed),
+                if (_hasDraft)
+                  Text(
+                    _staleDraft
+                        ? l10n.journalDraftStale
+                        : l10n.journalDraftSaved,
+                  ),
+                if (widget.conflict case final conflict?) conflict,
+                if (canEdit) ...[
+                  if (isDerivedJournalProperty(title))
+                    Text(title!.decodedTextValue)
+                  else
+                    ui.input(l10n.title, controller: _title),
+                  if (derivedDate)
+                    Text(_original!.rawValue)
+                  else
+                    ui.choose(l10n.journalDate, _mode, [
+                      (id: '', label: l10n.noDate),
+                      (id: 'date', label: l10n.journalDate),
+                      (id: 'floatingDateTime', label: l10n.journalFloatingTime),
+                      (id: 'utcDateTime', label: '${l10n.journalDate} (UTC)'),
+                      (id: 'tzidDateTime', label: l10n.journalZonedTime),
+                    ], (value) => _changeDraft(() => _mode = value)),
+                  if (!derivedDate && _mode.isNotEmpty)
                     ui.input(
-                      l10n.description,
-                      controller: draft.text,
-                      lines: 4,
+                      _mode == 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DDTHH:MM:SS',
+                      controller: _date,
                     ),
-                    ui.input('LANGUAGE', controller: draft.language),
-                    ui.input('ALTREP', controller: draft.alternate),
-                    ui.button(
-                      l10n.journalRemoveDescription,
-                      () => setState(() {
-                        _descriptions.remove(draft);
-                        WidgetsBinding.instance.addPostFrameCallback(
-                          (_) => draft.dispose(),
-                        );
-                      }),
+                  if (!derivedDate && _mode == 'tzidDateTime')
+                    ui.input('TZID', controller: _zone),
+                  if (snapshot == null && _mode.isNotEmpty)
+                    ui.choose(l10n.repeat, _frequency, [
+                      (id: '', label: l10n.repeatNone),
+                      (id: 'daily', label: l10n.repeatDaily),
+                      (id: 'weekly', label: l10n.repeatWeekly),
+                      (id: 'monthly', label: l10n.repeatMonthly),
+                      (id: 'yearly', label: l10n.repeatYearly),
+                    ], (value) => _changeDraft(() => _frequency = value)),
+                  if (isDerivedJournalProperty(status))
+                    Text(status!.rawValue)
+                  else
+                    ui.choose(l10n.journalStatus, _status, [
+                      for (final status in {...knownStatuses, _status})
+                        (id: status, label: status.isEmpty ? '—' : status),
+                    ], (value) => _changeDraft(() => _status = value)),
+                  for (final draft in _descriptions) ...[
+                    const SizedBox(height: 12),
+                    KeyedSubtree(
+                      key: ObjectKey(draft),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (draft.derived)
+                            Text(draft.original!.serializeLogicalLine())
+                          else ...[
+                            ui.input(
+                              l10n.description,
+                              controller: draft.text,
+                              lines: 4,
+                            ),
+                            ui.input('LANGUAGE', controller: draft.language),
+                            ui.input('ALTREP', controller: draft.alternate),
+                            ui.button(
+                              l10n.journalRemoveDescription,
+                              () => _changeDraft(() {
+                                _descriptions.remove(draft);
+                                WidgetsBinding.instance.addPostFrameCallback(
+                                  (_) => draft.dispose(),
+                                );
+                              }),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ],
+                  ui.button(
+                    l10n.journalAddDescription,
+                    () => _changeDraft(() {
+                      final draft = _DescriptionDraft();
+                      _listenDescription(draft);
+                      _descriptions.add(draft);
+                    }),
+                  ),
+                ] else if (snapshot != null) ...[
+                  Text(snapshot.component.title ?? l10n.untitledJournal),
+                  Text(snapshot.component.start?.rawValue ?? l10n.noDate),
+                  if (snapshot.component.status case final status?)
+                    Text(status),
+                  for (final property in snapshot.component.descriptions)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(property.decodedTextValue),
+                    ),
                 ],
-              ),
+                ..._attachmentControls(l10n, canEdit),
+                ..._occurrenceControls(l10n),
+                if (!_hasDraft && widget.move != null) widget.move!,
+                if (snapshot != null) ...[
+                  for (final property
+                      in snapshot.component.component.properties)
+                    if (!const {
+                          'SUMMARY',
+                          'DESCRIPTION',
+                          'DTSTART',
+                          'STATUS',
+                        }.contains(property.name) &&
+                        property.name != 'ATTACH')
+                      Text(property.serializeLogicalLine()),
+                ],
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (canEdit)
+                      ui.button(
+                        l10n.save,
+                        locked || _staleDraft ? null : _save,
+                        primary: true,
+                      ),
+                    if (widget.export != null)
+                      ui.button(
+                        l10n.export,
+                        widget.busy ? null : widget.export,
+                      ),
+                    if (widget.duplicate != null)
+                      ui.button(
+                        l10n.journalDuplicate,
+                        widget.busy ? null : widget.duplicate,
+                      ),
+                    if (widget.delete != null)
+                      ui.button(
+                        _confirmDelete ? l10n.journalDeleteSeries : l10n.delete,
+                        widget.busy
+                            ? null
+                            : _confirmDelete
+                            ? widget.delete
+                            : () => setState(() => _confirmDelete = true),
+                      ),
+                    ui.button(l10n.close, widget.busy ? null : widget.close),
+                    if (_hasDraft)
+                      ui.button(
+                        l10n.discardChangesAction,
+                        locked ? null : _discardDraft,
+                      ),
+                  ],
+                ),
+              ],
             ),
-          ],
-          ui.button(
-            l10n.journalAddDescription,
-            () => setState(() => _descriptions.add(_DescriptionDraft())),
           ),
-        ] else if (snapshot != null) ...[
-          Text(snapshot.component.title ?? l10n.untitledJournal),
-          Text(snapshot.component.start?.rawValue ?? l10n.noDate),
-          if (snapshot.component.status case final status?) Text(status),
-          for (final property in snapshot.component.descriptions)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(property.decodedTextValue),
-            ),
-        ],
-        ..._attachmentControls(l10n, canEdit),
-        ..._occurrenceControls(l10n),
-        if (snapshot != null) ...[
-          for (final property in snapshot.component.component.properties)
-            if (!const {
-                  'SUMMARY',
-                  'DESCRIPTION',
-                  'DTSTART',
-                  'STATUS',
-                }.contains(property.name) &&
-                property.name != 'ATTACH')
-              Text(property.serializeLogicalLine()),
-        ],
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            if (canEdit)
-              ui.button(
-                l10n.save,
-                widget.busy
-                    ? null
-                    : () {
-                        widget.save(
-                          _title.text.isEmpty ? null : _title.text,
-                          _start(),
-                          _status.isEmpty ? null : _status,
-                          _descriptions.map((d) => d.toRaw()).toList(),
-                          [
-                            for (final property in _attachments)
-                              DavRawPropertyValue(
-                                value: property.rawValue,
-                                parameters: property.parameters,
-                              ),
-                          ],
-                          _mode.isEmpty || _frequency.isEmpty
-                              ? null
-                              : JournalFrequency.values.byName(_frequency),
-                        );
-                      },
-                primary: true,
-              ),
-            if (widget.export != null)
-              ui.button(l10n.export, widget.busy ? null : widget.export),
-            if (widget.duplicate != null)
-              ui.button(
-                l10n.journalDuplicate,
-                widget.busy ? null : widget.duplicate,
-              ),
-            if (widget.delete != null)
-              ui.button(
-                _confirmDelete ? l10n.journalDeleteSeries : l10n.delete,
-                widget.busy
-                    ? null
-                    : _confirmDelete
-                    ? widget.delete
-                    : () => setState(() => _confirmDelete = true),
-              ),
-            ui.button(
-              canEdit ? l10n.cancel : l10n.close,
-              widget.busy ? null : widget.close,
-            ),
-          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -1229,7 +1731,7 @@ bool _sameProperties(
     final value = values[index];
     final before = current[index];
     final after = IcalProperty(
-      group: before.group,
+      group: value.group,
       name: before.name,
       parameters: value.parameters,
       rawValue: value.value,

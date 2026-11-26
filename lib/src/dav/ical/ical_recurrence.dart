@@ -479,15 +479,13 @@ final class IcalRecurrenceExpander {
   ) {
     var generatedForCount = 0;
     var reachedEnd = false;
-    for (
-      var period = rule.firstProjectionPeriod(
-        candidateRangeStartUtc,
-        anchor,
-        timeZoneResolver,
-      );
-      period < limits.maximumPeriods;
-      period += 1
-    ) {
+    final firstPeriod = rule.firstProjectionPeriod(
+      candidateRangeStartUtc,
+      anchor,
+      timeZoneResolver,
+    );
+    for (var visited = 0; visited < limits.maximumPeriods; visited += 1) {
+      final period = firstPeriod + visited;
       final candidates = rule.candidatesForPeriod(
         anchor.localValue,
         period,

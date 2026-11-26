@@ -5,10 +5,13 @@ import 'package:uuid/uuid.dart';
 
 import '../../db/app_database.dart';
 import '../../journal/journal_component.dart';
+import '../../journal/journal_itip.dart';
+import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
 import '../ical/ical_document.dart';
 import '../ical/ical_semantics.dart';
 import '../mutation/dav_conditional_mutation_service.dart';
+import '../mutation/dav_mutation_patch.dart';
 import '../mutation/dav_pending_operations.dart';
 import '../storage/dav_collection_capabilities.dart';
 import '../storage/dav_object_repository.dart';
@@ -50,6 +53,10 @@ final class NextcloudNativeImportPreview {
   final String? schedulingMethod;
   bool get hasAttendees =>
       resources.any((resource) => icalHasAttendees(resource.rawIcs));
+  bool get isJournalMessage =>
+      schedulingMethod != null &&
+      resources.isNotEmpty &&
+      resources.every((r) => r.componentType == 'VJOURNAL');
 
   factory NextcloudNativeImportPreview.parse(IcalDocument document) {
     final groups = <(String, String), List<IcalComponent>>{};
@@ -104,7 +111,23 @@ final class NextcloudNativeImportPreview {
             safeMessage: 'A recurrence set must have one master and distinct exceptions.',
           );
         }
-        JournalComponent.validateAuthored(semantic);
+        if (type == 'VJOURNAL' &&
+            resource.root.firstProperty('METHOD') != null) {
+          if (groups.keys.any((key) => key.$1 != 'VJOURNAL') ||
+              (resource.root.firstProperty('METHOD')?.rawValue.toUpperCase() ==
+                      'CANCEL' &&
+                  groups.length != 1)) {
+            throw const DavException(
+              kind: DavErrorKind.invalidCalendarData,
+              code: 'IcalInvalidJournalMessage',
+              safeMessage:
+                  'The journal message contains incompatible components.',
+            );
+          }
+          JournalMessage.parse(resource);
+        } else {
+          JournalComponent.validateAuthored(semantic);
+        }
         resources.add(NativeImportResource(uid, type, raw));
       } on DavException catch (error) {
         rejected.add(
@@ -144,7 +167,9 @@ final class DavNativeImportService {
     bool normalizeSchedulingMethod = false,
     bool allowScheduling = false,
   }) async {
-    if (preview.schedulingMethod != null && !normalizeSchedulingMethod) {
+    if (preview.schedulingMethod != null &&
+        !preview.isJournalMessage &&
+        !normalizeSchedulingMethod) {
       throw const DavException(
         kind: DavErrorKind.unsupportedComponent,
         code: 'IcalSchedulingNormalizationRequired',
@@ -258,6 +283,10 @@ final class DavNativeImportService {
             database.accounts,
           )..where((r) => r.id.equals(accountId))).getSingle();
           final caps = collectionCapabilitiesFromStored(collection);
+          final message =
+              resource.componentType == 'VJOURNAL' && preview.isJournalMessage
+              ? JournalMessage.parse(IcalDocument.parse(resource.rawIcs))
+              : null;
           final canCreate = switch (resource.componentType) {
             'VEVENT' => caps.canAttemptCreateEvent,
             'VTODO' => caps.canAttemptCreateTask,
@@ -266,7 +295,10 @@ final class DavNativeImportService {
             _ => false,
           };
           if (!const {'nextcloud', 'caldav'}.contains(account.provider) ||
-              !canCreate) {
+              (!canCreate &&
+                  !(message != null &&
+                      account.journalsEnabled &&
+                      caps.canAttemptUpdateJournal))) {
             return NativeImportItemResult(
               resource.uid,
               resource.componentType,
@@ -274,9 +306,10 @@ final class DavNativeImportService {
               'DavImportDestinationDenied',
             );
           }
-          final uid =
-              replacements[(resource.componentType, resource.uid)] ??
-              resource.uid;
+          final uid = message != null
+              ? resource.uid
+              : replacements[(resource.componentType, resource.uid)] ??
+                    resource.uid;
           final existing =
               await (database.select(database.davObjects)..where(
                     (r) =>
@@ -294,6 +327,65 @@ final class DavNativeImportService {
                         r.operationType.equals('dav.create'),
                   ))
                   .get();
+          if (message != null && existing.isNotEmpty) {
+            if (existing.length != 1) {
+              throw StateError('Ambiguous journal resource');
+            }
+            final current = existing.single;
+            final queue = DavPendingOperationQueue(
+              database: database,
+              nowUtc: _nowUtc,
+            );
+            final effective = await queue.exportRawIcsForObject(
+              accountId: accountId,
+              collectionId: collectionId,
+              objectId: current.id,
+            );
+            final candidate = message.update(effective);
+            if (candidate == null) {
+              return NativeImportItemResult(
+                uid,
+                'VJOURNAL',
+                NativeImportItemStatus.duplicate,
+              );
+            }
+            final semantic = IcalSemanticDocument.parse(effective);
+            final target =
+                semantic.components
+                    .where((c) => c.recurrenceIdKey == null)
+                    .firstOrNull ??
+                semantic.components.first;
+            await queue.enqueueUpdate(
+              accountId: accountId,
+              collectionId: collectionId,
+              objectId: current.id,
+              patch: DavMutationPatch(
+                target: IcalComponentKey(
+                  componentType: 'VJOURNAL',
+                  uid: uid,
+                  recurrenceIdKey: target.recurrenceIdKey,
+                ),
+                scope: DavMutationScope.object,
+                operations: [
+                  DavPatchOperation.replaceJournalResource(candidate),
+                ],
+              ),
+            );
+            await DavObjectRepository(
+              database: database,
+            ).projectLocalMutationCandidate(
+              accountId: accountId,
+              collectionId: collectionId,
+              objectId: current.id,
+              provider: BusyProviderCodec.requireStorageValue(account.provider),
+              candidateRawIcs: candidate,
+            );
+            return NativeImportItemResult(
+              uid,
+              'VJOURNAL',
+              NativeImportItemStatus.queued,
+            );
+          }
           if (existing.isNotEmpty ||
               pending.any(
                 (op) => (jsonDecode(op.requestJson) as Map)['uid'] == uid,
@@ -304,8 +396,19 @@ final class DavNativeImportService {
               NativeImportItemStatus.duplicate,
             );
           }
-          final document = IcalDocument.parse(resource.rawIcs);
-          if (duplicates == NativeImportDuplicates.newCopies) {
+          if (!canCreate) {
+            return NativeImportItemResult(
+              uid,
+              resource.componentType,
+              NativeImportItemStatus.unsupported,
+              'DavImportDestinationDenied',
+            );
+          }
+          final document = IcalDocument.parse(
+            message?.initialResource() ?? resource.rawIcs,
+          );
+          if (message == null &&
+              duplicates == NativeImportDuplicates.newCopies) {
             for (final component in document.calendarComponents.where(
               (c) => c.name == resource.componentType,
             )) {
