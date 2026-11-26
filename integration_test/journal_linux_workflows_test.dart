@@ -179,18 +179,10 @@ void main() {
         await tester.pump();
         await tester.ensureVisible(_input('Description').last);
         await tester.enterText(_input('Description').last, 'Second body');
-        final save = find.widgetWithText(ElevatedButton, 'Save');
-        await tester.scrollUntilVisible(
-          save,
-          300,
-          scrollable: find
-              .descendant(
-                of: find.byType(ListView),
-                matching: find.byType(Scrollable),
-              )
-              .first,
+        await _editorAction(
+          tester,
+          find.widgetWithText(ElevatedButton, 'Save'),
         );
-        await tester.tap(save);
         await _until(tester, find.textContaining('Journal café'));
         await _refresh(tester);
         await _until(tester, find.textContaining('Pending sync'), absent: true);
@@ -228,6 +220,43 @@ void main() {
         await _until(tester, find.textContaining('Peer edit'));
         await tester.enterText(_input('Search'), 'second body');
         await _until(tester, find.textContaining('Peer edit'));
+        await tester.tap(find.textContaining('Peer edit'));
+        await _until(tester, _input('Title'));
+        await tester.enterText(_input('Title'), 'Local edit');
+        await _editorAction(
+          tester,
+          find.widgetWithText(ElevatedButton, 'Save'),
+        );
+        await _until(tester, find.textContaining('Local edit'));
+        await _refresh(tester);
+        final edited = (await tester.runAsync(
+          () => request('GET', object.requestUri),
+        ))!;
+        expect(edited.statusCode, 200);
+        expect(edited.body, contains('SUMMARY:Local edit'));
+        expect(edited.body, contains('DESCRIPTION:First body'));
+        expect(edited.body, contains('DESCRIPTION:Second body'));
+
+        await tester.tap(find.textContaining('Local edit'));
+        await _until(tester, _input('Title'));
+        await _editorAction(
+          tester,
+          find.widgetWithText(FilledButton, 'Delete'),
+        );
+        await _editorAction(
+          tester,
+          find.widgetWithText(
+            FilledButton,
+            'Delete the entire entry and its recurrence?',
+          ),
+        );
+        await _until(tester, _input('Search'));
+        await _until(tester, find.textContaining('Local edit'), absent: true);
+        await _refresh(tester);
+        final deleted = (await tester.runAsync(
+          () => request('GET', object.requestUri),
+        ))!;
+        expect(deleted.statusCode, 404);
       } finally {
         await tester.pumpWidget(const SizedBox());
         tester.testTextInput.unregister();
@@ -257,6 +286,20 @@ void main() {
 Finder _input(String label) => find.byWidgetPredicate(
   (widget) => widget is TextField && widget.decoration?.labelText == label,
 );
+
+Future<void> _editorAction(WidgetTester tester, Finder action) async {
+  await tester.scrollUntilVisible(
+    action,
+    300,
+    scrollable: find
+        .descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await tester.tap(action);
+}
 
 Future<void> _refresh(WidgetTester tester) async {
   final enabled = find.byWidgetPredicate(
