@@ -4147,71 +4147,72 @@ class AppLocalizationsFi extends AppLocalizations {
   String get journalOperationFailed => 'Päiväkirjatoiminto epäonnistui.';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => 'Luonnos tallennettiin tähän laitteeseen';
 
   @override
   String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+      'Päiväkirjaluonnosta ei voitu tallentaa tähän laitteeseen.';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      'Päiväkirjamerkintä muuttui luonnoksen aloittamisen jälkeen. Voit kopioida muutoksesi ennen luonnoksen hylkäämistä ja merkinnän avaamista uudelleen.';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => 'Muokkaa tätä esiintymää';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => 'Muokkaa tätä ja tulevia esiintymiä';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => 'Poista tämä esiintymä';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => 'Peruuta tämä ja tulevat esiintymät';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => 'Poista tämä ja tulevat esiintymät';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => 'Siirrä päiväkirjamerkintä';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => 'Vie päiväkirjakokoelma';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => 'Poista kokoelma';
 
   @override
   String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+      'Poistetaanko kokoelma sisältöineen pysyvästi?';
 
   @override
   String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+      'Tallenna tai hylkää tämän kokoelman päiväkirjaluonnokset ennen kokoelman poistamista.';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => 'Päiväkirjan tiedot';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => 'Päiväkirjakenttä';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => 'Lisää kenttä';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => 'Lisää parametri';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => 'Parametrin nimi';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues =>
+      'Parametrin arvot, yksi kullakin rivillä';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => 'Valitse päivämäärä';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => 'Valitse kellonaika';
 
   @override
   String get journalDated => 'Päivätyt merkinnät';

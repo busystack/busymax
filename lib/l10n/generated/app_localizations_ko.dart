@@ -4009,71 +4009,68 @@ class AppLocalizationsKo extends AppLocalizations {
   String get journalOperationFailed => '일지 작업에 실패했습니다.';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => '이 기기에 초안을 저장했습니다';
 
   @override
-  String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+  String get journalDraftWriteFailed => '이 기기에 일지 초안을 저장할 수 없습니다.';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      '초안을 작성한 후 일지 항목이 변경되었습니다. 초안을 버리고 항목을 다시 열기 전에 변경 내용을 복사할 수 있습니다.';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => '이번 항목 편집';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => '이번 및 이후 항목 편집';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => '이번 항목 삭제';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => '이번 및 이후 항목 취소';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => '이번 및 이후 항목 삭제';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => '일지 항목 이동';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => '일지 모음 내보내기';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => '모음 삭제';
 
   @override
-  String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+  String get journalDeleteCollectionConfirmation => '이 모음과 모든 내용을 영구 삭제할까요?';
 
   @override
-  String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+  String get journalCollectionHasDrafts => '이 모음을 삭제하기 전에 일지 초안을 저장하거나 버리세요.';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => '일지 세부 정보';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => '일지 필드';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => '필드 추가';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => '매개변수 추가';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => '매개변수 이름';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues => '매개변수 값, 한 줄에 하나씩';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => '날짜 선택';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => '시간 선택';
 
   @override
   String get journalDated => '날짜가 있는 항목';

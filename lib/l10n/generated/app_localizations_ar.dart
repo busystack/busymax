@@ -4158,71 +4158,71 @@ class AppLocalizationsAr extends AppLocalizations {
   String get journalOperationFailed => 'تعذّر إتمام عملية اليوميات.';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => 'حُفظت المسودة على هذا الجهاز';
 
   @override
   String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+      'تعذر حفظ مسودة اليومية على هذا الجهاز.';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      'تغيرت اليومية بعد بدء المسودة. يمكنك نسخ تعديلاتك قبل تجاهل المسودة وإعادة فتح القيد.';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => 'تعديل هذا التكرار';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => 'تعديل هذا التكرار والتكرارات اللاحقة';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => 'حذف هذا التكرار';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => 'إلغاء هذا التكرار والتكرارات اللاحقة';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => 'حذف هذا التكرار والتكرارات اللاحقة';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => 'نقل قيد اليومية';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => 'تصدير مجموعة اليوميات';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => 'حذف المجموعة';
 
   @override
   String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+      'هل تريد حذف هذه المجموعة وكل محتوياتها نهائيًا؟';
 
   @override
   String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+      'احفظ مسودات اليوميات في هذه المجموعة أو تجاهلها قبل حذفها.';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => 'تفاصيل اليومية';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => 'حقل اليومية';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => 'إضافة حقل';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => 'إضافة معامل';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => 'اسم المعامل';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues => 'قيم المعامل، قيمة واحدة في كل سطر';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => 'اختيار التاريخ';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => 'اختيار الوقت';
 
   @override
   String get journalDated => 'إدخالات مؤرخة';

@@ -4094,71 +4094,71 @@ class AppLocalizationsEt extends AppLocalizations {
   String get journalOperationFailed => 'Päevikutoiming nurjus.';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => 'Mustand salvestati sellesse seadmesse';
 
   @override
   String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+      'Päeviku mustandit ei õnnestunud sellesse seadmesse salvestada.';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      'Päevikukanne muutus pärast mustandi alustamist. Enne mustandi hülgamist ja kande uuesti avamist saad muudatused kopeerida.';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => 'Muuda seda kordust';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => 'Muuda seda ja järgmisi kordusi';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => 'Kustuta see kordus';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => 'Tühista see ja järgmised kordused';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => 'Kustuta see ja järgmised kordused';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => 'Teisalda päevikukanne';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => 'Ekspordi päevikukogu';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => 'Kustuta kogu';
 
   @override
   String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+      'Kas kustutada see kogu ja kogu selle sisu jäädavalt?';
 
   @override
   String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+      'Salvesta või hülga selle kogu päevikumustandid enne kogu kustutamist.';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => 'Päeviku üksikasjad';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => 'Päevikuväli';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => 'Lisa väli';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => 'Lisa parameeter';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => 'Parameetri nimi';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues => 'Parameetri väärtused, üks väärtus real';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => 'Vali kuupäev';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => 'Vali kellaaeg';
 
   @override
   String get journalDated => 'Kuupäevaga kirjed';

@@ -4147,71 +4147,71 @@ class AppLocalizationsFa extends AppLocalizations {
   String get journalOperationFailed => 'عملیات یادداشت روزانه ناموفق بود.';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => 'پیش‌نویس در این دستگاه ذخیره شد';
 
   @override
   String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+      'ذخیرهٔ پیش‌نویس روزنوشت در این دستگاه ممکن نبود.';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      'روزنوشت پس از آغاز پیش‌نویس تغییر کرد. پیش از کنار گذاشتن پیش‌نویس و باز کردن دوبارهٔ یادداشت، می‌توانید تغییرات خود را کپی کنید.';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => 'ویرایش این تکرار';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => 'ویرایش این تکرار و تکرارهای بعدی';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => 'حذف این تکرار';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => 'لغو این تکرار و تکرارهای بعدی';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => 'حذف این تکرار و تکرارهای بعدی';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => 'جابه‌جایی یادداشت روزنوشت';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => 'برون‌بری مجموعهٔ روزنوشت';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => 'حذف مجموعه';
 
   @override
   String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+      'این مجموعه و تمام محتویات آن برای همیشه حذف شود؟';
 
   @override
   String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+      'پیش از حذف این مجموعه، پیش‌نویس‌های روزنوشت آن را ذخیره کنید یا کنار بگذارید.';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => 'جزئیات روزنوشت';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => 'فیلد روزنوشت';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => 'افزودن فیلد';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => 'افزودن پارامتر';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => 'نام پارامتر';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues => 'مقادیر پارامتر، هر مقدار در یک سطر';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => 'انتخاب تاریخ';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => 'انتخاب زمان';
 
   @override
   String get journalDated => 'مدخل‌های تاریخ‌دار';

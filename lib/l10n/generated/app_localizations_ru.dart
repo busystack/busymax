@@ -4155,71 +4155,72 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось выполнить действие с журналом.';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => 'Черновик сохранён на этом устройстве';
 
   @override
   String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+      'Не удалось сохранить черновик журнала на этом устройстве.';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      'Запись журнала изменилась с момента создания черновика. Можно скопировать свои изменения, прежде чем отбросить черновик и снова открыть запись.';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => 'Изменить это повторение';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => 'Изменить это и последующие повторения';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => 'Удалить это повторение';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => 'Отменить это и последующие повторения';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => 'Удалить это и последующие повторения';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => 'Переместить запись журнала';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => 'Экспортировать коллекцию журналов';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => 'Удалить коллекцию';
 
   @override
   String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+      'Удалить коллекцию и всё её содержимое без возможности восстановления?';
 
   @override
   String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+      'Сохраните или отбросьте черновики в коллекции, прежде чем удалять её.';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => 'Сведения о журнале';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => 'Поле журнала';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => 'Добавить поле';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => 'Добавить параметр';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => 'Имя параметра';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues =>
+      'Значения параметра, по одному на строку';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => 'Выбрать дату';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => 'Выбрать время';
 
   @override
   String get journalDated => 'Записи с датой';

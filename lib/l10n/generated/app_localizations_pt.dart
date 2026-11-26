@@ -8365,6 +8365,73 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   String get journalOperationFailed => 'A operação no diário falhou.';
 
   @override
+  String get journalDraftSaved => 'Rascunho guardado neste dispositivo';
+
+  @override
+  String get journalDraftWriteFailed =>
+      'Não foi possível guardar o rascunho do diário neste dispositivo.';
+
+  @override
+  String get journalDraftStale =>
+      'A entrada do diário mudou desde que iniciou o rascunho. Pode copiar as suas alterações antes de descartar o rascunho e reabrir a entrada.';
+
+  @override
+  String get journalEditOccurrence => 'Editar esta ocorrência';
+
+  @override
+  String get journalEditFuture => 'Editar esta ocorrência e as seguintes';
+
+  @override
+  String get journalDeleteOccurrence => 'Eliminar esta ocorrência';
+
+  @override
+  String get journalCancelFuture => 'Cancelar esta ocorrência e as seguintes';
+
+  @override
+  String get journalDeleteFuture => 'Eliminar esta ocorrência e as seguintes';
+
+  @override
+  String get journalMove => 'Mover entrada do diário';
+
+  @override
+  String get journalExportCollection => 'Exportar coleção de diários';
+
+  @override
+  String get journalDeleteCollection => 'Eliminar coleção';
+
+  @override
+  String get journalDeleteCollectionConfirmation =>
+      'Eliminar permanentemente esta coleção e todo o seu conteúdo?';
+
+  @override
+  String get journalCollectionHasDrafts =>
+      'Guarde ou descarte os rascunhos do diário nesta coleção antes de a eliminar.';
+
+  @override
+  String get journalDetails => 'Detalhes do diário';
+
+  @override
+  String get journalDetailField => 'Campo do diário';
+
+  @override
+  String get journalAddField => 'Adicionar campo';
+
+  @override
+  String get journalAddParameter => 'Adicionar parâmetro';
+
+  @override
+  String get journalParameterName => 'Nome do parâmetro';
+
+  @override
+  String get journalParameterValues => 'Valores do parâmetro, um por linha';
+
+  @override
+  String get journalPickDate => 'Escolher data';
+
+  @override
+  String get journalPickTime => 'Escolher hora';
+
+  @override
   String get journalDated => 'Entradas com data';
 
   @override

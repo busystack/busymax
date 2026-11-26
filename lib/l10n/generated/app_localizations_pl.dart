@@ -4295,71 +4295,72 @@ class AppLocalizationsPl extends AppLocalizations {
       'Operacja na dzienniku nie powiodła się.';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => 'Zapisano szkic na tym urządzeniu';
 
   @override
   String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+      'Nie udało się zapisać szkicu dziennika na tym urządzeniu.';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      'Wpis w dzienniku zmienił się od utworzenia szkicu. Możesz skopiować zmiany przed odrzuceniem szkicu i ponownym otwarciem wpisu.';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => 'Edytuj to wystąpienie';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => 'Edytuj to i kolejne wystąpienia';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => 'Usuń to wystąpienie';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => 'Anuluj to i kolejne wystąpienia';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => 'Usuń to i kolejne wystąpienia';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => 'Przenieś wpis dziennika';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => 'Eksportuj kolekcję dzienników';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => 'Usuń kolekcję';
 
   @override
   String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+      'Trwale usunąć tę kolekcję i całą jej zawartość?';
 
   @override
   String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+      'Przed usunięciem kolekcji zapisz lub odrzuć należące do niej szkice dziennika.';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => 'Szczegóły dziennika';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => 'Pole dziennika';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => 'Dodaj pole';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => 'Dodaj parametr';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => 'Nazwa parametru';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues =>
+      'Wartości parametru, po jednej w wierszu';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => 'Wybierz datę';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => 'Wybierz godzinę';
 
   @override
   String get journalDated => 'Wpisy z datą';

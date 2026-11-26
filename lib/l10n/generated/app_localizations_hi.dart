@@ -4106,71 +4106,71 @@ class AppLocalizationsHi extends AppLocalizations {
   String get journalOperationFailed => 'दैनिकी की कार्रवाई विफल रही।';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => 'मसौदा इस डिवाइस पर सहेजा गया';
 
   @override
   String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+      'जर्नल का मसौदा इस डिवाइस पर सहेजा नहीं जा सका।';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      'मसौदा शुरू करने के बाद जर्नल प्रविष्टि बदल गई। मसौदा छोड़ने और प्रविष्टि फिर से खोलने से पहले आप अपने बदलाव कॉपी कर सकते हैं।';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => 'इस आवृत्ति को संपादित करें';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => 'इस और आने वाली आवृत्तियों को संपादित करें';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => 'इस आवृत्ति को हटाएँ';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => 'इस और आने वाली आवृत्तियों को रद्द करें';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => 'इस और आने वाली आवृत्तियों को हटाएँ';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => 'जर्नल प्रविष्टि स्थानांतरित करें';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => 'जर्नल संग्रह निर्यात करें';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => 'संग्रह हटाएँ';
 
   @override
   String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+      'क्या इस संग्रह और इसकी सारी सामग्री को हमेशा के लिए हटाएँ?';
 
   @override
   String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+      'इस संग्रह को हटाने से पहले इसके जर्नल मसौदे सहेजें या छोड़ें।';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => 'जर्नल का विवरण';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => 'जर्नल फ़ील्ड';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => 'फ़ील्ड जोड़ें';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => 'पैरामीटर जोड़ें';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => 'पैरामीटर का नाम';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues => 'पैरामीटर के मान, हर पंक्ति में एक';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => 'तारीख चुनें';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => 'समय चुनें';
 
   @override
   String get journalDated => 'तारीख वाली प्रविष्टियाँ';

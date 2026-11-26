@@ -4104,71 +4104,71 @@ class AppLocalizationsVi extends AppLocalizations {
   String get journalOperationFailed => 'Thao tác với nhật ký không thành công.';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => 'Đã lưu bản nháp trên thiết bị này';
 
   @override
   String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+      'Không thể lưu bản nháp nhật ký trên thiết bị này.';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      'Mục nhật ký đã thay đổi kể từ khi bạn bắt đầu bản nháp. Bạn có thể sao chép các chỉnh sửa trước khi bỏ bản nháp và mở lại mục.';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => 'Sửa lần lặp này';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => 'Sửa lần lặp này và các lần sau';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => 'Xóa lần lặp này';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => 'Hủy lần lặp này và các lần sau';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => 'Xóa lần lặp này và các lần sau';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => 'Di chuyển mục nhật ký';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => 'Xuất bộ sưu tập nhật ký';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => 'Xóa bộ sưu tập';
 
   @override
   String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+      'Xóa vĩnh viễn bộ sưu tập này và toàn bộ nội dung?';
 
   @override
   String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+      'Hãy lưu hoặc bỏ bản nháp nhật ký trong bộ sưu tập trước khi xóa bộ sưu tập.';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => 'Chi tiết nhật ký';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => 'Trường nhật ký';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => 'Thêm trường';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => 'Thêm tham số';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => 'Tên tham số';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues => 'Giá trị tham số, mỗi dòng một giá trị';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => 'Chọn ngày';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => 'Chọn giờ';
 
   @override
   String get journalDated => 'Mục có ngày';

@@ -4003,71 +4003,70 @@ class AppLocalizationsJa extends AppLocalizations {
   String get journalOperationFailed => 'ジャーナルの操作に失敗しました。';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => '下書きをこの端末に保存しました';
 
   @override
-  String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+  String get journalDraftWriteFailed => '日誌の下書きをこの端末に保存できませんでした。';
 
   @override
   String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+      '下書きの開始後に日誌の項目が変更されました。下書きを破棄して項目を開き直す前に、変更内容をコピーできます。';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => 'この回を編集';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => 'この回以降を編集';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => 'この回を削除';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => 'この回以降を取り消す';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => 'この回以降を削除';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => '日誌の項目を移動';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => '日誌コレクションをエクスポート';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => 'コレクションを削除';
 
   @override
   String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+      'このコレクションとすべての内容を完全に削除しますか？';
 
   @override
   String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+      'コレクションを削除する前に、日誌の下書きを保存するか破棄してください。';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => '日誌の詳細';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => '日誌のフィールド';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => 'フィールドを追加';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => 'パラメーターを追加';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => 'パラメーター名';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues => 'パラメーター値（1 行に 1 つ）';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => '日付を選択';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => '時刻を選択';
 
   @override
   String get journalDated => '日付あり';

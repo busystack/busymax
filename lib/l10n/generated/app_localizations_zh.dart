@@ -3926,71 +3926,67 @@ class AppLocalizationsZh extends AppLocalizations {
   String get journalOperationFailed => '日志操作失败。';
 
   @override
-  String get journalDraftSaved => 'Draft saved on this device';
+  String get journalDraftSaved => '草稿已保存在此设备上';
 
   @override
-  String get journalDraftWriteFailed =>
-      'The journal draft could not be saved on this device.';
+  String get journalDraftWriteFailed => '无法在此设备上保存日志草稿。';
 
   @override
-  String get journalDraftStale =>
-      'The journal changed after you started this draft. You can copy your edits before discarding the draft and reopening the entry.';
+  String get journalDraftStale => '日志条目在你开始编辑草稿后发生了变化。你可以在丢弃草稿并重新打开条目前复制所做的更改。';
 
   @override
-  String get journalEditOccurrence => 'Edit this occurrence';
+  String get journalEditOccurrence => '编辑这次重复';
 
   @override
-  String get journalEditFuture => 'Edit this and future occurrences';
+  String get journalEditFuture => '编辑这次及以后的重复';
 
   @override
-  String get journalDeleteOccurrence => 'Delete this occurrence';
+  String get journalDeleteOccurrence => '删除这次重复';
 
   @override
-  String get journalCancelFuture => 'Cancel this and future occurrences';
+  String get journalCancelFuture => '取消这次及以后的重复';
 
   @override
-  String get journalDeleteFuture => 'Delete this and future occurrences';
+  String get journalDeleteFuture => '删除这次及以后的重复';
 
   @override
-  String get journalMove => 'Move journal entry';
+  String get journalMove => '移动日志条目';
 
   @override
-  String get journalExportCollection => 'Export journal collection';
+  String get journalExportCollection => '导出日志集合';
 
   @override
-  String get journalDeleteCollection => 'Delete collection';
+  String get journalDeleteCollection => '删除集合';
 
   @override
-  String get journalDeleteCollectionConfirmation =>
-      'Permanently delete this collection and all its contents?';
+  String get journalDeleteCollectionConfirmation => '要永久删除此集合及其所有内容吗？';
 
   @override
-  String get journalCollectionHasDrafts =>
-      'Save or discard the journal drafts in this collection before deleting it.';
+  String get journalCollectionHasDrafts => '删除此集合前，请保存或丢弃其中的日志草稿。';
 
   @override
-  String get journalDetails => 'Journal details';
+  String get journalDetails => '日志详情';
 
   @override
-  String get journalDetailField => 'Journal field';
+  String get journalDetailField => '日志字段';
 
   @override
-  String get journalAddField => 'Add field';
+  String get journalAddField => '添加字段';
 
   @override
-  String get journalAddParameter => 'Add parameter';
+  String get journalAddParameter => '添加参数';
 
   @override
-  String get journalParameterName => 'Parameter name';
+  String get journalParameterName => '参数名称';
 
   @override
-  String get journalParameterValues => 'Parameter values, one per line';
+  String get journalParameterValues => '参数值，每行一个';
 
   @override
-  String get journalPickDate => 'Pick date';
+  String get journalPickDate => '选择日期';
 
   @override
-  String get journalPickTime => 'Pick time';
+  String get journalPickTime => '选择时间';
 
   @override
   String get journalDated => '有日期的条目';
@@ -7935,6 +7931,69 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get journalOperationFailed => '日志操作失败。';
 
   @override
+  String get journalDraftSaved => '草稿已保存在此设备上';
+
+  @override
+  String get journalDraftWriteFailed => '无法在此设备上保存日志草稿。';
+
+  @override
+  String get journalDraftStale => '日志条目在你开始编辑草稿后发生了变化。你可以在丢弃草稿并重新打开条目前复制所做的更改。';
+
+  @override
+  String get journalEditOccurrence => '编辑这次重复';
+
+  @override
+  String get journalEditFuture => '编辑这次及以后的重复';
+
+  @override
+  String get journalDeleteOccurrence => '删除这次重复';
+
+  @override
+  String get journalCancelFuture => '取消这次及以后的重复';
+
+  @override
+  String get journalDeleteFuture => '删除这次及以后的重复';
+
+  @override
+  String get journalMove => '移动日志条目';
+
+  @override
+  String get journalExportCollection => '导出日志集合';
+
+  @override
+  String get journalDeleteCollection => '删除集合';
+
+  @override
+  String get journalDeleteCollectionConfirmation => '要永久删除此集合及其所有内容吗？';
+
+  @override
+  String get journalCollectionHasDrafts => '删除此集合前，请保存或丢弃其中的日志草稿。';
+
+  @override
+  String get journalDetails => '日志详情';
+
+  @override
+  String get journalDetailField => '日志字段';
+
+  @override
+  String get journalAddField => '添加字段';
+
+  @override
+  String get journalAddParameter => '添加参数';
+
+  @override
+  String get journalParameterName => '参数名称';
+
+  @override
+  String get journalParameterValues => '参数值，每行一个';
+
+  @override
+  String get journalPickDate => '选择日期';
+
+  @override
+  String get journalPickTime => '选择时间';
+
+  @override
   String get journalDated => '有日期的条目';
 
   @override
@@ -11876,6 +11935,69 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get journalOperationFailed => '日誌操作失敗。';
+
+  @override
+  String get journalDraftSaved => '草稿已儲存在這部裝置上';
+
+  @override
+  String get journalDraftWriteFailed => '無法在這部裝置上儲存日誌草稿。';
+
+  @override
+  String get journalDraftStale => '日誌項目在你開始編輯草稿後已變更。你可以在捨棄草稿並重新開啟項目前複製修改內容。';
+
+  @override
+  String get journalEditOccurrence => '編輯這次重複項目';
+
+  @override
+  String get journalEditFuture => '編輯這次及後續的重複項目';
+
+  @override
+  String get journalDeleteOccurrence => '刪除這次重複項目';
+
+  @override
+  String get journalCancelFuture => '取消這次及後續的重複項目';
+
+  @override
+  String get journalDeleteFuture => '刪除這次及後續的重複項目';
+
+  @override
+  String get journalMove => '移動日誌項目';
+
+  @override
+  String get journalExportCollection => '匯出日誌集合';
+
+  @override
+  String get journalDeleteCollection => '刪除集合';
+
+  @override
+  String get journalDeleteCollectionConfirmation => '要永久刪除此集合與其中所有內容嗎？';
+
+  @override
+  String get journalCollectionHasDrafts => '刪除這個集合前，請儲存或捨棄其中的日誌草稿。';
+
+  @override
+  String get journalDetails => '日誌詳細資料';
+
+  @override
+  String get journalDetailField => '日誌欄位';
+
+  @override
+  String get journalAddField => '新增欄位';
+
+  @override
+  String get journalAddParameter => '新增參數';
+
+  @override
+  String get journalParameterName => '參數名稱';
+
+  @override
+  String get journalParameterValues => '參數值，每行一個';
+
+  @override
+  String get journalPickDate => '選擇日期';
+
+  @override
+  String get journalPickTime => '選擇時間';
 
   @override
   String get journalDated => '有日期的項目';
