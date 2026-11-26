@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -138,11 +139,10 @@ def main():
 
     def linux_restart(provider):
         label = f'linux-{provider}-process-restart'
-        with tempfile.TemporaryDirectory(prefix='journal-native-profile-') as profile:
-            root = Path(profile)
-            runtime = root / 'runtime'
-            runtime.mkdir(mode=0o700)
-            stages = """
+        root = Path(tempfile.mkdtemp(prefix='journal-native-profile-'))
+        runtime = root / 'runtime'
+        runtime.mkdir(mode=0o700)
+        stages = """
 set -eu
 printf %s busymax-journal-test-keyring | gnome-keyring-daemon --unlock --components=secrets
 for stage in queue replay; do
@@ -151,15 +151,24 @@ for stage in queue replay; do
     --plain-name "Linux offline journal $stage across processes on $1"
 done
 """
-            passed = run(
-                label, ['dbus-run-session', '--', 'bash', '-c', stages, 'journal-restart', provider],
-                named=[f'Linux offline journal {stage} across processes on {provider}'
-                       for stage in ('queue', 'replay')],
-                extra_env={'XDG_CONFIG_HOME': str(root / 'config'),
-                           'XDG_DATA_HOME': str(root / 'data'),
-                           'XDG_RUNTIME_DIR': str(runtime),
-                           'BUSYMAX_JOURNAL_RESTART_PROFILE': str(root / 'profile')},
-            )
+        passed = run(
+            label, ['dbus-run-session', '--', 'bash', '-c', stages, 'journal-restart', provider],
+            named=[f'Linux offline journal {stage} across processes on {provider}'
+                   for stage in ('queue', 'replay')],
+            extra_env={'XDG_CONFIG_HOME': str(root / 'config'),
+                       'XDG_DATA_HOME': str(root / 'data'),
+                       'XDG_RUNTIME_DIR': str(runtime),
+                       'GIO_USE_VFS': 'local',
+                       'BUSYMAX_JOURNAL_RESTART_PROFILE': str(root / 'profile')},
+        )
+        try:
+            for mount in (runtime / 'doc', runtime / 'gvfs'):
+                if mount.is_mount():
+                    subprocess.run(['fusermount3', '-uz', str(mount)], check=True)
+            shutil.rmtree(root)
+        except (OSError, subprocess.CalledProcessError) as error:
+            results[label]['cleanupError'] = str(error)
+            passed = False
         return label, passed
 
     def android(provider, profile):

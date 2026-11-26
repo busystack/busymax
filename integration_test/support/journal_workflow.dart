@@ -103,6 +103,10 @@ void runJournalWorkflow({
     final collectionName =
         previous?['collectionName'] as String? ??
         'Journal QA ${const Uuid().v4()}';
+    final marker = collectionName.split('-').last;
+    final offlineCreation = 'Offline new entry $marker';
+    final offlineEdit = 'Offline edited entry $marker';
+    final offlineDeletion = 'Offline delete control $marker';
     const accountId = 'native-journal-fixture';
     DavCollection? collection;
     var online = restart != JournalRestartStage.replay;
@@ -178,12 +182,9 @@ void runJournalWorkflow({
           UncontrolledProviderScope(container: container, child: app()),
         );
         await openJournals(tester, container);
-        await waitJournalWidget(
-          tester,
-          find.textContaining('Offline new entry'),
-        );
-        expect(find.textContaining('Offline edited entry'), findsOneWidget);
-        expect(find.textContaining('Offline delete control'), findsNothing);
+        await waitJournalWidget(tester, find.textContaining(offlineCreation));
+        expect(find.textContaining(offlineEdit), findsOneWidget);
+        expect(find.textContaining(offlineDeletion), findsNothing);
         final editedHref = previous['editedHref'] as String;
         final deletedHref = previous['deletedHref'] as String;
         final previousEdit = (await tester.runAsync(
@@ -205,7 +206,7 @@ void runJournalWorkflow({
         await tester.runAsync(() async {
           final after = await request('GET', editedHref);
           expect(after.statusCode, 200);
-          expect(after.body, contains('SUMMARY:Offline edited entry'));
+          expect(after.body, contains('SUMMARY:$offlineEdit'));
           expect(after.body, contains('DESCRIPTION:Second body'));
           expect((await request('GET', deletedHref)).statusCode, 404);
           final rows = (await database.select(database.davObjects).get()).where(
@@ -216,7 +217,7 @@ void runJournalWorkflow({
           );
           final created = await request('GET', rows.single.requestUri);
           expect(created.statusCode, 200);
-          expect(created.body, contains('SUMMARY:Offline new entry'));
+          expect(created.body, contains('SUMMARY:$offlineCreation'));
           expect(await database.select(database.pendingOps).get(), isEmpty);
         });
         debugPrint(
@@ -371,7 +372,7 @@ void runJournalWorkflow({
           await waitJournalWidget(tester, find.textContaining(title));
         }
 
-        await create('Offline delete control');
+        await create(offlineDeletion);
         await _refresh(tester, enabledRefresh());
         final deleteControl = (await tester.runAsync(
           () async =>
@@ -382,16 +383,13 @@ void runJournalWorkflow({
               ),
         ))!;
         online = false;
-        await create('Offline new entry');
+        await create(offlineCreation);
         await tester.tap(find.textContaining('Local edit'));
         await waitJournalWidget(tester, input('Title'));
-        await tester.enterText(input('Title'), 'Offline edited entry');
+        await tester.enterText(input('Title'), offlineEdit);
         await _editorAction(tester, button('Save', true));
-        await waitJournalWidget(
-          tester,
-          find.textContaining('Offline edited entry'),
-        );
-        await tester.tap(find.textContaining('Offline delete control'));
+        await waitJournalWidget(tester, find.textContaining(offlineEdit));
+        await tester.tap(find.textContaining(offlineDeletion));
         await waitJournalWidget(tester, input('Title'));
         await _editorAction(tester, button('Delete', false));
         await _editorAction(
@@ -400,7 +398,7 @@ void runJournalWorkflow({
         );
         await waitJournalWidget(
           tester,
-          find.textContaining('Offline delete control'),
+          find.textContaining(offlineDeletion),
           absent: true,
         );
         await tester.runAsync(() async {
