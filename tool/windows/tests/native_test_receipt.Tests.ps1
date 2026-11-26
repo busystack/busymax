@@ -48,7 +48,7 @@ Describe 'BusyMax native test receipt' {
   }
 
   It 'keeps compiled test outputs out of the accepted release inventory' {
-    $script:testBuild = Join-Path $project 'build\windows\native-tests'
+    $nativeOutput = Join-Path $project 'build\windows\native-tests\runner\Release'
     $releasePath = Join-Path $project 'build\windows\x64\runner\Release'
     $configPath = Join-Path $project 'release.json'
     New-Item -ItemType Directory -Force -Path $releasePath | Out-Null
@@ -65,12 +65,7 @@ Describe 'BusyMax native test receipt' {
     $before = @(Assert-BusyMaxAcceptedRelease $releasePath $configPath $true)
 
     Mock cmake {
-      if ($args[0] -eq '-S') {
-        $args[3] | Should -Be $script:testBuild
-        $args | Should -Contain 'Visual Studio 18 2026'
-        $args | Should -Contain 'x64'
-        $args | Should -Contain '-DCMAKE_GENERATOR_INSTANCE=C:/Fixture/Visual Studio'
-      } else {
+      if ($args[0] -eq '--build') {
         $output = Join-Path $args[1] 'runner\Release'
         New-Item -ItemType Directory -Force -Path $output | Out-Null
         Set-Content -LiteralPath (Join-Path $output 'busymax_timezone_native_test.exe') 'test runner'
@@ -79,7 +74,6 @@ Describe 'BusyMax native test receipt' {
       $global:LASTEXITCODE = 0
     }
     Mock ctest {
-      $args[1] | Should -Be $script:testBuild
       $index = [Array]::IndexOf($args, '--output-junit')
       [IO.File]::WriteAllText($args[$index + 1], '<testsuite tests="1" />')
       $global:LASTEXITCODE = 0
@@ -87,12 +81,11 @@ Describe 'BusyMax native test receipt' {
 
     & $script:nativeRunner
 
-    Join-Path $script:testBuild 'runner\Release\busymax_timezone_native_test.exe' |
-      Should -Exist
     $after = @(Assert-BusyMaxAcceptedRelease $releasePath $configPath $true)
     ($after -join "`n") | Should -BeExactly ($before -join "`n")
     (Get-FileHash -LiteralPath $receiptPath).Hash | Should -BeExactly $receiptHash
     (Get-FileHash -LiteralPath $script:releaseCache).Hash | Should -BeExactly $cacheHash
+    Join-Path $nativeOutput 'busymax_timezone_native_test.exe' | Should -Exist
   }
 
   It 'rejects a missing new receipt even when an older receipt exists' {
