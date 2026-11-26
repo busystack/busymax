@@ -8,12 +8,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/journal_workflow.dart';
 
 void main() {
+  final stage = Platform.environment['BUSYMAX_JOURNAL_RESTART_STAGE'];
+  final profile = Platform.environment['BUSYMAX_JOURNAL_RESTART_PROFILE'];
+  if ((stage == null) != (profile == null)) {
+    throw StateError('Configure both the journal restart stage and profile.');
+  }
   for (final provider in ['caldav', 'nextcloud']) {
     runJournalWorkflow(
       platform: 'Linux',
       provider: provider,
       isNative: () => Platform.isLinux,
       fixture: () => desktopJournalFixture(provider),
+      restart: stage == null ? null : JournalRestartStage.values.byName(stage),
+      persistentProfile: profile == null ? null : Directory(profile),
       app: () => const LinuxBusyMaxApp(),
       openJournals: (_, container) async =>
           container.read(appRouterProvider).go('/journals'),

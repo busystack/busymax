@@ -45,6 +45,8 @@ def main():
     parser.add_argument('--android-aapt', type=Path, help='Official Android build-tools aapt executable')
     parser.add_argument('--windows-runner', type=Path,
                         help='Authorized executable that runs the Windows native journal suite')
+    parser.add_argument('--linux-process-restart', action='store_true',
+                        help='Run the Linux offline workflow in two native processes using an isolated keyring')
     args = parser.parse_args()
     artifact = args.artifacts.resolve() / ('vjournal-' + uuid.uuid4().hex[:12])
     artifact.mkdir(parents=True, mode=0o700)
@@ -124,14 +126,38 @@ def main():
         print(f'{label} completed with status {code}', flush=True)
         return code == 0 and not missing
 
-    def native_result(platform, provider, label, smoke_passed):
+    def native_result(platform, provider, labels, smoke_passed):
         expected = NATIVE_CASES | ({'background-engine-invalidation'} if platform == 'android' else set())
-        content = (artifact / results[label]['log']).read_text(errors='replace')
+        content = '\n'.join((artifact / results[label]['log']).read_text(errors='replace')
+                            for label in labels)
         executed = set(re.findall(r'^JOURNAL_WORKFLOW_CASE ' + re.escape(provider)
                                   + r' ([a-z0-9-]+) PASS$', content, re.M))
         missing = sorted(expected - executed)
         return dict(status='fail' if not smoke_passed else 'partial' if missing else 'pass',
-                    executed=sorted(expected & executed), missing=missing)
+                    executed=sorted(executed), missing=missing)
+
+    def linux_restart(provider):
+        label = f'linux-{provider}-process-restart'
+        with tempfile.TemporaryDirectory(prefix='journal-native-profile-') as profile:
+            root = Path(profile)
+            stages = """
+set -eu
+printf %s busymax-journal-test-keyring | gnome-keyring-daemon --unlock --components=secrets
+for stage in queue replay; do
+  BUSYMAX_JOURNAL_RESTART_STAGE="$stage" flutter test --no-pub -d linux \
+    integration_test/journal_linux_workflows_test.dart --reporter expanded \
+    --plain-name "Linux offline journal $stage across processes on $1"
+done
+"""
+            passed = run(
+                label, ['dbus-run-session', '--', 'bash', '-c', stages, 'journal-restart', provider],
+                named=[f'Linux offline journal {stage} across processes on {provider}'
+                       for stage in ('queue', 'replay')],
+                extra_env={'XDG_CONFIG_HOME': str(root / 'config'),
+                           'XDG_DATA_HOME': str(root / 'data'),
+                           'BUSYMAX_JOURNAL_RESTART_PROFILE': str(root / 'profile')},
+            )
+        return label, passed
 
     def android(provider, profile):
         if not args.android_device or not args.android_aapt:
@@ -221,7 +247,7 @@ def main():
             passed = run(label, ['flutter', 'test', native, '-d', serial,
                          '--no-uninstall', define, '--reporter', 'expanded'], extra_env=flags,
                          named=[f'Android journal collection and editor on {provider}'])
-            return native_result('android', provider, label, passed)
+            return native_result('android', provider, [label], passed)
         finally:
             if mapped:
                 subprocess.run([*adb, 'reverse', '--remove', tcp], capture_output=True)
@@ -251,14 +277,19 @@ def main():
                 passed = run(label, ['flutter', 'test', '-d', 'linux',
                     'integration_test/journal_linux_workflows_test.dart', '--reporter', 'expanded',
                     '--plain-name', name], named=[name])
-                result = native_result(platform, provider, label, passed)
+                labels = [label]
+                if args.linux_process_restart:
+                    restart_label, restart_passed = linux_restart(provider)
+                    labels.append(restart_label)
+                    passed = passed and restart_passed
+                result = native_result(platform, provider, labels, passed)
             elif platform == 'android':
                 result = android(provider, profiles[provider])
             elif args.windows_runner:
                 label = f'windows-{provider}-native'
-                passed = run(label, [str(args.windows_runner.resolve()), provider],
+                passed = run(label, [str(args.windows_runner.resolve()), provider, str(fixture)],
                              named=[f'Windows journal collection and editor on {provider}'])
-                result = native_result(platform, provider, label, passed)
+                result = native_result(platform, provider, [label], passed)
             else:
                 result = 'not run: supply --windows-runner'
             evidence['nativeMatrix'][f'{platform}/{provider}'] = result

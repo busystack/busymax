@@ -292,6 +292,12 @@ profiles. Missing scenarios and failed writes keep the matrix incomplete.
 The generated evidence reports source and provider identities alongside
 named cases. Keep fixture files and generated device credentials out of Git.
 
+Use `--linux-process-restart` on a graphical Linux session with D-Bus and
+GNOME Keyring available. This adds two separate native processes per provider.
+The first queues a creation, edit and deletion in a private SQLite profile.
+The second opens the same profile, unlocks access through the isolated native
+keyring, reconciles those operations and checks the result with HTTPS GETs.
+
 Clean up only the fixtures created above.
 
 ```sh

@@ -11,6 +11,7 @@ import 'package:busymax/src/features/connectivity/network_connectivity_service.d
 import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,8 +22,11 @@ import 'package:integration_test/integration_test.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../test/support/memory_settings_store.dart';
+import 'caldav_native_secret_store.dart';
 
 typedef JournalTestButton = Finder Function(String label, bool primary);
+
+enum JournalRestartStage { queue, replay }
 
 void runJournalWorkflow({
   required String platform,
@@ -34,11 +38,14 @@ void runJournalWorkflow({
   required Finder Function(String) input,
   required JournalTestButton button,
   required Finder Function() enabledRefresh,
+  JournalRestartStage? restart,
+  Directory? persistentProfile,
 }) {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  testWidgets('$platform journal collection and editor on $provider', (
-    tester,
-  ) async {
+  final description = restart == null
+      ? '$platform journal collection and editor on $provider'
+      : '$platform offline journal ${restart.name} across processes on $provider';
+  testWidgets(description, (tester) async {
     expect(isNative(), isTrue);
     final profile = (await tester.runAsync(fixture))!;
     final authority = Uri.parse(profile['authority'] as String);
@@ -64,14 +71,42 @@ void runJournalWorkflow({
           ..setTrustedCertificatesBytes(utf8.encode(profile['ca'] as String)),
       ),
     );
-    final database = AppDatabase(NativeDatabase.memory());
-    final secrets = InMemorySecretStore();
+    final profileDirectory = persistentProfile == null
+        ? null
+        : Directory('${persistentProfile.path}/$provider');
+    final receipt = profileDirectory == null
+        ? null
+        : File('${profileDirectory.path}/journal-restart.json');
+    final previous = restart == JournalRestartStage.replay
+        ? (jsonDecode(receipt!.readAsStringSync()) as Map)
+              .cast<String, Object?>()
+        : null;
+    if (restart == JournalRestartStage.queue) {
+      expect(receipt!.existsSync(), isFalse);
+      profileDirectory!.createSync(recursive: true);
+    }
+    final database = AppDatabase(
+      profileDirectory == null
+          ? NativeDatabase.memory()
+          : NativeDatabase(File('${profileDirectory.path}/journal.sqlite')),
+    );
+    final SecretStore secrets = profileDirectory == null
+        ? InMemorySecretStore()
+        : SecureSecretStore(
+            CalDavQaSecureStorage(
+              'busymax.qa.journal.${sha256.convert(utf8.encode(profileDirectory.path))}.$provider.',
+            ),
+          );
     final accountClient = client();
     final peer = client();
     final network = NetworkConnectivityMonitor.withoutPlatformObservation();
-    final collectionName = 'Journal QA ${const Uuid().v4()}';
+    final collectionName =
+        previous?['collectionName'] as String? ??
+        'Journal QA ${const Uuid().v4()}';
     const accountId = 'native-journal-fixture';
     DavCollection? collection;
+    var online = restart != JournalRestartStage.replay;
+    var savedForRestart = false;
     Future<http.Response> request(
       String method,
       String target, {
@@ -89,6 +124,7 @@ void runJournalWorkflow({
     }
 
     Future<void> sync({bool full = false, String? collectionId}) async {
+      if (!online) return;
       await DavAccountSyncEngine(
         database: database,
         secretStore: secrets,
@@ -126,6 +162,68 @@ void runJournalWorkflow({
     );
     tester.testTextInput.register();
     try {
+      if (restart == JournalRestartStage.replay) {
+        expect(previous!['pid'], isNot(pid));
+        await tester.runAsync(() async {
+          final credential = await secrets.readCredential(accountId);
+          expect(credential, isA<DavCertificateCredential>());
+          collection = (await database.select(database.davCollections).get())
+              .singleWhere((row) => row.id == previous['collectionId']);
+          expect(
+            await database.select(database.pendingOps).get(),
+            hasLength(3),
+          );
+        });
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: container, child: app()),
+        );
+        await openJournals(tester, container);
+        await waitJournalWidget(
+          tester,
+          find.textContaining('Offline new entry'),
+        );
+        expect(find.textContaining('Offline edited entry'), findsOneWidget);
+        expect(find.textContaining('Offline delete control'), findsNothing);
+        final editedHref = previous['editedHref'] as String;
+        final deletedHref = previous['deletedHref'] as String;
+        final previousEdit = (await tester.runAsync(
+          () => request('GET', editedHref),
+        ))!;
+        expect(previousEdit.body, contains('SUMMARY:Local edit'));
+        expect(
+          (await tester.runAsync(() => request('GET', deletedHref)))!
+              .statusCode,
+          200,
+        );
+        online = true;
+        await _refresh(tester, enabledRefresh());
+        await waitJournalWidget(
+          tester,
+          find.textContaining('Pending sync'),
+          absent: true,
+        );
+        await tester.runAsync(() async {
+          final after = await request('GET', editedHref);
+          expect(after.statusCode, 200);
+          expect(after.body, contains('SUMMARY:Offline edited entry'));
+          expect(after.body, contains('DESCRIPTION:Second body'));
+          expect((await request('GET', deletedHref)).statusCode, 404);
+          final rows = (await database.select(database.davObjects).get()).where(
+            (object) =>
+                object.collectionId == collection!.id &&
+                object.requestUri != editedHref &&
+                object.requestUri != deletedHref,
+          );
+          final created = await request('GET', rows.single.requestUri);
+          expect(created.statusCode, 200);
+          expect(created.body, contains('SUMMARY:Offline new entry'));
+          expect(await database.select(database.pendingOps).get(), isEmpty);
+        });
+        debugPrint(
+          'JOURNAL_WORKFLOW_CASE $provider offline-process-restart PASS',
+        );
+        return;
+      }
       await tester.runAsync(() async {
         await database
             .into(database.accounts)
@@ -263,6 +361,71 @@ void runJournalWorkflow({
       expect(edited.body, contains('DESCRIPTION:Second body'));
       debugPrint('JOURNAL_WORKFLOW_CASE $provider peer-refresh-search PASS');
 
+      if (restart == JournalRestartStage.queue) {
+        Future<void> create(String title) async {
+          await waitJournalWidget(tester, find.text('New entry'));
+          await tester.tap(find.text('New entry'));
+          await waitJournalWidget(tester, input('Title'));
+          await tester.enterText(input('Title'), title);
+          await _editorAction(tester, button('Save', true));
+          await waitJournalWidget(tester, find.textContaining(title));
+        }
+
+        await create('Offline delete control');
+        await _refresh(tester, enabledRefresh());
+        final deleteControl = (await tester.runAsync(
+          () async =>
+              (await database.select(database.davObjects).get()).singleWhere(
+                (row) =>
+                    row.collectionId == collection!.id &&
+                    row.requestUri != object.requestUri,
+              ),
+        ))!;
+        online = false;
+        await create('Offline new entry');
+        await tester.tap(find.textContaining('Local edit'));
+        await waitJournalWidget(tester, input('Title'));
+        await tester.enterText(input('Title'), 'Offline edited entry');
+        await _editorAction(tester, button('Save', true));
+        await waitJournalWidget(
+          tester,
+          find.textContaining('Offline edited entry'),
+        );
+        await tester.tap(find.textContaining('Offline delete control'));
+        await waitJournalWidget(tester, input('Title'));
+        await _editorAction(tester, button('Delete', false));
+        await _editorAction(
+          tester,
+          button('Delete the entire entry and its recurrence?', false),
+        );
+        await waitJournalWidget(
+          tester,
+          find.textContaining('Offline delete control'),
+          absent: true,
+        );
+        await tester.runAsync(() async {
+          expect(
+            await database.select(database.pendingOps).get(),
+            hasLength(3),
+          );
+          await receipt!.writeAsString(
+            jsonEncode({
+              'pid': pid,
+              'collectionId': collection!.id,
+              'collectionName': collectionName,
+              'editedHref': object.requestUri,
+              'deletedHref': deleteControl.requestUri,
+            }),
+            flush: true,
+          );
+        });
+        savedForRestart = true;
+        debugPrint(
+          'JOURNAL_RESTART_CASE $provider queued-for-new-process PASS',
+        );
+        return;
+      }
+
       await tester.tap(find.textContaining('Local edit'));
       await waitJournalWidget(tester, input('Title'));
       await _editorAction(tester, button('Delete', false));
@@ -291,9 +454,12 @@ void runJournalWorkflow({
           collection ??= (await database.select(database.davCollections).get())
               .where((row) => row.displayName == collectionName)
               .firstOrNull;
-          if (collection != null) {
+          if (!savedForRestart && collection != null) {
             final response = await request('DELETE', collection!.requestUri);
             expect(response.statusCode, anyOf(200, 204));
+          }
+          if (!savedForRestart && profileDirectory != null) {
+            await secrets.deleteCredential(accountId);
           }
         } finally {
           accountClient.close();
