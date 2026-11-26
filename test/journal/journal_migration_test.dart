@@ -2,12 +2,86 @@ import 'dart:io';
 
 import 'package:busymax/src/dav/ical/dav_native_export.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
+  test('schema 27 upgrade retains queued journal updates and reopens durable drafts', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'busymax-v27-journal-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/journal.db');
+    var db = AppDatabase(NativeDatabase(file));
+    addTearDown(() => db.close());
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'caldav',
+            authority: 'https://example.invalid/',
+            providerAccountId: 'owned',
+            credentialKind: 'caldav_password',
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    await db
+        .into(db.davCollections)
+        .insert(
+          DavCollectionsCompanion.insert(
+            id: 'source',
+            accountId: 'account',
+            hrefKey: '/dav/journals/',
+            requestUri: 'https://example.invalid/dav/journals/',
+            displayName: 'Journals',
+            supportedComponentMask: const Value(8),
+            journalProjectionEnabled: const Value(true),
+            syncToken: const Value('before-v28'),
+            currentUserPrivilegesJson: const Value('["{DAV:}all"]'),
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    var repository = JournalRepository(db);
+    final source = (await repository.watchSources().first).single;
+    await repository.create(source, title: 'Queued entry');
+    final pending = (await db.select(db.pendingOps).get()).single;
+    await db.close();
+    final previous = sqlite3.open(file.path);
+    previous.execute('DROP TABLE dav_journal_drafts');
+    previous.execute('PRAGMA user_version = 27');
+    previous.close();
+    db = AppDatabase(NativeDatabase(file));
+    repository = JournalRepository(db);
+    expect((await db.select(db.pendingOps).get()).single, pending);
+    expect(
+      (await repository.watchSources().first).single.syncToken,
+      'before-v28',
+    );
+    final entry = (await repository.watchEntries().first).single;
+    expect(entry.title, 'Queued entry');
+    const text =
+        '{"title":"Unsaved café","DESCRIPTION":[{"value":"Second note"}]}';
+    await repository.saveDraft(
+      id: 'entry:${entry.componentId}',
+      collectionId: source.id,
+      baselineDigest: 'baseline-digest',
+      contentJson: text,
+    );
+    await db.close();
+    db = AppDatabase(NativeDatabase(file));
+    repository = JournalRepository(db);
+    final draft = await repository.readDraft('entry:${entry.componentId}');
+    expect(draft?.baselineDigest, 'baseline-digest');
+    expect(draft?.contentJson, text);
+    expect((await repository.read(entry)).component.title, 'Queued entry');
+    expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
+  });
   test('schema 26 cached journal receives identity without replacing bytes or ETag', () async {
     final directory = await Directory.systemTemp.createTemp(
       'busymax-v26-journal-',

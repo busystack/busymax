@@ -6910,6 +6910,24 @@ abstract class AppLocalizations {
   /// **'Edit this and future occurrences'**
   String get journalEditFuture;
 
+  /// No description provided for @journalDeleteOccurrence.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this occurrence'**
+  String get journalDeleteOccurrence;
+
+  /// No description provided for @journalCancelFuture.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel this and future occurrences'**
+  String get journalCancelFuture;
+
+  /// No description provided for @journalDeleteFuture.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this and future occurrences'**
+  String get journalDeleteFuture;
+
   /// No description provided for @journalMove.
   ///
   /// In en, this message translates to:
@@ -6939,6 +6957,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save or discard the journal drafts in this collection before deleting it.'**
   String get journalCollectionHasDrafts;
+
+  /// No description provided for @journalDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Journal details'**
+  String get journalDetails;
+
+  /// No description provided for @journalDetailField.
+  ///
+  /// In en, this message translates to:
+  /// **'Journal field'**
+  String get journalDetailField;
+
+  /// No description provided for @journalAddField.
+  ///
+  /// In en, this message translates to:
+  /// **'Add field'**
+  String get journalAddField;
+
+  /// No description provided for @journalAddParameter.
+  ///
+  /// In en, this message translates to:
+  /// **'Add parameter'**
+  String get journalAddParameter;
+
+  /// No description provided for @journalParameterName.
+  ///
+  /// In en, this message translates to:
+  /// **'Parameter name'**
+  String get journalParameterName;
+
+  /// No description provided for @journalParameterValues.
+  ///
+  /// In en, this message translates to:
+  /// **'Parameter values, one per line'**
+  String get journalParameterValues;
+
+  /// No description provided for @journalPickDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick date'**
+  String get journalPickDate;
+
+  /// No description provided for @journalPickTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick time'**
+  String get journalPickTime;
 
   /// No description provided for @journalDated.
   ///

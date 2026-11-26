@@ -279,12 +279,18 @@ python3 test/interop/caldav/verify-vjournal.py \
   --fixture "$nextcloud/busymax-live.json" --artifacts build/qualification
 ```
 
-The command runs shared raw admission and REPORT probes, configured BusyMax
-DAV tests and the partial production Linux workflow in the active graphical
-session. A missing required runtime scenario or a failed write keeps the
-qualification incomplete. The report includes the exact sources, provider
-identities and case logs. Run the suite on a disposable display/profile.
-The test configuration contains app passwords and stays outside Git.
+The command runs independent raw admission and REPORT probes, configured
+BusyMax DAV tests, and the Linux journal workflow in the active graphical
+session. Add `--android-device SERIAL --android-aapt /path/to/aapt` to run
+the Android workflow on an authorized device. The runner verifies each
+test-signed QA APK's application ID and uses `--no-uninstall`. To qualify
+Windows, pass `--windows-runner /path/to/runner`. The launcher receives the
+provider and a private fixture path as positional arguments. It must run
+`integration_test/journal_windows_workflows_test.dart` on Windows and
+forward the named test and case output. Run all native suites in isolated
+profiles. Missing scenarios and failed writes keep the matrix incomplete.
+The generated evidence reports source and provider identities alongside
+named cases. Keep fixture files and generated device credentials out of Git.
 
 Clean up only the fixtures created above.
 
@@ -298,12 +304,17 @@ python3 test/interop/caldav/vjournal-nextcloud.py stop "$nextcloud"
 | Scope | Parse and preserve | Presentation and authoring | Exercised checks |
 | --- | --- | --- | --- |
 | RFC 5545 journal properties | Authoritative lines, property parameters, multiple descriptions and retained opaque fields | Title, status, date mode, description blocks, language, ALTREP and attachments | J01, J07 and J09 subsets in `test/journal` and admission J01 |
-| RFC 7986 and RFC 9073 extensions | Wrapper and journal fields, nested components and property parameters retained on unrelated edits | Basic property inspection. Authored structured content editing is outstanding | Admission J10 and J11 |
-| RFC 9253 relationships | URI, UID and XML-reference forms retained in raw resources | Reference resolution and relationship editing are outstanding | Admission J12 |
-| RFC 10051 status components | A journal can contain VSTATUS and must retain its parent STATUS | Status component editing is outstanding. Journal status values stay within RFC 5545 | Separate VSTATUS storage/readback probe and retained-child edit regression |
-| Recurrence and dates | Period values retained. Bounded expansion uses period starts and journal point/day matching | New entries can repeat and occurrences can be browsed by month. Editing or deleting generated instances or future ranges is outstanding | J15 and J19 subsets in `test/journal`, J20 REPORT probes |
+| RFC 7986 and RFC 9073 extensions | Wrapper and journal fields, nested components and property parameters retained on unrelated edits | Details can edit COLOR, IMAGE, styled descriptions, structured data, participants, locations and resources. DERIVED values are read-only | Admission J10 and J11, nested draft and mutation regressions |
+| RFC 9253 relationships | URI, UID and XML-reference forms retained in raw resources | Advanced fields support editing typed references. Lookup and navigation to target entries are outstanding | Admission J12 and Nextcloud rejected-write recovery |
+| RFC 10051 status components | A journal can contain VSTATUS and must retain its parent STATUS | Advanced details expose status components. Top-level journal status values stay within RFC 5545 | VSTATUS storage/readback, nested draft and retained-child edit regressions |
+| Recurrence and dates | Period values retained. Bounded expansion uses period starts and journal point/day matching | Browse occurrences by month. Edit or delete an occurrence or future range. Trimming a range that exceeds the recurrence work limit leaves the resource unchanged | J15 and J19 subsets in `test/journal`, J20 REPORT probes |
 | Offline and conflicts | Conditional queue and effective export. Overlapping reordered descriptions require conflict resolution | Pending or failed operations appear in the journal list. Journal details offer server, reapply and duplicate choices where available | O04, O06 and O09 subsets in `test/journal`. Native restart and conflict acceptance are outstanding |
-| Import and export | Storage-form ICS resource sets, including detached-only data | Preview and effective entry export. Journal PUBLISH, ADD and CANCEL file handling is outstanding | O13 subset in `test/journal` |
+| Import and export | Storage-form ICS resource sets, including detached-only data | Preview storage-form entries and journal PUBLISH, ADD and CANCEL files. Export effective local entries or collections. WebCal journal snapshots appear as read-only entries | O13, O17 and J26 subsets in `test/journal` and `test/webcal` |
+
+BusyMax schema 28 adds journal drafts. Close and reopen an entry to recover
+its draft. A change to the authoritative entry while a draft exists requires
+manual reconciliation. The draft remains available for review. Changing the
+date form of a series requires compatible recurrence dates and rule bounds.
 
 Stock Nextcloud 35.0.3 rejected both dated RDATE PERIOD forms and three
 explicit relationship VALUE cases on create and conditional replacement.

@@ -4,6 +4,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../journal/presentation/journal_workspace.dart';
+import 'windows_time_picker.dart';
 
 class WindowsJournalPage extends StatelessWidget {
   const WindowsJournalPage({super.key});
@@ -65,4 +66,44 @@ final class _WindowsJournalControls implements JournalControls {
       primary
       ? FilledButton(onPressed: action, child: Text(label))
       : Button(onPressed: action, child: Text(label));
+
+  @override
+  Widget pickDate(
+    String label,
+    DateTime? current,
+    ValueChanged<DateTime> change,
+  ) => InfoLabel(
+    label: label,
+    child: DatePicker(
+      selected: current ?? DateTime.now(),
+      startDate: DateTime(1),
+      endDate: DateTime(9999, 12, 31),
+      onChanged: change,
+    ),
+  );
+
+  @override
+  Widget pickTime(
+    String label,
+    DateTime? current,
+    ValueChanged<DateTime> change,
+  ) {
+    final basis = current ?? DateTime.now();
+    return InfoLabel(
+      label: label,
+      child: WindowsTimePicker(
+        selected: basis,
+        onChanged: (time) => change(
+          DateTime(
+            basis.year,
+            basis.month,
+            basis.day,
+            time.hour,
+            time.minute,
+            basis.second,
+          ),
+        ),
+      ),
+    );
+  }
 }

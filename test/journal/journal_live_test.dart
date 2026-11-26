@@ -284,7 +284,7 @@ void main() {
           const participant =
               'BEGIN:PARTICIPANT\r\nUID:journal-author\r\n'
               'PARTICIPANT-TYPE:CONTACT\r\nCALENDAR-ADDRESS:mailto:journal@example.invalid\r\n'
-              'STATUS:AUTHOR\r\nBEGIN:VSTATUS\r\nSTATUS:AUTHOR\r\n'
+              'STATUS:FINAL\r\nBEGIN:VSTATUS\r\nSTATUS:FINAL\r\n'
               'COMMENT:Participant review\r\nEND:VSTATUS\r\nEND:PARTICIPANT';
           const nested =
               'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live fixture//EN\r\n'

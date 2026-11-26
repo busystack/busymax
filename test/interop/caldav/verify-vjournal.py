@@ -16,6 +16,13 @@ from urllib.parse import urlsplit
 
 FIXTURES = Path(__file__).resolve().parent
 BUSYMAX = FIXTURES.parents[2]
+NATIVE_CASES = {
+    'account-connect-and-discover', 'collection-create', 'collection-administration',
+    'undated-repeated-description', 'dated-and-recurrence-editor', 'advanced-properties',
+    'native-file-attachments-and-ics-transfer', 'peer-refresh-search',
+    'draft-reopen', 'offline-process-restart', 'conditional-conflict-resolution',
+    'permissions-and-scoped-sync-recovery', 'delete-tombstone-and-reopen',
+}
 
 
 def commit(path):
@@ -71,6 +78,11 @@ def main():
         ).strip()
         if actual != 'true ' + identity['imageId']:
             raise SystemExit(f'The running {provider} fixture has a different image.')
+    running_jar = subprocess.check_output(
+        ['docker', 'exec', application, 'sha256sum', '/opt/busystack/application.jar'], text=True
+    ).split()[0]
+    if running_jar != candidate_info['jarSha256']:
+        raise SystemExit('The running candidate does not contain the verified JAR.')
 
     evidence = {
         'run': artifact.name,
@@ -111,6 +123,15 @@ def main():
         print(f'{label} completed with status {code}', flush=True)
         return code == 0 and not missing
 
+    def native_result(platform, provider, label, smoke_passed):
+        expected = NATIVE_CASES | ({'background-engine-invalidation'} if platform == 'android' else set())
+        content = (artifact / results[label]['log']).read_text(errors='replace')
+        executed = set(re.findall(r'^JOURNAL_WORKFLOW_CASE ' + re.escape(provider)
+                                  + r' ([a-z0-9-]+) PASS$', content, re.M))
+        missing = sorted(expected - executed)
+        return dict(status='fail' if not smoke_passed else 'partial' if missing else 'pass',
+                    executed=sorted(expected & executed), missing=missing)
+
     def android(provider, profile):
         if not args.android_device or not args.android_aapt:
             return 'not run: supply --android-device and --android-aapt'
@@ -145,12 +166,14 @@ def main():
             match = re.search(r"^package: name='([^']+)'", badging.stdout, re.M)
             if badging.returncode or not match or match[1] != package_id:
                 return 'not run: verified APK application ID did not match the QA package'
-            results[f'android-{provider}-apk'] = {'applicationId': package_id,
-                                                 'sha256': hashlib.file_digest(apk.open('rb'), 'sha256').hexdigest()}
-            passed = run(f'android-{provider}-native', ['flutter', 'test', native, '-d', serial,
+            with apk.open('rb') as binary:
+                apk_hash = hashlib.file_digest(binary, 'sha256').hexdigest()
+            results[f'android-{provider}-apk'] = {'applicationId': package_id, 'sha256': apk_hash}
+            label = f'android-{provider}-native'
+            passed = run(label, ['flutter', 'test', native, '-d', serial,
                          '--no-uninstall', define, '--reporter', 'expanded'], extra_env=flags,
                          named=[f'Android journal collection and editor on {provider}'])
-            return 'smoke passed; full cell incomplete' if passed else 'executed, smoke failed'
+            return native_result('android', provider, label, passed)
         finally:
             private.unlink(missing_ok=True)
 
@@ -170,30 +193,29 @@ def main():
     run('busymax-live', ['flutter', 'test', 'test/journal', '--reporter', 'expanded'],
         named=[f'journal durable CRUD with independent HTTPS readback on {provider}'
                for provider in profiles])
-    run('linux-native', ['flutter', 'test', '-d', 'linux',
-        'integration_test/journal_linux_workflows_test.dart', '--reporter', 'expanded'],
-        named=[f'Linux journal collection and editor on {provider}' for provider in profiles])
-    linux = results['linux-native']
     for platform in ('linux', 'windows', 'android'):
         for provider in ('caldav', 'nextcloud'):
             if platform == 'linux':
-                result = (
-                    'partial workflow executed successfully'
-                    if linux['exitCode'] == 0 and not linux['missing']
-                    else 'partial workflow failed or a required case was absent'
-                )
+                name = f'Linux journal collection and editor on {provider}'
+                label = f'linux-{provider}-native'
+                passed = run(label, ['flutter', 'test', '-d', 'linux',
+                    'integration_test/journal_linux_workflows_test.dart', '--reporter', 'expanded',
+                    '--plain-name', name], named=[name])
+                result = native_result(platform, provider, label, passed)
             elif platform == 'android':
                 result = android(provider, profiles[provider])
             elif args.windows_runner:
-                passed = run(f'windows-{provider}-native', [str(args.windows_runner.resolve()), provider],
+                label = f'windows-{provider}-native'
+                passed = run(label, [str(args.windows_runner.resolve()), provider],
                              named=[f'Windows journal collection and editor on {provider}'])
-                result = 'smoke passed; full cell incomplete' if passed else 'executed, smoke failed'
+                result = native_result(platform, provider, label, passed)
             else:
                 result = 'not run: supply --windows-runner'
             evidence['nativeMatrix'][f'{platform}/{provider}'] = result
     evidence['finished'] = utc()
     (artifact / 'manifest.json').write_text(json.dumps(evidence, indent=2) + '\n')
-    complete = (all(outcome == 'pass' for outcome in evidence['nativeMatrix'].values())
+    complete = (all(isinstance(outcome, dict) and outcome['status'] == 'pass'
+                    for outcome in evidence['nativeMatrix'].values())
                 and all(gate.get('exitCode', 0) == 0 and not gate.get('missing')
                         for gate in results.values()))
     print(f'Required matrix {"passed" if complete else "incomplete"}. Evidence is in {artifact}', flush=True)

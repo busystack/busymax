@@ -299,14 +299,28 @@ final class IcalDocument {
       return originalSource;
     }
     final output = StringBuffer();
-    void writeComponent(IcalComponent component) {
+    void writeComponent(IcalComponent component, {bool withinJournal = false}) {
+      final preserveJournalLines =
+          !canonicalizeUntouched &&
+          (withinJournal || component.name == 'VJOURNAL');
       output
         ..write(_foldContentLine('BEGIN:${component.name}'))
         ..write('\r\n');
       for (final child in component.children) {
         switch (child) {
           case final IcalProperty property:
-            if (!property.isDirty && !canonicalizeUntouched) {
+            if (preserveJournalLines &&
+                !property.isDirty &&
+                property.originalPhysicalLines.isNotEmpty &&
+                property.originalPhysicalLines.every(
+                  (line) => utf8.encode(line).length <= 75,
+                )) {
+              for (final line in property.originalPhysicalLines) {
+                output
+                  ..write(line)
+                  ..write('\r\n');
+              }
+            } else if (!property.isDirty && !canonicalizeUntouched) {
               final logical = property.originalPhysicalLines.isEmpty
                   ? property.serializeLogicalLine()
                   : _unfoldPhysicalLines(property.originalPhysicalLines);
@@ -319,7 +333,7 @@ final class IcalDocument {
                 ..write('\r\n');
             }
           case final IcalComponent nested:
-            writeComponent(nested);
+            writeComponent(nested, withinJournal: preserveJournalLines);
         }
       }
       output

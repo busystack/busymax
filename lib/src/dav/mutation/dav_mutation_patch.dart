@@ -28,6 +28,7 @@ enum DavPatchOperationType {
   removeComponent,
   reviseJournal,
   replaceJournalResource,
+  replaceJournalChildren,
 }
 
 final class DavRawPropertyValue {
@@ -176,6 +177,19 @@ final class DavPatchOperation {
         value: rawIcs,
       );
 
+  factory DavPatchOperation.replaceJournalChildren(
+    Iterable<IcalComponent> children,
+  ) => DavPatchOperation._(
+    type: DavPatchOperationType.replaceJournalChildren,
+    propertyName: 'COMPONENT-SET',
+    component: IcalComponent(
+      name: 'VJOURNAL',
+      originalBeginLine: 'BEGIN:VJOURNAL',
+      originalEndLine: 'END:VJOURNAL',
+      children: children.map((child) => child.deepCopy()).toList(),
+    ),
+  );
+
   factory DavPatchOperation.fromJson(Map<String, Object?> json) {
     final typeName = _requiredString(json, 'type');
     final type = DavPatchOperationType.values
@@ -233,6 +247,10 @@ final class DavPatchOperation {
         DavPatchOperation.replaceJournalResource(
           _requiredString(json, 'value'),
         ),
+      DavPatchOperationType.replaceJournalChildren =>
+        DavPatchOperation.replaceJournalChildren(
+          _componentFromJson(_requiredMap(json, 'component')).components,
+        ),
     };
   }
 
@@ -258,6 +276,7 @@ final class DavPatchOperation {
     DavPatchOperationType.replaceAlarm => {'VALARM'},
     DavPatchOperationType.addComponent ||
     DavPatchOperationType.removeComponent ||
+    DavPatchOperationType.replaceJournalChildren ||
     DavPatchOperationType.replaceJournalResource => {'COMPONENT-SET'},
     DavPatchOperationType.reviseJournal => const {},
     _ => {propertyName},
@@ -284,7 +303,11 @@ final class DavPatchOperation {
       'completedAtUtc': completedAtUtc!.toUtc().toIso8601String(),
     if (alarmIndex != null) 'alarmIndex': alarmIndex,
     if (alarm != null) 'alarm': _componentToJson(alarm!),
-    if (component != null) 'component': _componentToJson(component!),
+    if (component != null)
+      'component': _componentToJson(
+        component!,
+        keepLines: component!.name == 'VJOURNAL',
+      ),
     if (componentKey != null)
       'componentKey': _componentKeyToJson(componentKey!),
   };
@@ -448,6 +471,24 @@ final class DavMutationPatch {
           patcher.addComponent(operation.component!.deepCopy());
         case DavPatchOperationType.removeComponent:
           patcher.removeComponent(operation.componentKey ?? target);
+        case DavPatchOperationType.replaceJournalChildren:
+          if (!isJournal) throw _invalidPatch();
+          final component = patcher.requireComponent(target);
+          final children = operation.component!.components.iterator;
+          final nodes = <IcalNode>[
+            for (final node in component.children)
+              if (node is! IcalComponent)
+                node
+              else if (children.moveNext())
+                children.current.deepCopy(),
+          ];
+          while (children.moveNext()) {
+            nodes.add(children.current.deepCopy());
+          }
+          component.children
+            ..clear()
+            ..addAll(nodes);
+          component.structurallyDirty = true;
         case DavPatchOperationType.reviseJournal:
           if (!isJournal) throw _invalidPatch();
           final component = patcher.requireComponent(target);
@@ -681,7 +722,10 @@ String _validatedEditableProperty(String value) {
   return upper;
 }
 
-Map<String, Object?> _componentToJson(IcalComponent component) => {
+Map<String, Object?> _componentToJson(
+  IcalComponent component, {
+  bool keepLines = false,
+}) => {
   'name': component.name,
   'children': [
     for (final child in component.children)
@@ -691,6 +735,10 @@ Map<String, Object?> _componentToJson(IcalComponent component) => {
           'name': property.name,
           if (property.group != null) 'group': property.group,
           'value': property.rawValue,
+          if (keepLines &&
+              !property.isDirty &&
+              property.originalPhysicalLines.isNotEmpty)
+            'lines': property.originalPhysicalLines,
           'parameters': [
             for (final parameter in property.parameters)
               {
@@ -702,7 +750,7 @@ Map<String, Object?> _componentToJson(IcalComponent component) => {
         },
         final IcalComponent nested => {
           'node': 'component',
-          'component': _componentToJson(nested),
+          'component': _componentToJson(nested, keepLines: keepLines),
         },
       },
   ],
@@ -739,19 +787,39 @@ IcalComponent _componentFromJson(Map<String, Object?> json) {
   for (final child in _mapList(json['children'])) {
     final node = _requiredString(child, 'node');
     if (node == 'property') {
-      children.add(
-        IcalProperty(
-          group: child['group'] as String?,
-          name: _requiredString(child, 'name').toUpperCase(),
-          parameters: _parameters(child['parameters']),
-          // Empty values are meaningful in iCalendar. In particular, an
-          // explicit empty LOCATION on a recurrence exception prevents the
-          // master value from being inherited.
-          rawValue: _requiredStringAllowEmpty(child, 'value'),
-          originalPhysicalLines: const [],
-          isDirty: true,
-        ),
+      final property = IcalProperty(
+        group: child['group'] as String?,
+        name: _requiredString(child, 'name').toUpperCase(),
+        parameters: _parameters(child['parameters']),
+        // Empty values are meaningful in iCalendar. In particular, an
+        // explicit empty LOCATION on a recurrence exception prevents the
+        // master value from being inherited.
+        rawValue: _requiredStringAllowEmpty(child, 'value'),
+        originalPhysicalLines: const [],
+        isDirty: true,
       );
+      final lines = child['lines'];
+      if (lines == null) {
+        children.add(property);
+      } else {
+        final original = _stringList(lines);
+        if (original.isEmpty ||
+            original.any(
+              (line) => line.contains('\r') || line.contains('\n'),
+            )) {
+          throw _invalidPatch();
+        }
+        final restored = IcalDocument.parse(
+          'BEGIN:VCALENDAR\r\nBEGIN:$name\r\n'
+          '${original.join('\r\n')}\r\nEND:$name\r\nEND:VCALENDAR\r\n',
+        );
+        final parsed = restored.calendarComponents.single.children.single;
+        if (parsed is! IcalProperty ||
+            parsed.serializeLogicalLine() != property.serializeLogicalLine()) {
+          throw _invalidPatch();
+        }
+        children.add(parsed);
+      }
     } else if (node == 'component' && name != 'VALARM') {
       final nested = _componentFromJson(_requiredMap(child, 'component'));
       final permitted = switch (name) {

@@ -1,4 +1,5 @@
 import '../dav/dav_errors.dart';
+import '../dav/ical/ical_attachments.dart';
 import '../dav/ical/ical_document.dart';
 import '../dav/ical/ical_semantics.dart';
 
@@ -68,6 +69,9 @@ final class JournalComponent {
       'PERCENT-COMPLETE',
       'TRANSP',
       'CONFERENCE',
+      'GEO',
+      'LOCATION',
+      'PRIORITY',
     };
     const statuses = {'DRAFT', 'FINAL', 'CANCELLED'};
     final identities = <String?>{};
@@ -75,7 +79,14 @@ final class JournalComponent {
       for (final zone in document.timeZones)
         zone.firstProperty('TZID')?.rawValue,
     };
-    if (document.document.root.firstProperty('METHOD') != null) {
+    final calendar = document.document.root;
+    if (calendar.firstProperty('METHOD') != null ||
+        calendar.propertiesNamed('VERSION').length != 1 ||
+        calendar.firstProperty('VERSION')?.rawValue != '2.0' ||
+        calendar.propertiesNamed('PRODID').length != 1 ||
+        (calendar.firstProperty('PRODID')?.rawValue.trim().isEmpty ?? true) ||
+        document.primaryUid == null ||
+        document.components.any((c) => c.componentType != 'VJOURNAL')) {
       throw _invalidJournal();
     }
     final master = document.components
@@ -84,6 +95,7 @@ final class JournalComponent {
     for (final semantic in document.components) {
       final journal = semantic.documentComponent;
       if (!identities.add(semantic.recurrenceIdKey) ||
+          journal.propertiesNamed('UID').length != 1 ||
           journal.propertiesNamed('DTSTAMP').length != 1 ||
           semantic.dtstamp?.kind != IcalTemporalKind.utcDateTime ||
           (semantic.status != null && !statuses.contains(semantic.status)) ||
@@ -91,8 +103,8 @@ final class JournalComponent {
           (journal.firstProperty('DTSTART') != null &&
               semantic.start == null) ||
           disallowed.any((name) => journal.firstProperty(name) != null) ||
-          journal.components.any((child) => child.name == 'VALARM') ||
-          !_hasValidStatusChildren(journal) ||
+          !_validJournalChildren(journal) ||
+          !_validJournalValues(journal) ||
           journal.properties.any((property) {
             final zone = property.parameterValue('TZID');
             return zone != null && !zones.contains(zone);
@@ -103,6 +115,59 @@ final class JournalComponent {
     }
   }
 }
+
+bool _validJournalValues(IcalComponent component) {
+  for (final property in component.properties) {
+    final valueType = property.parameterValue('VALUE')?.toUpperCase();
+    final uri =
+        const {
+          'URL',
+          'ORGANIZER',
+          'ATTENDEE',
+          'CONCEPT',
+        }.contains(property.name) ||
+        const {
+              'LINK',
+              'RELATED-TO',
+              'IMAGE',
+              'STYLED-DESCRIPTION',
+              'STRUCTURED-DATA',
+            }.contains(property.name) &&
+            (valueType == 'URI' || valueType == 'XML-REFERENCE');
+    if (uri && !_absoluteUri(property.rawValue)) return false;
+    if (property.name == 'LINK' &&
+        !const {'URI', 'UID', 'XML-REFERENCE'}.contains(valueType)) {
+      return false;
+    }
+    if (const {'DTSTART', 'RECURRENCE-ID'}.contains(property.name)) {
+      final temporal = parseIcalTemporal(property);
+      if (temporal == null ||
+          temporal.isDate && valueType != 'DATE' ||
+          property.parameterValue('TZID') != null &&
+              temporal.kind != IcalTemporalKind.tzidDateTime) {
+        return false;
+      }
+    }
+  }
+  try {
+    return readIcalAttachmentProperties(
+      component.propertiesNamed('ATTACH').toList(),
+    ).every((attachment) {
+      if (attachment.kind == IcalAttachmentKind.binary) {
+        return attachment.canSave;
+      }
+      final uri = attachment.uri;
+      return uri != null &&
+          _absoluteUri(uri) &&
+          Uri.parse(uri).scheme.toLowerCase() != 'file';
+    });
+  } on FormatException {
+    return false;
+  }
+}
+
+bool _absoluteUri(String value) =>
+    !value.contains(RegExp(r'\s')) && Uri.tryParse(value)?.hasScheme == true;
 
 void _validateRecurrence(
   IcalSemanticComponent entry,
@@ -126,6 +191,15 @@ void _validateRecurrence(
   }
   for (final rule in rules) {
     final parts = rule.rawValue.toUpperCase().split(';');
+    if (parts.any(
+      (part) => part.startsWith('RSCALE=') || part.startsWith('SKIP='),
+    )) {
+      throw const DavException(
+        kind: DavErrorKind.unsupportedComponent,
+        code: 'IcalJournalRscaleUnsupported',
+        safeMessage: 'This journal uses a recurrence calendar BusyMax cannot write. The original entry remains exportable.',
+      );
+    }
     final until = parts.where((part) => part.startsWith('UNTIL=')).firstOrNull;
     if (until != null) {
       final raw = until.substring('UNTIL='.length);
@@ -174,13 +248,72 @@ DavException _inconsistentRecurrence() => const DavException(
       'end and occurrence identities. Update the series together.',
 );
 
-bool _hasValidStatusChildren(IcalComponent parent) => parent.components.every(
-  (child) => child.name == 'VSTATUS'
-      ? const {'VJOURNAL', 'PARTICIPANT'}.contains(parent.name) &&
-            parent.propertiesNamed('STATUS').length == 1 &&
-            child.propertiesNamed('STATUS').length == 1 &&
-            child.components.isEmpty
-      : _hasValidStatusChildren(child),
+const journalChildTypes = {
+  'VJOURNAL': {'PARTICIPANT', 'VLOCATION', 'VRESOURCE', 'VSTATUS'},
+  'PARTICIPANT': {'VLOCATION', 'VRESOURCE', 'VSTATUS'},
+};
+
+const journalChildRequiredFields = {
+  'PARTICIPANT': {'UID', 'PARTICIPANT-TYPE'},
+  'VLOCATION': {'UID'},
+  'VRESOURCE': {'UID'},
+  'VSTATUS': {'STATUS'},
+};
+
+const journalChildOptionalSingletons = {
+  'PARTICIPANT': {
+    'CALENDAR-ADDRESS',
+    'CREATED',
+    'DESCRIPTION',
+    'DTSTAMP',
+    'GEO',
+    'LAST-MODIFIED',
+    'PRIORITY',
+    'SEQUENCE',
+    'STATUS',
+    'SUMMARY',
+    'URL',
+  },
+  'VLOCATION': {'DESCRIPTION', 'GEO', 'LOCATION-TYPE', 'NAME'},
+  'VRESOURCE': {'DESCRIPTION', 'GEO', 'NAME', 'RESOURCE-TYPE'},
+  'VSTATUS': {'DESCRIPTION', 'DTSTAMP', 'REASON', 'SUBSTATE', 'SUMMARY'},
+};
+
+const journalChildRepeatableFields = {
+  'PARTICIPANT': {
+    'ATTACH',
+    'CATEGORIES',
+    'COMMENT',
+    'CONTACT',
+    'LOCATION',
+    'REQUEST-STATUS',
+    'RELATED-TO',
+    'RESOURCES',
+    'STRUCTURED-LOCATION',
+    'STRUCTURED-RESOURCE',
+    'STYLED-DESCRIPTION',
+    'STRUCTURED-DATA',
+  },
+  'VLOCATION': {'STRUCTURED-DATA'},
+  'VRESOURCE': {'STRUCTURED-DATA'},
+  'VSTATUS': {'COMMENT', 'STYLED-DESCRIPTION'},
+};
+
+bool _validJournalChildren(IcalComponent parent) => parent.components.every(
+  (child) =>
+      (journalChildTypes[parent.name]?.contains(child.name) ?? false) &&
+      journalChildRequiredFields[child.name]!.every(
+        (name) =>
+            child.propertiesNamed(name).length == 1 &&
+            child.firstProperty(name)!.rawValue.trim().isNotEmpty,
+      ) &&
+      journalChildOptionalSingletons[child.name]!.every(
+        (name) => child.propertiesNamed(name).length <= 1,
+      ) &&
+      (child.name != 'VSTATUS' ||
+          parent.propertiesNamed('STATUS').length == 1) &&
+      _validJournalValues(child) &&
+      _validJournalChildren(child),
 );
 
 DavException _invalidJournal() => const DavException(

@@ -12,6 +12,7 @@ import '../../dav/dav_errors.dart';
 import '../../dav/ical/ical_attachments.dart';
 import '../../dav/ical/ical_document.dart';
 import '../../dav/ical/ical_recurrence.dart';
+import '../../dav/ical/ical_semantics.dart';
 import '../../dav/ical/dav_native_import.dart';
 import '../../dav/ical/dav_native_export.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
@@ -25,47 +26,22 @@ import '../../features/sync/sync_request.dart';
 import '../../providers/busy_provider.dart';
 import '../journal_component.dart';
 import '../journal_repository.dart';
+import '../journal_subscription_repository.dart';
 
-typedef JournalChoice = ({String id, String label});
-typedef JournalAttachmentFile = ({String name, List<int> bytes});
+import 'journal_controls.dart';
+import 'journal_component_editor.dart';
+import 'journal_property_editor.dart';
 
-final class JournalFileActions {
-  const JournalFileActions({
-    required this.read,
-    required this.export,
-    required this.pickAttachment,
-    required this.saveAttachment,
-    this.exportCollection,
-  });
-
-  final Future<List<int>?> Function() read;
-  final Future<void> Function(String raw) export;
-  final Future<String?> Function(List<NativeImportResource>)? exportCollection;
-  final Future<JournalAttachmentFile?> Function() pickAttachment;
-  final Future<String?> Function(IcalAttachment) saveAttachment;
-}
-
-abstract interface class JournalControls {
-  Widget input(
-    String label, {
-    TextEditingController? controller,
-    ValueChanged<String>? onChanged,
-    int lines = 1,
-  });
-  Widget choose(
-    String label,
-    String selected,
-    List<JournalChoice> choices,
-    ValueChanged<String> change,
-  );
-  Widget button(String label, VoidCallback? action, {bool primary = false});
-}
+export 'journal_controls.dart';
 
 final _journalRepository = Provider(
   (ref) => JournalRepository(ref.watch(databaseProvider)),
 );
 final _journalSources = StreamProvider.autoDispose(
   (ref) => ref.watch(_journalRepository).watchSources(),
+);
+final _subscriptionJournals = StreamProvider.autoDispose(
+  (ref) => watchJournalSubscriptions(ref.watch(databaseProvider)),
 );
 final _journalEntries = StreamProvider.autoDispose
     .family<List<DavJournalEntry>, (String, String, JournalDateFilter, int)>(
@@ -104,6 +80,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
   int _offset = 0;
   String? _error;
   JournalSnapshot? _open;
+  JournalSubscriptionEntry? _subscriptionEntry;
   JournalOccurrenceDraft? _occurrenceEdit;
   DavCollection? _create;
   bool _busy = false;
@@ -161,6 +138,16 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
     final repository = ref.watch(_journalRepository);
     final sourcesState = ref.watch(_journalSources);
     final sources = sourcesState.valueOrNull ?? const [];
+    final subscriptions =
+        ref.watch(_subscriptionJournals).valueOrNull ??
+        const <JournalSubscriptionEntry>[];
+    final subscriptionSources = {
+      for (final entry in subscriptions)
+        'webcal:${entry.source.id}': entry.source,
+    };
+    final subscriptionSource = subscriptionSources.containsKey(_source)
+        ? _source
+        : null;
     final filteredSource = sources.where((s) => s.id == _source).firstOrNull;
     final current = _open;
     final editorSource = current == null
@@ -193,7 +180,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                   editorSource?.journalInventoryComplete == true) &&
               caps?.canAttemptUpdateJournal == true &&
               pending?.state != 'conflict';
-    final filterSource = filteredSource?.id ?? '';
+    final filterSource = subscriptionSource ?? filteredSource?.id ?? '';
     final entries = ref.watch(
       _journalEntries((filterSource, _query, _dates, _offset)),
     );
@@ -217,6 +204,33 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
             .where((account) => account.id == _accountId)
             .firstOrNull ??
         accountChoices.firstOrNull;
+
+    if (_subscriptionEntry case final entry?) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(entry.source.summary),
+          Text(l10n.readOnlySharedCollection),
+          Text(entry.journal.title ?? l10n.untitledJournal),
+          Text(entry.journal.start?.rawValue ?? l10n.noDate),
+          if (entry.journal.status case final status?) Text(status),
+          for (final body in entry.journal.descriptions)
+            Text(body.decodedTextValue),
+          if (_error != null) Text(_error!),
+          if (widget.files != null)
+            ui.button(
+              l10n.export,
+              _busy
+                  ? null
+                  : () => _run(() => widget.files!.export(entry.resource())),
+            ),
+          ui.button(
+            l10n.close,
+            _busy ? null : () => setState(() => _subscriptionEntry = null),
+          ),
+        ],
+      );
+    }
 
     if (current != null || _create != null) {
       final occurrence = _occurrenceEdit;
@@ -291,6 +305,22 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                 if (mounted) setState(() => _occurrenceEdit = next);
               }),
         occurrenceScope: occurrence?.thisAndFuture,
+        changeOccurrenceStatus: occurrence == null || !writable
+            ? null
+            : () => _run(() async {
+                if (occurrence.thisAndFuture) {
+                  await repository.deleteOccurrenceRange(occurrence);
+                } else {
+                  await repository.deleteOccurrence(occurrence);
+                }
+                if (mounted) _closeEntry();
+              }),
+        cancelRange: occurrence?.thisAndFuture != true || !writable
+            ? null
+            : () => _run(() async {
+                await repository.cancelOccurrenceRange(occurrence!);
+                if (mounted) _closeEntry();
+              }),
         move: moveSources.isEmpty
             ? null
             : Wrap(
@@ -323,8 +353,17 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         export: current == null || widget.files == null
             ? null
             : () => _run(() => widget.files!.export(current.effectiveRawIcs)),
-        save: (title, start, status, descriptions, attachments, frequency) =>
-            _run(() async {
+        save:
+            (
+              title,
+              start,
+              status,
+              descriptions,
+              attachments,
+              frequency,
+              details,
+              children,
+            ) => _run(() async {
               await repository.database.transaction(() async {
                 if (current == null) {
                   await repository.create(
@@ -335,11 +374,19 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                     descriptions: descriptions,
                     attachments: attachments,
                     frequency: frequency,
+                    details: details,
+                    children: children,
                   );
                 } else {
                   final original = editing!.component;
                   final before = original.component.firstProperty('DTSTART');
                   final operations = [
+                    ...journalDetailsOperations(original.component, details),
+                    if (IcalDocument.create(
+                          components: original.component.components.toList(),
+                        ).serialize() !=
+                        IcalDocument.create(components: children).serialize())
+                      DavPatchOperation.replaceJournalChildren(children),
                     if (title != original.title)
                       DavPatchOperation.setText('SUMMARY', title),
                     if (status != original.status)
@@ -410,12 +457,17 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
       );
     }
 
-    final newSource = (filteredSource == null ? sources : [filteredSource])
-        .where(
-          (src) =>
-              collectionCapabilitiesFromStored(src).canAttemptCreateJournal,
-        )
-        .firstOrNull;
+    final newSource =
+        (subscriptionSource != null
+                ? const <DavCollection>[]
+                : filteredSource == null
+                ? sources
+                : [filteredSource])
+            .where(
+              (src) =>
+                  collectionCapabilitiesFromStored(src).canAttemptCreateJournal,
+            )
+            .firstOrNull;
     final pendingImport = _import;
     if (pendingImport != null) {
       final destinations = sources.where((source) {
@@ -500,6 +552,25 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
       );
     }
     final results = entries.valueOrNull ?? const [];
+    final subscriptionResults =
+        (filterSource.isNotEmpty && subscriptionSource == null
+                ? const <JournalSubscriptionEntry>[]
+                : subscriptions)
+            .where((entry) {
+              if (subscriptionSource != null &&
+                  subscriptionSource != 'webcal:${entry.source.id}') {
+                return false;
+              }
+              final dated = entry.journal.start != null;
+              return (_dates == JournalDateFilter.all ||
+                      dated == (_dates == JournalDateFilter.dated)) &&
+                  entry.journal.searchText.contains(
+                    _query.trim().toLowerCase(),
+                  );
+            })
+            .skip(_offset)
+            .take(100)
+            .toList();
     final settings = filteredSource == null
         ? null
         : ref
@@ -615,7 +686,13 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                     ? null
                     : () => _run(() async {
                         final result = await ref.read(manualSyncRunnerProvider)(
-                          filteredSource == null
+                          subscriptionSource != null
+                              ? calendarSyncScope(
+                                  subscriptionSources[subscriptionSource]!
+                                      .accountId,
+                                  subscriptionSources[subscriptionSource]!.id,
+                                )
+                              : filteredSource == null
                               ? allSyncScope
                               : davCollectionSyncScope(
                                   filteredSource.accountId,
@@ -781,6 +858,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                   (id: '', label: l10n.all),
                   for (final source in sources)
                     (id: source.id, label: source.displayName),
+                  for (final source in subscriptionSources.entries)
+                    (id: source.key, label: source.value.summary),
                 ],
                 (value) => setState(() {
                   _source = value;
@@ -806,7 +885,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: results.isEmpty
+            child: results.isEmpty && subscriptionResults.isEmpty
                 ? Center(
                     child: Text(
                       entries.hasError || sourcesState.hasError
@@ -817,8 +896,23 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                     ),
                   )
                 : ListView.builder(
-                    itemCount: results.length,
+                    itemCount: results.length + subscriptionResults.length,
                     itemBuilder: (_, index) {
+                      if (index >= results.length) {
+                        final entry =
+                            subscriptionResults[index - results.length];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: ui.button(
+                            [
+                              entry.journal.title ?? l10n.untitledJournal,
+                              entry.source.summary,
+                              entry.journal.start?.rawValue ?? l10n.noDate,
+                            ].join(' · '),
+                            () => setState(() => _subscriptionEntry = entry),
+                          ),
+                        );
+                      }
                       final item = results[index];
                       final source = sources
                           .where((s) => s.id == item.collectionId)
@@ -859,7 +953,9 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                     },
                   ),
           ),
-          if (_offset > 0 || results.length == 100)
+          if (_offset > 0 ||
+              results.length == 100 ||
+              subscriptionResults.length == 100)
             Wrap(
               spacing: 8,
               children: [
@@ -869,7 +965,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                 ),
                 ui.button(
                   '›',
-                  results.length == 100
+                  results.length == 100 || subscriptionResults.length == 100
                       ? () => setState(() => _offset += 100)
                       : null,
                 ),
@@ -966,6 +1062,8 @@ typedef _JournalSave = Future<void> Function(
   List<DavRawPropertyValue> descriptions,
   List<DavRawPropertyValue> attachments,
   JournalFrequency? frequency,
+  List<IcalProperty> details,
+  List<IcalComponent> children,
 );
 
 class _JournalEditor extends StatefulWidget {
@@ -987,6 +1085,8 @@ class _JournalEditor extends StatefulWidget {
     this.occurrences,
     this.openOccurrence,
     this.occurrenceScope,
+    this.changeOccurrenceStatus,
+    this.cancelRange,
     this.delete,
     this.duplicate,
     this.export,
@@ -1009,6 +1109,8 @@ class _JournalEditor extends StatefulWidget {
   final List<IcalOccurrence> Function(DateTime month)? occurrences;
   final void Function(IcalOccurrence, bool)? openOccurrence;
   final bool? occurrenceScope;
+  final VoidCallback? changeOccurrenceStatus;
+  final VoidCallback? cancelRange;
   final VoidCallback? delete;
   final VoidCallback? duplicate;
   final VoidCallback? export;
@@ -1092,9 +1194,25 @@ class _JournalEditorState extends State<_JournalEditor> {
     ...?widget.snapshot?.component.component.propertiesNamed('ATTACH'),
   ];
   final _attachmentUrl = TextEditingController();
+  late final _details = [
+    for (final property
+        in widget.snapshot?.component.component.properties ??
+            const <IcalProperty>[])
+      if (journalDetailsFields.contains(property.name))
+        JournalPropertyDraft(property.name, _persistDraft, property),
+  ];
+  late final _children = [
+    for (final child
+        in widget.snapshot?.component.component.components ??
+            const <IcalComponent>[])
+      JournalChildDraft(child, _persistDraft),
+  ];
+  bool _showDetails = false;
   bool _confirmDelete = false;
+  bool _confirmCancelRange = false;
   bool _loadingDraft = true;
   bool _hasDraft = false;
+  bool _draftDurable = false;
   bool _staleDraft = false;
   bool _draftFailed = false;
   bool _saving = false;
@@ -1137,7 +1255,49 @@ class _JournalEditorState extends State<_JournalEditor> {
         _attachments
           ..clear()
           ..addAll(_draftProperties(data, 'ATTACH'));
+        if (data['details'] case final List details) {
+          for (final detail in _details) {
+            detail.dispose();
+          }
+          _details.clear();
+          for (final item in details.cast<Map>()) {
+            final name = item['name'] as String;
+            if (!journalDetailsFields.contains(name)) continue;
+            final property = _draftProperties({
+              'details': [item],
+            }, 'details').single;
+            _details.add(
+              JournalPropertyDraft(
+                name,
+                _persistDraft,
+                IcalProperty(
+                  group: property.group,
+                  name: name,
+                  parameters: property.parameters,
+                  rawValue: property.rawValue,
+                  originalPhysicalLines: const [],
+                ),
+              ),
+            );
+          }
+        }
+        if (data['children'] case final List children) {
+          for (final child in _children) {
+            child.dispose();
+          }
+          _children
+            ..clear()
+            ..addAll(
+              children.cast<Map>().map(
+                (child) => JournalChildDraft(
+                  journalChildDraftFromJson(child.cast<String, Object?>()),
+                  _persistDraft,
+                ),
+              ),
+            );
+        }
         _hasDraft = true;
+        _draftDurable = true;
         _staleDraft = draft.baselineDigest != _baselineDigest;
       }
     } on Object {
@@ -1183,6 +1343,14 @@ class _JournalEditorState extends State<_JournalEditor> {
     'mode': _mode,
     'status': _status,
     'frequency': _frequency,
+    'details': [
+      for (final field in _details)
+        {'name': field.name, ..._rawProperty(field.toProperty()).toJson()},
+    ],
+    'children': [
+      for (final child in _children)
+        journalChildDraftToJson(child.toComponent()),
+    ],
     'DESCRIPTION': [for (final draft in _descriptions) draft.toRaw().toJson()],
     'ATTACH': [
       for (final property in _attachments)
@@ -1201,7 +1369,12 @@ class _JournalEditorState extends State<_JournalEditor> {
     final content = _draftContent();
     if (content == _lastDraftContent) return;
     _lastDraftContent = content;
-    if (!_hasDraft) setState(() => _hasDraft = true);
+    if (!_hasDraft || _draftDurable) {
+      setState(() {
+        _hasDraft = true;
+        _draftDurable = false;
+      });
+    }
     final repository = widget.repository;
     final id = widget.draftId;
     final digest = _baselineDigest;
@@ -1213,7 +1386,12 @@ class _JournalEditorState extends State<_JournalEditor> {
           baselineDigest: digest,
           contentJson: content,
         );
-        if (mounted && _draftFailed) setState(() => _draftFailed = false);
+        if (mounted && _lastDraftContent == content) {
+          setState(() {
+            _draftFailed = false;
+            _draftDurable = true;
+          });
+        }
       } on Object {
         if (mounted) setState(() => _draftFailed = true);
       }
@@ -1256,7 +1434,19 @@ class _JournalEditorState extends State<_JournalEditor> {
         _mode.isEmpty || _frequency.isEmpty
             ? null
             : JournalFrequency.values.byName(_frequency),
+        _details.map((field) => field.toProperty(validate: true)).toList(),
+        _children.map((child) => child.toComponent(validate: true)).toList(),
       );
+    } on FormatException catch (error) {
+      if (mounted) {
+        await widget.run(() async {
+          throw DavException(
+            kind: DavErrorKind.invalidCalendarData,
+            code: 'IcalInvalidJournalField',
+            safeMessage: error.message,
+          );
+        });
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -1278,6 +1468,12 @@ class _JournalEditorState extends State<_JournalEditor> {
     _attachmentUrl.dispose();
     for (final description in _descriptions) {
       description.dispose();
+    }
+    for (final detail in _details) {
+      detail.dispose();
+    }
+    for (final child in _children) {
+      child.dispose();
     }
     super.dispose();
   }
@@ -1440,6 +1636,27 @@ class _JournalEditorState extends State<_JournalEditor> {
     );
   }
 
+  DateTime? get _civilDateTime {
+    try {
+      return parseIcalTemporal(_start())?.localValue;
+    } on DavException {
+      return null;
+    }
+  }
+
+  void _chooseCivilDateTime(DateTime value, {required bool changeDay}) {
+    final prior = _civilDateTime;
+    final date = changeDay ? value : prior ?? value;
+    final time = changeDay ? prior : value;
+    String two(int value) => value.toString().padLeft(2, '0');
+    final day =
+        '${date.year.toString().padLeft(4, '0')}${two(date.month)}${two(date.day)}';
+    final clock = time == null
+        ? '000000'
+        : '${two(time.hour)}${two(time.minute)}${two(time.second)}';
+    _changeDraft(() => _date.text = _mode == 'date' ? day : '${day}T$clock');
+  }
+
   List<Widget> _occurrenceControls(AppLocalizations l10n) {
     final ui = widget.ui;
     final month = _occurrenceMonth;
@@ -1532,7 +1749,7 @@ class _JournalEditorState extends State<_JournalEditor> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final ui = widget.ui;
-    final canEdit = widget.writable;
+    final canEdit = widget.writable && !_staleDraft;
     final snapshot = widget.snapshot;
     final component = snapshot?.component.component;
     final title = component?.firstProperty('SUMMARY');
@@ -1566,7 +1783,7 @@ class _JournalEditorState extends State<_JournalEditor> {
                 if (widget.error != null)
                   Semantics(liveRegion: true, child: Text(widget.error!)),
                 if (_draftFailed) Text(l10n.journalDraftWriteFailed),
-                if (_hasDraft)
+                if (_hasDraft && (_draftDurable || _staleDraft))
                   Text(
                     _staleDraft
                         ? l10n.journalDraftStale
@@ -1588,11 +1805,30 @@ class _JournalEditorState extends State<_JournalEditor> {
                       (id: 'utcDateTime', label: '${l10n.journalDate} (UTC)'),
                       (id: 'tzidDateTime', label: l10n.journalZonedTime),
                     ], (value) => _changeDraft(() => _mode = value)),
-                  if (!derivedDate && _mode.isNotEmpty)
+                  if (!derivedDate && _mode.isNotEmpty) ...[
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ui.pickDate(
+                          l10n.journalPickDate,
+                          _civilDateTime,
+                          (date) => _chooseCivilDateTime(date, changeDay: true),
+                        ),
+                        if (_mode != 'date')
+                          ui.pickTime(
+                            l10n.journalPickTime,
+                            _civilDateTime,
+                            (time) =>
+                                _chooseCivilDateTime(time, changeDay: false),
+                          ),
+                      ],
+                    ),
                     ui.input(
                       _mode == 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DDTHH:MM:SS',
                       controller: _date,
                     ),
+                  ],
                   if (!derivedDate && _mode == 'tzidDateTime')
                     ui.input('TZID', controller: _zone),
                   if (snapshot == null && _mode.isNotEmpty)
@@ -1649,6 +1885,14 @@ class _JournalEditorState extends State<_JournalEditor> {
                       _descriptions.add(draft);
                     }),
                   ),
+                ] else if (_hasDraft) ...[
+                  Text(
+                    _title.text.isEmpty ? l10n.untitledJournal : _title.text,
+                  ),
+                  Text(_date.text.isEmpty ? l10n.noDate : _date.text),
+                  if (_status.isNotEmpty) Text(_status),
+                  for (final description in _descriptions)
+                    Text(description.text.text),
                 ] else if (snapshot != null) ...[
                   Text(snapshot.component.title ?? l10n.untitledJournal),
                   Text(snapshot.component.start?.rawValue ?? l10n.noDate),
@@ -1662,8 +1906,32 @@ class _JournalEditorState extends State<_JournalEditor> {
                 ],
                 ..._attachmentControls(l10n, canEdit),
                 ..._occurrenceControls(l10n),
+                if (canEdit) ...[
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: ui.button(
+                      l10n.journalDetails,
+                      () => setState(() => _showDetails = !_showDetails),
+                    ),
+                  ),
+                  if (_showDetails) ...[
+                    JournalPropertyEditor(
+                      ui: ui,
+                      fields: _details,
+                      changed: _persistDraft,
+                    ),
+                    JournalComponentEditor(
+                      parentType: 'VJOURNAL',
+                      children: _children,
+                      ui: ui,
+                      changed: _persistDraft,
+                    ),
+                  ],
+                ],
                 if (!_hasDraft && widget.move != null) widget.move!,
                 if (snapshot != null) ...[
+                  if (!canEdit || !_showDetails)
+                    ...journalReadOnlyChildren(snapshot.component.component),
                   for (final property
                       in snapshot.component.component.properties)
                     if (!const {
@@ -1672,6 +1940,8 @@ class _JournalEditorState extends State<_JournalEditor> {
                           'DTSTART',
                           'STATUS',
                         }.contains(property.name) &&
+                        (!canEdit ||
+                            !journalDetailsFields.contains(property.name)) &&
                         property.name != 'ATTACH')
                       Text(property.serializeLogicalLine()),
                 ],
@@ -1705,6 +1975,26 @@ class _JournalEditorState extends State<_JournalEditor> {
                             ? widget.delete
                             : () => setState(() => _confirmDelete = true),
                       ),
+                    if (widget.changeOccurrenceStatus != null && !_hasDraft)
+                      ui.button(
+                        widget.occurrenceScope == true
+                            ? l10n.journalDeleteFuture
+                            : l10n.journalDeleteOccurrence,
+                        locked
+                            ? null
+                            : _confirmDelete
+                            ? widget.changeOccurrenceStatus
+                            : () => setState(() => _confirmDelete = true),
+                      ),
+                    if (widget.cancelRange != null && !_hasDraft)
+                      ui.button(
+                        l10n.journalCancelFuture,
+                        locked
+                            ? null
+                            : _confirmCancelRange
+                            ? widget.cancelRange
+                            : () => setState(() => _confirmCancelRange = true),
+                      ),
                     ui.button(l10n.close, widget.busy ? null : widget.close),
                     if (_hasDraft)
                       ui.button(
@@ -1721,6 +2011,12 @@ class _JournalEditorState extends State<_JournalEditor> {
     );
   }
 }
+
+DavRawPropertyValue _rawProperty(IcalProperty property) => DavRawPropertyValue(
+  value: property.rawValue,
+  parameters: property.parameters,
+  group: property.group,
+);
 
 bool _sameProperties(
   List<IcalProperty> current,

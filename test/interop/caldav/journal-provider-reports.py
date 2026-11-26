@@ -4,6 +4,7 @@
 import argparse
 import json
 from pathlib import Path
+import re
 import runpy
 from uuid import uuid4
 from xml.etree import ElementTree as ET
@@ -52,13 +53,22 @@ def main():
         status, _, response = dav.request('REPORT', collection, payload, {**XML, 'Depth': '1'})
         observed = None
         if status == 207:
-            observed = sorted(
-                (member.findtext(D + 'href') or '').rsplit('/', 1)[-1]
-                for member in ET.fromstring(response).findall(D + 'response')
-                if member.find(f'.//{C}calendar-data') is not None
-                and (not expand or 'BEGIN:VJOURNAL' in member.findtext(f'.//{C}calendar-data', ''))
-            )
-        record(identifier, status, observed, sorted(expected))
+            data = {(member.findtext(D + 'href') or '').rsplit('/', 1)[-1]:
+                    member.findtext(f'.//{C}calendar-data', '')
+                    for member in ET.fromstring(response).findall(D + 'response')
+                    if member.find(f'.//{C}calendar-data') is not None}
+            if expand:
+                observed = {}
+                for name, value in data.items():
+                    unfolded = re.sub(r'\r?\n[ \t]', '', value)
+                    entries = [sorted(line for line in journal.splitlines()
+                        if re.match(r'^(DTSTART|RECURRENCE-ID|DTEND|DURATION)([:;])', line))
+                        for journal in re.findall(r'BEGIN:VJOURNAL.*?END:VJOURNAL', unfolded, re.S)]
+                    if entries:
+                        observed[name] = sorted(entries)
+            else:
+                observed = sorted(data)
+        record(identifier, status, observed, expected if expand else sorted(expected))
 
     try:
         for name, fields in {
@@ -76,7 +86,10 @@ def main():
                start='20261126T090000Z', end='20261126T090001Z')
         report('day-next-midnight-exclusive', [],
                start='20261127T000000Z', end='20261127T000001Z')
-        report('calendar-data-expanded-journal', ['day.ics', 'recurring.ics'],
+        report('calendar-data-expanded-journal', {
+            'day.ics': [['DTSTART;VALUE=DATE:20261126']],
+            'recurring.ics': [['DTSTART:20261126T090000Z', 'RECURRENCE-ID:20261126T090000Z']],
+        },
                expand=('20261126T000000Z', '20261127T000000Z'))
         request = (
             '<d:sync-collection xmlns:d="DAV:"><d:sync-token/><d:sync-level>1</d:sync-level>'
@@ -132,6 +145,25 @@ def main():
         read_status, _, read = dav.request('GET', collection + 'vstatus.ics')
         record('rfc10051-vstatus-readback', status, status == 201
                and read_status == 200 and '\r\n'.join(vstatus).encode() in read, True)
+        detached = '\r\n'.join([
+            'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//BusyMax//Detached REPORT QA//EN',
+            'BEGIN:VJOURNAL', 'UID:detached-report', 'DTSTAMP:20261126T000000Z',
+            'RECURRENCE-ID:20261128T090000Z', 'DTSTART:20261128T110000Z', 'END:VJOURNAL',
+            'BEGIN:VJOURNAL', 'UID:detached-report', 'DTSTAMP:20261126T000000Z',
+            'RECURRENCE-ID:20261129T090000Z', 'DTSTART:20261129T120000Z', 'END:VJOURNAL',
+            'END:VCALENDAR', '',
+        ]).encode()
+        status, _, _ = dav.request('PUT', collection + 'detached.ics', detached,
+                                  {**ICAL, 'If-None-Match': '*'})
+        record('detached-report-storage', status, status, 201)
+        if status == 201:
+            report('calendar-data-expanded-detached-journal', {'detached.ics': [
+                ['DTSTART:20261128T110000Z', 'RECURRENCE-ID:20261128T090000Z'],
+                ['DTSTART:20261129T120000Z', 'RECURRENCE-ID:20261129T090000Z'],
+            ]}, expand=('20261128T000000Z', '20261130T000000Z'))
+            status, _, value = dav.request('GET', collection + 'detached.ics')
+            record('calendar-data-expansion-leaves-storage-unchanged', status,
+                   status == 200 and value == detached, True)
     finally:
         status, _, _ = dav.request('DELETE', collection)
         if status not in (200, 204):

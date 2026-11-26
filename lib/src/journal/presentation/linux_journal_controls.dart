@@ -1,6 +1,7 @@
 import '../../app/busymax_design.dart';
 import '../../ui/common/flutter_material.dart';
 import 'journal_workspace.dart';
+import 'journal_material_pickers.dart';
 
 final class LinuxJournalControls implements JournalControls {
   const LinuxJournalControls();
@@ -45,4 +46,18 @@ final class LinuxJournalControls implements JournalControls {
       primary
       ? BusyMaxPushButton.suggested(onPressed: action, child: Text(label))
       : BusyMaxPushButton.standard(onPressed: action, child: Text(label));
+
+  @override
+  Widget pickDate(
+    String label,
+    DateTime? current,
+    ValueChanged<DateTime> change,
+  ) => journalDatePicker(this, label, current, change);
+
+  @override
+  Widget pickTime(
+    String label,
+    DateTime? current,
+    ValueChanged<DateTime> change,
+  ) => journalTimePicker(this, label, current, change);
 }

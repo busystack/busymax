@@ -9,6 +9,8 @@ import 'dart:typed_data';
 
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/journal/journal_subscription_repository.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
@@ -43,6 +45,44 @@ void main() {
   });
 
   tearDown(() async => database.close());
+
+  test('read-only WebCal projects undated journal notes from the accepted snapshot', () async {
+    final uri = Uri.parse('https://calendar.example.test/journals.ics');
+    transport.responses.add(
+      _response(
+        uri: uri,
+        body: utf8.encode(
+          _calendar('''
+BEGIN:VJOURNAL
+UID:public-journal-note
+DTSTAMP:20260829T000000Z
+DESCRIPTION;LANGUAGE=en:First public note
+DESCRIPTION;LANGUAGE=fr:Deuxième note
+END:VJOURNAL
+'''),
+        ),
+      ),
+    );
+    await service.addSubscription(
+      subscriptionUrl: uri.toString(),
+      localName: 'Published notes',
+    );
+    final entry = (await watchJournalSubscriptions(database).first).single;
+    expect(entry.source.summary, 'Published notes');
+    expect(entry.source.readOnly, isTrue);
+    expect(entry.journal.start, isNull);
+    expect(entry.journal.searchText, contains('deuxième note'));
+    expect(
+      entry.journal.descriptions.map((p) => p.parameterValue('LANGUAGE')),
+      ['en', 'fr'],
+    );
+    expect(entry.resource(), contains('UID:public-journal-note'));
+    expect(await database.select(database.calendarEvents).get(), isEmpty);
+    await (database.update(database.calendarSources)
+          ..where((row) => row.id.equals(entry.source.id)))
+        .write(const CalendarSourcesCompanion(selected: Value(false)));
+    expect(await watchJournalSubscriptions(database).first, isEmpty);
+  });
 
   test(
     'add stores a redacted read-only snapshot with stable identities',

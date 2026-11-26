@@ -1,5 +1,6 @@
 import '../../ui/common/flutter_material.dart';
 import 'journal_workspace.dart';
+import 'journal_material_pickers.dart';
 
 final class MaterialJournalControls implements JournalControls {
   const MaterialJournalControls();
@@ -55,4 +56,18 @@ final class MaterialJournalControls implements JournalControls {
       primary
       ? FilledButton(onPressed: action, child: Text(label))
       : OutlinedButton(onPressed: action, child: Text(label));
+
+  @override
+  Widget pickDate(
+    String label,
+    DateTime? current,
+    ValueChanged<DateTime> change,
+  ) => journalDatePicker(this, label, current, change);
+
+  @override
+  Widget pickTime(
+    String label,
+    DateTime? current,
+    ValueChanged<DateTime> change,
+  ) => journalTimePicker(this, label, current, change);
 }

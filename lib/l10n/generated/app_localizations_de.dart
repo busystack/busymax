@@ -4143,6 +4143,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get journalEditFuture => 'Edit this and future occurrences';
 
   @override
+  String get journalDeleteOccurrence => 'Delete this occurrence';
+
+  @override
+  String get journalCancelFuture => 'Cancel this and future occurrences';
+
+  @override
+  String get journalDeleteFuture => 'Delete this and future occurrences';
+
+  @override
   String get journalMove => 'Move journal entry';
 
   @override
@@ -4158,6 +4167,30 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get journalCollectionHasDrafts =>
       'Save or discard the journal drafts in this collection before deleting it.';
+
+  @override
+  String get journalDetails => 'Journal details';
+
+  @override
+  String get journalDetailField => 'Journal field';
+
+  @override
+  String get journalAddField => 'Add field';
+
+  @override
+  String get journalAddParameter => 'Add parameter';
+
+  @override
+  String get journalParameterName => 'Parameter name';
+
+  @override
+  String get journalParameterValues => 'Parameter values, one per line';
+
+  @override
+  String get journalPickDate => 'Pick date';
+
+  @override
+  String get journalPickTime => 'Pick time';
 
   @override
   String get journalDated => 'Datierte Einträge';

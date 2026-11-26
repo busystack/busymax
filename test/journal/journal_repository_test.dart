@@ -6,6 +6,7 @@ import 'package:busymax/src/dav/mutation/dav_conflict_analyzer.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
+import 'package:busymax/src/journal/presentation/journal_component_editor.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,6 +29,72 @@ String journal(List<String> descriptions) => [
 ].join('\r\n');
 
 void main() {
+  test('nested journal authoring survives JSON drafts and durable patches', () {
+    final raw = journal([
+      'STATUS:FINAL',
+      'BEGIN:PARTICIPANT',
+      'UID:participant-1',
+      'PARTICIPANT-TYPE:CONTACT',
+      'SUMMARY;LANGUAGE=fr:First',
+      'X-EXTENSION;X-PARAM="a,b":original',
+      ' folded tail',
+      'STATUS:FINAL',
+      'BEGIN:VSTATUS',
+      'STATUS:FINAL',
+      'COMMENT;DERIVED=TRUE:Read only',
+      'END:VSTATUS',
+      'END:PARTICIPANT',
+    ]);
+    final original = IcalDocument.parse(raw).calendarComponents.single;
+    final participant = JournalChildDraft(original.components.single, () {});
+    addTearDown(participant.dispose);
+    participant.fields
+            .singleWhere((field) => field.name == 'SUMMARY')
+            .value
+            .text =
+        'Second';
+    final location = JournalChildDraft.create('VLOCATION', () {});
+    participant.children.add(location);
+    final reopened = JournalChildDraft(
+      journalChildDraftFromJson(
+        journalChildDraftToJson(participant.toComponent()),
+      ),
+      () {},
+    );
+    addTearDown(reopened.dispose);
+    final patch = DavMutationPatch(
+      target: const IcalComponentKey(
+        componentType: 'VJOURNAL',
+        uid: 'journal-fixture',
+      ),
+      scope: DavMutationScope.object,
+      operations: [
+        DavPatchOperation.replaceJournalChildren([
+          reopened.toComponent(validate: true),
+        ]),
+      ],
+    );
+    final effective = DavMutationPatch.fromJsonString(patch.toJsonString())
+        .applyTo(raw, nowUtc: DateTime.utc(2026, 11, 26));
+    expect(effective, contains('SUMMARY;LANGUAGE=fr:Second'));
+    expect(
+      effective,
+      contains('X-EXTENSION;X-PARAM="a,b":original\r\n folded tail'),
+    );
+    expect(effective, contains('COMMENT;DERIVED=TRUE:Read only'));
+    final children = IcalDocument.parse(effective)
+        .calendarComponents
+        .single
+        .components
+        .single
+        .components;
+    expect(children.map((child) => child.name), ['VSTATUS', 'VLOCATION']);
+    expect(
+      children.last.firstProperty('UID')?.rawValue,
+      endsWith('@busymax.local'),
+    );
+  });
+
   test('offline create, edit, search, effective export and delete use one resource', () async {
     final db = AppDatabase.memoryForTests();
     addTearDown(db.close);
@@ -168,6 +235,69 @@ void main() {
           .map((occurrence) => occurrence.start.rawValue),
       ['20261126', '20261127', '20261128', '20261129', '20261130'],
     );
+    final month = DateTime.utc(2026, 11);
+    final originals = repository.occurrences(repeating, month);
+    final single = repository.inspectOccurrence(
+      repeating,
+      originals[1],
+      thisAndFuture: false,
+    );
+    await repository.editOccurrence(single, [
+      DavPatchOperation.setText('SUMMARY', 'Moved note'),
+      DavPatchOperation.setRaw('DTSTART', '20261128', preserveParameters: true),
+    ]);
+    final moved = await repository.read(repeating.entry);
+    final movedRow = repository
+        .occurrences(moved, month)
+        .singleWhere((item) => item.recurrenceId.rawValue == '20261127');
+    expect(movedRow.start.rawValue, '20261128');
+    expect(movedRow.summary, 'Moved note');
+    expect(
+      moved.effectiveRawIcs,
+      contains('RECURRENCE-ID;VALUE=DATE:20261127'),
+    );
+    await repository.deleteOccurrence(
+      repository.inspectOccurrence(moved, movedRow, thisAndFuture: false),
+    );
+    final deleted = await repository.read(repeating.entry);
+    expect(deleted.effectiveRawIcs, contains('EXDATE;VALUE=DATE:20261127'));
+    final dated = repository.occurrences(deleted, month);
+    expect(dated.map((row) => row.recurrenceId.rawValue), [
+      '20261126',
+      '20261128',
+      '20261129',
+      '20261130',
+    ]);
+    await repository.cancelOccurrenceRange(
+      repository.inspectOccurrence(deleted, dated[2], thisAndFuture: true),
+    );
+    final ranged = await repository.read(repeating.entry);
+    expect(
+      repository.occurrences(ranged, month).map((row) => row.isCancelled),
+      [false, false, true, true],
+    );
+    expect(
+      ranged.effectiveRawIcs,
+      contains('RECURRENCE-ID;VALUE=DATE;RANGE=THISANDFUTURE:20261129'),
+    );
+    await repository.deleteOccurrenceRange(
+      repository.inspectOccurrence(
+        ranged,
+        repository.occurrences(ranged, month)[2],
+        thisAndFuture: true,
+      ),
+    );
+    final trimmed = await repository.read(repeating.entry);
+    expect(trimmed.effectiveRawIcs, contains('RRULE:FREQ=DAILY;COUNT=3'));
+    expect(trimmed.effectiveRawIcs, contains('EXDATE;VALUE=DATE:20261127'));
+    expect(trimmed.effectiveRawIcs, isNot(contains('RANGE=THISANDFUTURE')));
+    expect(
+      repository
+          .occurrences(trimmed, month)
+          .map((row) => row.recurrenceId.rawValue),
+      ['20261126', '20261128'],
+    );
+    expect(ranged.effectiveRawIcs, isNot(contains('DTEND')));
   });
 
   test('title edit retains raw description lines and opaque extensions', () {

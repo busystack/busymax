@@ -289,6 +289,8 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       TableUpdate.onTable(database.pendingOps),
       TableUpdate.onTable(database.davCollectionCreations),
       TableUpdate.onTable(database.davCollectionCreationAcknowledgments),
+      TableUpdate.onTable(database.webCalSubscriptions),
+      TableUpdate.onTable(database.calendarSources),
     });
     ref.invalidate(accountsStreamProvider);
     ref.invalidate(accountManagementStreamProvider);

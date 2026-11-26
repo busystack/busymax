@@ -222,6 +222,8 @@ final class JournalRepository {
     IcalProperty? start,
     List<DavRawPropertyValue> descriptions = const [],
     List<DavRawPropertyValue> attachments = const [],
+    List<IcalProperty> details = const [],
+    List<IcalComponent> children = const [],
     JournalFrequency? frequency,
   }) {
     if (frequency != null && parseIcalTemporal(start) == null) {
@@ -244,12 +246,15 @@ final class JournalRepository {
         if (title != null) _property('SUMMARY', encodeIcalText(title)),
         if (status != null) _property('STATUS', status),
         if (start != null) start.deepCopy(),
-        if (frequency != null)
+        if (frequency != null &&
+            details.every((property) => property.name != 'RRULE'))
           _property('RRULE', 'FREQ=${frequency.name.toUpperCase()}'),
+        ...details.map((property) => property.deepCopy()),
         for (final description in descriptions)
           _property('DESCRIPTION', description.value, description.parameters),
         for (final attachment in attachments)
           _property('ATTACH', attachment.value, attachment.parameters),
+        ...children.map((child) => child.deepCopy()),
       ],
     );
     return _createRaw(
@@ -347,6 +352,292 @@ final class JournalRepository {
       ],
     );
     await _queueEdit(draft.entry.entry, patch);
+  });
+
+  Future<void> deleteOccurrence(JournalOccurrenceDraft draft) =>
+      database.transaction(() async {
+        if (draft.thisAndFuture) {
+          throw ArgumentError('A single occurrence is required.');
+        }
+        await _checkForLocalChange(draft.entry);
+        final selection = draft.component.key;
+        final document = IcalDocument.parse(draft.entry.effectiveRawIcs);
+        final patcher = IcalDocumentPatcher(document);
+        final entries = document.calendarComponents.where(
+          (node) => node.name == 'VJOURNAL',
+        );
+        final master = entries
+            .where((entry) => entry.firstProperty('RECURRENCE-ID') == null)
+            .firstOrNull;
+        if (master == null && entries.length == 1) {
+          await deleteResource(draft.entry);
+          return;
+        }
+        if (entries.any(
+          (entry) =>
+              icalRecurrenceIdKey(entry.firstProperty('RECURRENCE-ID')) ==
+              selection.recurrenceIdKey,
+        )) {
+          patcher.removeComponent(selection);
+        }
+        if (master != null) {
+          final identity = draft.component.component.component.firstProperty(
+            'RECURRENCE-ID',
+          )!;
+          master.children.add(
+            _property(
+              'EXDATE',
+              identity.rawValue,
+              identity.parameters
+                  .where((p) => p.name == 'VALUE' || p.name == 'TZID')
+                  .toList(),
+            ),
+          );
+          master.structurallyDirty = true;
+        }
+        final base = master == null
+            ? draft.entry.key
+            : IcalComponentKey(componentType: 'VJOURNAL', uid: selection.uid);
+        await _queueEdit(
+          draft.entry.entry,
+          DavMutationPatch(
+            target: base,
+            scope: DavMutationScope.occurrence,
+            operations: [
+              DavPatchOperation.replaceJournalResource(document.serialize()),
+              if (master != null) DavPatchOperation.reviseJournal(_nowUtc()),
+            ],
+          ),
+        );
+      });
+
+  Future<void> cancelOccurrenceRange(JournalOccurrenceDraft draft) =>
+      database.transaction(() async {
+        if (!draft.thisAndFuture) {
+          throw ArgumentError('A recurrence range is required.');
+        }
+        await _checkForLocalChange(draft.entry);
+        final base = IcalSemanticDocument.parse(draft.entry.effectiveRawIcs);
+        final resolver = IcalTimeZoneResolver.fromDocument(base);
+        final selection = draft.component.key;
+        final component = draft.component.component.component;
+        final first = resolver.toUtc(
+          parseIcalTemporal(component.firstProperty('RECURRENCE-ID'))!,
+        );
+        final existing = base.components.any(
+          (c) => c.recurrenceIdKey == selection.recurrenceIdKey,
+        );
+        final stamp = _nowUtc();
+        DavPatchOperation cancel() => DavPatchOperation.setRaw(
+          'STATUS',
+          'CANCELLED',
+          preserveParameters: true,
+        );
+        final candidate = DavMutationPatch(
+          target: selection,
+          scope: DavMutationScope.occurrence,
+          operations: [
+            if (existing) DavPatchOperation.removeComponent(),
+            DavPatchOperation.addComponent(component),
+            cancel(),
+            DavPatchOperation.reviseJournal(stamp),
+          ],
+        ).applyTo(draft.entry.effectiveRawIcs, nowUtc: stamp);
+        final result = IcalDocument.parse(candidate);
+        for (final sibling in result.calendarComponents.where(
+          (c) => c.name == 'VJOURNAL',
+        )) {
+          final identity = parseIcalTemporal(
+            sibling.firstProperty('RECURRENCE-ID'),
+          );
+          if (identity == null || !resolver.toUtc(identity).isAfter(first)) {
+            continue;
+          }
+          for (final name in const ['STATUS', 'DTSTAMP', 'LAST-MODIFIED']) {
+            final property = sibling.firstProperty(name);
+            if (name == 'STATUS' && property == null) {
+              sibling.children.add(_property('STATUS', 'CANCELLED'));
+              sibling.structurallyDirty = true;
+            } else if (property != null &&
+                (name == 'STATUS' || !isDerivedJournalProperty(property))) {
+              property
+                ..rawValue = name == 'STATUS'
+                    ? 'CANCELLED'
+                    : _revisionTime(stamp)
+                ..isDirty = true;
+            }
+          }
+        }
+        await _queueEdit(
+          draft.entry.entry,
+          DavMutationPatch(
+            target: draft.entry.key,
+            scope: DavMutationScope.object,
+            operations: [
+              DavPatchOperation.replaceJournalResource(result.serialize()),
+            ],
+          ),
+        );
+      });
+
+  Future<void> deleteOccurrenceRange(
+    JournalOccurrenceDraft draft,
+  ) => database.transaction(() async {
+    if (!draft.thisAndFuture) {
+      throw ArgumentError('A recurrence range is required.');
+    }
+    await _checkForLocalChange(draft.entry);
+    final raw = draft.entry.effectiveRawIcs;
+    final document = IcalDocument.parse(raw);
+    final semantic = IcalSemanticDocument.fromDocument(document);
+    final resolver = IcalTimeZoneResolver.fromDocument(semantic);
+    final identity = draft.component.component.component.firstProperty(
+      'RECURRENCE-ID',
+    )!;
+    final cutoff = parseIcalTemporal(identity)!;
+    bool before(IcalTemporalValue time) {
+      if (time.kind == cutoff.kind && time.timeZoneId == cutoff.timeZoneId) {
+        return time.rawValue.compareTo(cutoff.rawValue) < 0;
+      }
+      return resolver.toUtc(time).isBefore(resolver.toUtc(cutoff));
+    }
+
+    final master = semantic.components
+        .where((item) => item.recurrenceId == null)
+        .firstOrNull;
+    document.root.children.removeWhere((node) {
+      if (node is! IcalComponent || node.name != 'VJOURNAL') return false;
+      final date = parseIcalTemporal(node.firstProperty('RECURRENCE-ID'));
+      return date != null && !before(date);
+    });
+    if (master != null) {
+      final component = master.documentComponent;
+      final rules = component.propertiesNamed('RRULE').toList();
+      if (rules.length > 1) {
+        throw const DavException(
+          kind: DavErrorKind.unsupportedComponent,
+          code: 'IcalJournalUndefinedRecurrence',
+          safeMessage: 'This series has multiple recurrence rules. Use a single rule before deleting a range.',
+        );
+      }
+      final anchor = master.start!;
+      final keepAnchor = before(anchor);
+      if (rules.isNotEmpty) {
+        final rule = rules.single;
+        var count = 0;
+        if (keepAnchor) {
+          final ruleMaster = component.deepCopy();
+          ruleMaster.children.removeWhere(
+            (node) =>
+                node is IcalProperty &&
+                const {'RDATE', 'EXDATE'}.contains(node.name),
+          );
+          final ruleDocument = IcalSemanticDocument.fromDocument(
+            IcalDocument.create(
+              components: [ruleMaster, ...semantic.timeZones],
+            ),
+          );
+          count = IcalRecurrenceExpander()
+              .expand(
+                ruleDocument,
+                rangeStartUtc: resolver
+                    .toUtc(anchor)
+                    .subtract(const Duration(days: 2)),
+                rangeEndUtc: resolver
+                    .toUtc(cutoff)
+                    .add(const Duration(days: 2)),
+              )
+              .where((occurrence) => before(occurrence.recurrenceId))
+              .length;
+        }
+        if (count <= 1) {
+          component.children.remove(rule);
+        } else {
+          rule
+            ..rawValue = [
+              ...rule.rawValue
+                  .split(';')
+                  .where(
+                    (part) =>
+                        !part.toUpperCase().startsWith('COUNT=') &&
+                        !part.toUpperCase().startsWith('UNTIL='),
+                  ),
+              'COUNT=$count',
+            ].join(';')
+            ..isDirty = true;
+        }
+      }
+      for (final property
+          in component.properties
+              .where((node) => const {'RDATE', 'EXDATE'}.contains(node.name))
+              .toList()) {
+        final values = property.rawValue.split(',');
+        final retained = values.where((value) {
+          final start = _property(
+            property.name,
+            value.split('/').first,
+            property.parameters
+                .where(
+                  (parameter) =>
+                      parameter.name != 'VALUE' ||
+                      parameter.values.firstOrNull?.toUpperCase() != 'PERIOD',
+                )
+                .toList(),
+          );
+          final date = parseIcalTemporal(start);
+          if (date == null) {
+            throw const DavException(
+              kind: DavErrorKind.invalidCalendarData,
+              code: 'IcalInvalidJournalRecurrenceDate',
+              safeMessage:
+                  'Repair an invalid recurrence date before deleting a range.',
+            );
+          }
+          return before(date);
+        }).toList();
+        if (retained.isEmpty) {
+          component.children.remove(property);
+        } else if (retained.length != values.length) {
+          property
+            ..rawValue = retained.join(',')
+            ..isDirty = true;
+        }
+      }
+      if (!keepAnchor) {
+        final hasHistory =
+            component.propertiesNamed('RDATE').isNotEmpty ||
+            document.calendarComponents
+                    .where((c) => c.name == 'VJOURNAL')
+                    .length >
+                1;
+        if (hasHistory) {
+          component.children.add(_occurrenceDate('EXDATE', anchor));
+        } else {
+          document.root.children.remove(component);
+        }
+      }
+    }
+    if (!document.calendarComponents.any((c) => c.name == 'VJOURNAL')) {
+      await deleteResource(draft.entry);
+      return;
+    }
+    document.root.structurallyDirty = true;
+    await _queueEdit(
+      draft.entry.entry,
+      DavMutationPatch(
+        target: master == null
+            ? draft.entry.key
+            : IcalComponentKey(
+                componentType: 'VJOURNAL',
+                uid: draft.entry.entry.uid,
+              ),
+        scope: DavMutationScope.occurrence,
+        operations: [
+          DavPatchOperation.replaceJournalResource(document.serialize()),
+          if (master != null) DavPatchOperation.reviseJournal(_nowUtc()),
+        ],
+      ),
+    );
   });
 
   Future<void> duplicate(JournalSnapshot snapshot) {
