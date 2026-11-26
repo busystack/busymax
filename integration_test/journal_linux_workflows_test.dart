@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_app.dart';
-import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -180,7 +179,7 @@ void main() {
         await tester.pump();
         await tester.ensureVisible(_input('Description').last);
         await tester.enterText(_input('Description').last, 'Second body');
-        final save = find.widgetWithText(BusyMaxPushButton, 'Save');
+        final save = find.widgetWithText(ElevatedButton, 'Save');
         await tester.scrollUntilVisible(
           save,
           300,
