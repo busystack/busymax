@@ -43,7 +43,8 @@ they use public Win32 and Windows ICU APIs. Upstream plugin implementations,
 registration and package sources remain unchanged. The application channels
 also retain the native error, resource ownership and callback-completion
 regressions in `windows/runner/tests`, built by
-`tool/windows/run_native_tests.ps1`.
+`tool/windows/run_native_tests.ps1` in `build/windows/native-tests`. The release
+pipeline checks the original integrity receipt and bundle after the native run.
 
 ## Fluent composition
 

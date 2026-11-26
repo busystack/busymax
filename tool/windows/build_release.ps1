@@ -180,8 +180,16 @@ function Invoke-BusyMaxWindowsCompile {
 }
 
 function Invoke-BusyMaxNativeTests {
+  $releasePath = 'build\windows\x64\runner\Release'
+  $receiptPath = "$releasePath.busymax-integrity.json"
+  $receiptHash = (Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256).Hash
   & "$PSScriptRoot/run_native_tests.ps1"
   if ($LASTEXITCODE -ne 0) { throw 'Windows native tests failed.' }
+  if ($receiptHash -cne (Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256).Hash) {
+    throw 'Native tests changed the Windows release integrity receipt.'
+  }
+  Assert-BusyMaxAcceptedRelease $releasePath $ConfigPath ([bool]$Ci) | Out-Null
+  Write-Host 'Native tests preserved the accepted Windows release inventory.'
 }
 
 function Invoke-BusyMaxPackage {
