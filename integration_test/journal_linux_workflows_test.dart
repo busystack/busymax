@@ -181,7 +181,16 @@ void main() {
         await tester.ensureVisible(_input('Description').last);
         await tester.enterText(_input('Description').last, 'Second body');
         final save = find.widgetWithText(BusyMaxPushButton, 'Save');
-        await tester.scrollUntilVisible(save, 300);
+        await tester.scrollUntilVisible(
+          save,
+          300,
+          scrollable: find
+              .descendant(
+                of: find.byType(ListView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
         await tester.tap(save);
         await _until(tester, find.textContaining('Journal café'));
         await tester.tap(find.text('Refresh'));
