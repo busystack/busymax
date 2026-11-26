@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import secrets
 import shutil
@@ -162,9 +163,20 @@ def provision(candidate):
     ], check=True)
     if not credentials.is_file():
         raise RuntimeError('Candidate credentials were not written')
+    owner = json.loads(credentials.read_text())['alice']
+    password_file = candidate / 'owner-app-password'
+    password_file.write_text(owner + '\n')
+    password_file.chmod(0o600)
+    profile = candidate / 'busymax-connection.json'
+    profile.write_text(json.dumps({'caldav': {
+        'authority': PUBLIC + '/', 'username': 'alice', 'password': owner,
+        'caFile': str(tls / 'ca.pem'),
+    }}, indent=2) + '\n')
+    profile.chmod(0o600)
 
 
 def main():
+    os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['prepare', 'start', 'provision', 'stop'])
     parser.add_argument('path', type=Path, help='Server checkout for prepare, candidate directory otherwise')

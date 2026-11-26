@@ -82,7 +82,11 @@ def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None):
                 for key, value in response.getheaders():
                     if key.lower() not in ('connection', 'transfer-encoding', 'content-length'):
                         self.send_header(key, value)
-                self.send_header('Content-Length', str(len(body)))
+                content_length = (
+                    response.getheader('Content-Length', '0')
+                    if self.command == 'HEAD' else str(len(body))
+                )
+                self.send_header('Content-Length', content_length)
                 self.end_headers()
                 self.wfile.write(body)
             finally:
@@ -90,7 +94,7 @@ def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None):
 
         do_GET = do_HEAD = do_OPTIONS = do_PROPFIND = do_REPORT = proxy
         do_PUT = do_DELETE = do_MKCALENDAR = do_MKCOL = do_PROPPATCH = do_MOVE = proxy
-        do_POST = proxy
+        do_COPY = do_POST = proxy
 
         def log_message(self, fmt, *args):
             # No headers, request bodies, URLs or credentials in diagnostics.

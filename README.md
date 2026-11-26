@@ -59,6 +59,20 @@ Capabilities and editing permissions vary by provider. See the [provider support
 
 BusyMax provides day, week, month, year, and agenda views with calendar events and tasks.
 
+Open **Journals** from the Linux or Android workspace menu or from the
+Windows navigation pane. Choose a discovered source, or create a journal
+collection on a connected CalDAV account. Search includes every description
+block. The date filter can show dated entries, undated entries, or both.
+
+A journal can use a calendar date, floating wall time, UTC, a named time
+zone, or no date. Edit its title, status and description blocks separately.
+Each block can carry its own language and alternate representation URI.
+You can attach web links or files, save inline attachments and export an
+entry as an iCalendar file. The workspace previews journal files before
+queueing an import. Local saves remain visible while uploads are pending.
+Full provider and native workflow qualification remains in progress.
+[Journal qualification](test/interop/caldav/README.md#journal-candidate-qualification)
+
 <table>
   <tr>
     <td><img src="docs/screenshots/main_window_week.png" alt="BusyMax week view on Linux"><br><sub>Week view</sub></td>

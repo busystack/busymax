@@ -313,6 +313,21 @@ plugins. It does not contact a live provider. Use `GDK_BACKEND=x11` when selecti
 an X11 session. The separate `tool/release/check_linux_native.sh` gate runs
 native C++/GTK checks and requires `xvfb-run` from the `xvfb` package.
 
+## DAV journal storage
+
+The schema 27 `DavJournalEntries` projection indexes VJOURNAL components
+by account, collection, DAV object and recurrence identity. Resource href,
+UID, server ETag and local row IDs have separate roles. The authoritative
+resource is the server's returned iCalendar document and pending operations
+provide the effective local overlay. The migration rebuilds metadata and
+projections from stored documents without changing their server ETags.
+Journal enablement and access changes can require a complete inventory
+before existing entries can be edited. Mixed sources keep a single physical
+inventory and cursor.
+
+Use the [journal candidate qualification](../test/interop/caldav/README.md#journal-candidate-qualification)
+to reproduce the HTTPS admission and application tests.
+
 ## Repository contents
 
 Keep application and platform source, tests and synthetic fixtures, locked

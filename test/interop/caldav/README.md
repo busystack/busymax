@@ -246,6 +246,71 @@ rejects mixed component creation. The probe verifies that rejection rather than
 assuming a missing task collection means VTODO is unsupported. Sharing controls
 belong to the server fixture, not BusyMax.
 
+## Journal candidate qualification
+
+Build the server image from the JAR produced by a successful clean Maven verify
+on the candidate commit. The preparation command checks its source label,
+image ID and embedded JAR hash. The startup check verifies schema 17. This
+candidate uses loopback port 18448. Stop any other task-owned fixture on that
+port before starting the candidate. The already released BusyStack profile
+documented above has its own provenance and workflow.
+
+```sh
+candidate=$(python3 test/interop/caldav/vjournal-candidate.py prepare ../caldav-server)
+python3 test/interop/caldav/vjournal-candidate.py start "$candidate"
+python3 test/interop/caldav/busystack-fixture.py build-browser
+python3 test/interop/caldav/vjournal-candidate.py provision "$candidate"
+nextcloud=$(python3 test/interop/caldav/vjournal-nextcloud.py start /tmp)
+
+umask 077
+python3 - "$candidate" "$nextcloud" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+candidate, nextcloud = map(Path, sys.argv[1:])
+profile = json.loads((nextcloud / 'busymax-live.json').read_text())
+profile.update(json.loads((candidate / 'busymax-connection.json').read_text()))
+(nextcloud / 'busymax-live.json').write_text(json.dumps(profile))
+PY
+
+python3 test/interop/caldav/verify-vjournal.py \
+  --server ../caldav-server --candidate "$candidate" --nextcloud "$nextcloud" \
+  --fixture "$nextcloud/busymax-live.json" --artifacts build/qualification
+```
+
+The command runs shared raw admission and REPORT probes, configured BusyMax
+DAV tests and the partial production Linux workflow in the active graphical
+session. A missing required runtime scenario or a failed write keeps the
+qualification incomplete. The report includes the exact sources, provider
+identities and case logs. Run the suite on a disposable display/profile.
+The test configuration contains app passwords and stays outside Git.
+
+Clean up only the fixtures created above.
+
+```sh
+python3 test/interop/caldav/vjournal-candidate.py stop "$candidate"
+python3 test/interop/caldav/vjournal-nextcloud.py stop "$nextcloud"
+```
+
+### Journal coverage
+
+| Scope | Parse and preserve | Presentation and authoring | Exercised checks |
+| --- | --- | --- | --- |
+| RFC 5545 journal properties | Authoritative lines, property parameters, multiple descriptions and retained opaque fields | Title, status, date mode, description blocks, language, ALTREP and attachments | J01, J07 and J09 subsets in `test/journal` and admission J01 |
+| RFC 7986 and RFC 9073 extensions | Wrapper and journal fields, nested components and property parameters retained on unrelated edits | Basic property inspection. Authored structured content editing is outstanding | Admission J10 and J11 |
+| RFC 9253 relationships | URI, UID and XML-reference forms retained in raw resources | Reference resolution and relationship editing are outstanding | Admission J12 |
+| Recurrence and dates | Period values retained. Bounded expansion uses period starts and journal point/day matching | New entries can repeat and occurrences can be browsed by month. Editing or deleting generated instances or future ranges is outstanding | J15 and J19 subsets in `test/journal`, J20 REPORT probes |
+| Offline and conflicts | Conditional queue and effective export. Overlapping reordered descriptions require conflict resolution | Pending or failed operations appear in the journal list. Journal details offer server, reapply and duplicate choices where available | O04, O06 and O09 subsets in `test/journal`. Native restart and conflict acceptance are outstanding |
+| Import and export | Storage-form ICS resource sets, including detached-only data | Preview and effective entry export. Journal PUBLISH, ADD and CANCEL file handling is outstanding | O13 subset in `test/journal` |
+
+Stock Nextcloud 35.0.3 rejected both dated RDATE PERIOD forms and three
+explicit relationship VALUE cases on create and conditional replacement.
+The independent probe checks that rejected writes leave prior bytes,
+ETags, inventory and sync tokens unchanged. BusyMax keeps the pending
+resource available for export. Nextcloud's time-range and expanded
+REPORT results cannot provide a complete journal inventory.
+
 Run the additional cases **sequentially** after the shared live suite:
 
 ```bash
