@@ -140,6 +140,8 @@ def main():
         label = f'linux-{provider}-process-restart'
         with tempfile.TemporaryDirectory(prefix='journal-native-profile-') as profile:
             root = Path(profile)
+            runtime = root / 'runtime'
+            runtime.mkdir(mode=0o700)
             stages = """
 set -eu
 printf %s busymax-journal-test-keyring | gnome-keyring-daemon --unlock --components=secrets
@@ -155,6 +157,7 @@ done
                        for stage in ('queue', 'replay')],
                 extra_env={'XDG_CONFIG_HOME': str(root / 'config'),
                            'XDG_DATA_HOME': str(root / 'data'),
+                           'XDG_RUNTIME_DIR': str(runtime),
                            'BUSYMAX_JOURNAL_RESTART_PROFILE': str(root / 'profile')},
             )
         return label, passed
