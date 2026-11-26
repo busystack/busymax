@@ -266,6 +266,10 @@ done
             sys.executable, str(FIXTURES / 'journal-provider-reports.py'), str(server),
             str(fixture), provider,
         ])
+    run('nextcloud-permission-views', [
+        sys.executable, str(FIXTURES / 'journal-nextcloud-views.py'),
+        str(server), str(nextcloud),
+    ])
     run('busymax-live', ['flutter', 'test', 'test/journal', '--reporter', 'expanded'],
         named=[f'journal durable CRUD with independent HTTPS readback on {provider}'
                for provider in profiles])
