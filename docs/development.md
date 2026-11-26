@@ -183,6 +183,13 @@ built APK's ID, retain data for process-restart tests, and explicitly uninstall
 only the QA package created by the current task. Never install over a normal
 BusyMax profile or clear its data.
 
+Before running Flutter against an existing QA installation, compare the
+installed APK's signing certificate to the built APK using Android build-tools
+`apksigner verify --print-certs`. Use `adb install -r -t` to check that the
+update succeeds. A signing mismatch or a failed update leaves the installed
+QA package in place. Flutter 3.50.1 can uninstall on an install error even with
+`--no-uninstall`, which applies to cleanup after the test.
+
 ### Native HTTP reuse regression
 
 The slow-response reuse fixture in

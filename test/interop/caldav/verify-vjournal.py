@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 import uuid
 from urllib.parse import urlsplit
 
@@ -154,9 +155,12 @@ def main():
         native = 'integration_test/journal_android_workflows_test.dart'
         define = '--dart-define-from-file=' + str(private)
         tcp = f'tcp:{port}'
+        adb = ['adb', '-s', serial]
+        mapped = False
         try:
-            if not run(f'android-{provider}-reverse', ['adb', '-s', serial, 'reverse', tcp, tcp]):
+            if not run(f'android-{provider}-reverse', [*adb, 'reverse', '--no-rebind', tcp, tcp]):
                 return 'not run: fixture port mapping failed'
+            mapped = True
             if not run(f'android-{provider}-build', ['flutter', 'build', 'apk', '--debug',
                        '--target=' + native, define], extra_env=flags):
                 return 'not run: APK build failed'
@@ -166,6 +170,50 @@ def main():
             match = re.search(r"^package: name='([^']+)'", badging.stdout, re.M)
             if badging.returncode or not match or match[1] != package_id:
                 return 'not run: verified APK application ID did not match the QA package'
+            signer = args.android_aapt.resolve().with_name('apksigner')
+            if not signer.is_file():
+                return 'not run: apksigner must be installed alongside aapt'
+
+            def certificates(path):
+                response = subprocess.run(
+                    [str(signer), 'verify', '--print-certs', str(path)],
+                    capture_output=True, text=True,
+                )
+                if response.returncode:
+                    return set()
+                return set(re.findall(
+                    r'^Signer #\d+ certificate SHA-256 digest: ([a-fA-F0-9]+)$',
+                    response.stdout, re.M,
+                ))
+
+            signing_identity = certificates(apk)
+            if not signing_identity:
+                return 'not run: the QA APK signature could not be verified'
+            installed = subprocess.run(
+                [*adb, 'shell', 'pm', 'list', 'packages', package_id],
+                capture_output=True, text=True,
+            )
+            if installed.returncode:
+                return 'not run: the device package inventory could not be read'
+            if f'package:{package_id}' in installed.stdout.splitlines():
+                paths = subprocess.run(
+                    [*adb, 'shell', 'pm', 'path', package_id],
+                    capture_output=True, text=True,
+                )
+                base = next((line.removeprefix('package:') for line in paths.stdout.splitlines()
+                             if line.startswith('package:') and line.endswith('/base.apk')), None)
+                if paths.returncode or base is None:
+                    return 'not run: the installed QA APK could not be located'
+                with tempfile.TemporaryDirectory(dir=artifact) as directory:
+                    local_apk = Path(directory) / 'existing-qa.apk'
+                    copied = subprocess.run([*adb, 'pull', base, str(local_apk)],
+                                            capture_output=True)
+                    if copied.returncode or certificates(local_apk) != signing_identity:
+                        return 'not run: existing QA signing identity differs; retained installed package and data'
+            # A safe update catches other install problems before Flutter's
+            # install retry can uninstall a previously installed QA package.
+            if not run(f'android-{provider}-install-check', [*adb, 'install', '-r', '-t', str(apk)]):
+                return 'not run: the safe QA install/update failed'
             with apk.open('rb') as binary:
                 apk_hash = hashlib.file_digest(binary, 'sha256').hexdigest()
             results[f'android-{provider}-apk'] = {'applicationId': package_id, 'sha256': apk_hash}
@@ -175,6 +223,8 @@ def main():
                          named=[f'Android journal collection and editor on {provider}'])
             return native_result('android', provider, label, passed)
         finally:
+            if mapped:
+                subprocess.run([*adb, 'reverse', '--remove', tcp], capture_output=True)
             private.unlink(missing_ok=True)
 
     probe = server / 'qualification/clients/journal-admission.py'
