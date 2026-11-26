@@ -104,6 +104,25 @@ def main():
         read_status, _, read = dav.request('GET', collection + 'repair.ics')
         print(json.dumps(dict(case='default-missing-dtstamp-create', status=status,
                               get=read_status, returned_dtstamp=b'DTSTAMP:' in read)), flush=True)
+        corpus = json.loads((args.server_checkout / 'qualification/fixtures/vjournal/admission-v1.json').read_text())
+        periods = [case for case in corpus['cases'] if case['id'].startswith('J15-')]
+        for case in periods:
+            name = case['id']
+            status, _, _ = dav.request(
+                'PUT', collection + name + '.ics', support['representation'](name, case),
+                {**ICAL, 'If-None-Match': '*'},
+            )
+            record(name + '-admission-for-report', status, status, 201)
+        if all(results[-len(periods):]):
+            report('period-occurrence-start', [case['id'] + '.ics' for case in periods]
+                   + ['day.ics', 'recurring.ics'],
+                   start='20261126T090000Z', end='20261126T090001Z')
+            report('period-interior-excludes-start', ['day.ics'],
+                   start='20261126T100000Z', end='20261126T100001Z')
+        else:
+            for identifier in ('period-occurrence-start', 'period-interior-excludes-start'):
+                print(json.dumps(dict(case=identifier, blocked='fixture rejected at admission')),
+                      flush=True)
     finally:
         status, _, _ = dav.request('DELETE', collection)
         if status not in (200, 204):
