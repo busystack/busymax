@@ -40,7 +40,7 @@ void main() {
       expect(authority.scheme, 'https');
       final username = fixture['username'] as String;
       final password = fixture['password'] as String;
-      final secret = provider == 'caldav'
+      final SecretRecord secret = provider == 'caldav'
           ? CalDavSecretRecord(
               serviceAuthority: authority,
               username: username,
