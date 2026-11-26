@@ -10,7 +10,7 @@ import threading
 RUNTIME = pathlib.Path('/fixtures/.runtime')
 
 
-def serve(port, upstream, prefix='', untrusted=False):
+def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None):
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
 
@@ -23,6 +23,12 @@ def serve(port, upstream, prefix='', untrusted=False):
             # A redirect must consume this request body before a keep-alive
             # connection can receive the client's redirected PROPFIND.
             payload = self.rfile.read(length)
+            if self.path == '/.well-known/caldav' and well_known_caldav is not None:
+                self.send_response(301)
+                self.send_header('Location', well_known_caldav)
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
             if self.path == '/.well-known/caldav' and port == 18448:
                 # The origin's proxy owns well-known routing for both released
                 # root and configured servlet-subpath deployments.
