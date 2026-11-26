@@ -58,7 +58,7 @@ def main():
                 if member.find(f'.//{C}calendar-data') is not None
                 and (not expand or 'BEGIN:VJOURNAL' in member.findtext(f'.//{C}calendar-data', ''))
             )
-        record(identifier, status, observed, expected)
+        record(identifier, status, observed, sorted(expected))
 
     try:
         for name, fields in {
