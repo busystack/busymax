@@ -192,7 +192,7 @@ void main() {
         );
         await tester.tap(save);
         await _until(tester, find.textContaining('Journal café'));
-        await tester.tap(find.text('Refresh'));
+        await _refresh(tester);
         await _until(tester, find.textContaining('Pending sync'), absent: true);
 
         final object = (await tester.runAsync(
@@ -224,7 +224,7 @@ void main() {
           ),
         ))!;
         expect(changed.statusCode, anyOf(200, 204));
-        await tester.tap(find.text('Refresh'));
+        await _refresh(tester);
         await _until(tester, find.textContaining('Peer edit'));
         await tester.enterText(_input('Search'), 'second body');
         await _until(tester, find.textContaining('Peer edit'));
@@ -257,6 +257,20 @@ void main() {
 Finder _input(String label) => find.byWidgetPredicate(
   (widget) => widget is TextField && widget.decoration?.labelText == label,
 );
+
+Future<void> _refresh(WidgetTester tester) async {
+  final enabled = find.byWidgetPredicate(
+    (widget) =>
+        widget is FilledButton &&
+        widget.onPressed != null &&
+        widget.child is Text &&
+        (widget.child as Text).data == 'Refresh',
+  );
+  await _until(tester, enabled);
+  await tester.tap(enabled);
+  await tester.pump();
+  await _until(tester, enabled);
+}
 
 Future<void> _until(
   WidgetTester tester,
