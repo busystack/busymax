@@ -1,25 +1,38 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../dav/dav_errors.dart';
+import '../../dav/ical/ical_attachments.dart';
 import '../../dav/ical/ical_document.dart';
 import '../../dav/ical/dav_native_import.dart';
 import '../../dav/mutation/dav_mutation_patch.dart';
 import '../../dav/storage/dav_collection_capabilities.dart';
 import '../../db/app_database.dart';
+import '../../features/attachments/presentation/dav_attachment_file_name.dart';
+import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/sync/sync_request.dart';
 import '../../providers/busy_provider.dart';
 import '../journal_repository.dart';
 
 typedef JournalChoice = ({String id, String label});
+typedef JournalAttachmentFile = ({String name, List<int> bytes});
 
 final class JournalFileActions {
-  const JournalFileActions({required this.read, required this.export});
+  const JournalFileActions({
+    required this.read,
+    required this.export,
+    required this.pickAttachment,
+    required this.saveAttachment,
+  });
 
   final Future<List<int>?> Function() read;
   final Future<void> Function(String raw) export;
+  final Future<JournalAttachmentFile?> Function() pickAttachment;
+  final Future<String?> Function(IcalAttachment) saveAttachment;
 }
 
 abstract interface class JournalControls {
@@ -183,44 +196,53 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         busy: _busy,
         error: _error,
         close: _closeEntry,
+        files: widget.files,
+        run: _run,
         export: current == null || widget.files == null
             ? null
             : () => _run(() => widget.files!.export(current.effectiveRawIcs)),
-        save: (title, start, status, descriptions) => _run(() async {
-          if (current == null) {
-            await repository.create(
-              _create!,
-              title: title,
-              start: start,
-              status: status,
-              descriptions: descriptions,
-            );
-          } else {
-            final original = current.component;
-            final before = original.component.firstProperty('DTSTART');
-            await repository.edit(current, [
-              if (title != original.title)
-                DavPatchOperation.setText('SUMMARY', title),
-              if (status != original.status)
-                DavPatchOperation.setRaw('STATUS', status),
-              if (start?.serializeLogicalLine() !=
-                  before?.serializeLogicalLine())
-                DavPatchOperation.setRaw(
-                  'DTSTART',
-                  start?.rawValue,
-                  parameters: start?.parameters ?? const [],
-                ),
-              if (!_sameDescriptions(original.descriptions, descriptions))
-                DavPatchOperation.replaceRepeatedRaw(
-                  'DESCRIPTION',
-                  descriptions,
-                ),
-            ]);
-          }
-          if (mounted) {
-            _closeEntry();
-          }
-        }),
+        save: (title, start, status, descriptions, attachments) =>
+            _run(() async {
+              if (current == null) {
+                await repository.create(
+                  _create!,
+                  title: title,
+                  start: start,
+                  status: status,
+                  descriptions: descriptions,
+                  attachments: attachments,
+                );
+              } else {
+                final original = current.component;
+                final before = original.component.firstProperty('DTSTART');
+                await repository.edit(current, [
+                  if (title != original.title)
+                    DavPatchOperation.setText('SUMMARY', title),
+                  if (status != original.status)
+                    DavPatchOperation.setRaw('STATUS', status),
+                  if (start?.serializeLogicalLine() !=
+                      before?.serializeLogicalLine())
+                    DavPatchOperation.setRaw(
+                      'DTSTART',
+                      start?.rawValue,
+                      parameters: start?.parameters ?? const [],
+                    ),
+                  if (!_sameProperties(original.descriptions, descriptions))
+                    DavPatchOperation.replaceRepeatedRaw(
+                      'DESCRIPTION',
+                      descriptions,
+                    ),
+                  if (!_sameProperties(
+                    original.component.propertiesNamed('ATTACH').toList(),
+                    attachments,
+                  ))
+                    DavPatchOperation.replaceRepeatedRaw('ATTACH', attachments),
+                ]);
+              }
+              if (mounted) {
+                _closeEntry();
+              }
+            }),
         duplicate: current != null && caps?.canAttemptCreateJournal == true
             ? () => _run(() async {
                 await repository.duplicate(current);
@@ -400,16 +422,33 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
               _busy
                   ? null
                   : () => _run(() async {
-                      await ref
+                      final name = _collectionName.text.trim();
+                      final result = await ref
                           .read(
                             davCalendarCollectionMutationServiceForAccountProvider(
                               selectedAccount.id,
                             ),
                           )
-                          .createJournalCollection(_collectionName.text);
+                          .createJournalCollection(name);
+                      final created = (await repository.watchSources().first)
+                          .where(
+                            (source) =>
+                                source.accountId == selectedAccount.id &&
+                                source.displayName == name,
+                          )
+                          .firstOrNull;
                       if (mounted) {
                         _collectionName.clear();
-                        setState(() => _createCollection = false);
+                        setState(() {
+                          _createCollection = false;
+                          if (created != null) {
+                            _source = created.id;
+                            _offset = 0;
+                          }
+                          if (result.refreshPending) {
+                            _notice = l10n.pendingSync;
+                          }
+                        });
                       }
                     }),
             ),
@@ -539,6 +578,7 @@ typedef _JournalSave = Future<void> Function(
   IcalProperty? start,
   String? status,
   List<DavRawPropertyValue> descriptions,
+  List<DavRawPropertyValue> attachments,
 );
 
 class _JournalEditor extends StatefulWidget {
@@ -552,6 +592,8 @@ class _JournalEditor extends StatefulWidget {
     required this.error,
     required this.close,
     required this.save,
+    required this.files,
+    required this.run,
     this.delete,
     this.duplicate,
     this.export,
@@ -565,6 +607,8 @@ class _JournalEditor extends StatefulWidget {
   final String? error;
   final VoidCallback close;
   final _JournalSave save;
+  final JournalFileActions? files;
+  final Future<void> Function(Future<void> Function()) run;
   final VoidCallback? delete;
   final VoidCallback? duplicate;
   final VoidCallback? export;
@@ -641,6 +685,10 @@ class _JournalEditorState extends State<_JournalEditor> {
         in widget.snapshot?.component.descriptions ?? const <IcalProperty>[])
       _DescriptionDraft(property),
   ];
+  late final _attachments = [
+    ...?widget.snapshot?.component.component.propertiesNamed('ATTACH'),
+  ];
+  final _attachmentUrl = TextEditingController();
   bool _confirmDelete = false;
 
   @override
@@ -648,10 +696,127 @@ class _JournalEditorState extends State<_JournalEditor> {
     _title.dispose();
     _date.dispose();
     _zone.dispose();
+    _attachmentUrl.dispose();
     for (final description in _descriptions) {
       description.dispose();
     }
     super.dispose();
+  }
+
+  void _addAttachment(String value, List<IcalParameter> parameters) {
+    setState(() {
+      _attachments.add(
+        IcalProperty(
+          group: null,
+          name: 'ATTACH',
+          parameters: parameters,
+          rawValue: value,
+          originalPhysicalLines: const [],
+          isDirty: true,
+        ),
+      );
+    });
+  }
+
+  List<Widget> _attachmentControls(AppLocalizations l10n, bool canEdit) {
+    final ui = widget.ui;
+    final editable =
+        canEdit && !widget.busy && _attachments.length < maximumIcalAttachments;
+    if (_attachments.length > maximumIcalAttachments) {
+      return [Text(l10n.attachmentsNotLoaded)];
+    }
+    final attachments = readIcalAttachmentProperties(_attachments);
+    return [
+      const SizedBox(height: 12),
+      Text(l10n.attachments),
+      for (final attachment in attachments)
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            Text(
+              attachment.kind == IcalAttachmentKind.binary
+                  ? davAttachmentFileName(attachment)
+                  : attachment.rawValue,
+            ),
+            if (attachment.canSave && widget.files != null)
+              ui.button(
+                l10n.save,
+                widget.busy
+                    ? null
+                    : () => widget.run(() async {
+                        await widget.files!.saveAttachment(attachment);
+                      }),
+              ),
+            if (safeScheduleWebUri(attachment.uri) != null)
+              ui.button(
+                l10n.openLink,
+                widget.busy
+                    ? null
+                    : () => widget.run(() async {
+                        if (!await openScheduleWebLink(attachment.uri)) {
+                          throw const FormatException('Could not open link.');
+                        }
+                      }),
+              ),
+            if (canEdit &&
+                attachment.parameterValue('DERIVED')?.toUpperCase() != 'TRUE')
+              ui.button(
+                l10n.removeAction,
+                widget.busy
+                    ? null
+                    : () => setState(
+                        () => _attachments.removeAt(attachment.index),
+                      ),
+              ),
+          ],
+        ),
+      if (editable) ...[
+        ui.input('URL', controller: _attachmentUrl),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            ui.button(
+              l10n.webLink,
+              () => widget.run(() async {
+                final uri = safeScheduleWebUri(_attachmentUrl.text);
+                if (uri == null) {
+                  throw const FormatException('Invalid attachment link.');
+                }
+                _addAttachment(uri.toString(), const []);
+                _attachmentUrl.clear();
+              }),
+            ),
+            if (widget.files != null)
+              ui.button(
+                l10n.registrationChooseFile,
+                () => widget.run(() async {
+                  final file = await widget.files!.pickAttachment();
+                  if (file == null || !mounted) return;
+                  _addAttachment(base64.encode(file.bytes), [
+                    const IcalParameter(
+                      name: 'VALUE',
+                      values: ['BINARY'],
+                      wasQuoted: false,
+                    ),
+                    const IcalParameter(
+                      name: 'ENCODING',
+                      values: ['BASE64'],
+                      wasQuoted: false,
+                    ),
+                    IcalParameter(
+                      name: 'X-FILENAME',
+                      values: [file.name],
+                      wasQuoted: true,
+                    ),
+                  ]);
+                }),
+              ),
+          ],
+        ),
+      ],
+    ];
   }
 
   IcalProperty? _start() {
@@ -774,6 +939,7 @@ class _JournalEditorState extends State<_JournalEditor> {
               child: Text(property.decodedTextValue),
             ),
         ],
+        ..._attachmentControls(l10n, canEdit),
         if (snapshot != null) ...[
           for (final property in snapshot.component.component.properties)
             if (!const {
@@ -801,6 +967,13 @@ class _JournalEditorState extends State<_JournalEditor> {
                           _start(),
                           _status.isEmpty ? null : _status,
                           _descriptions.map((d) => d.toRaw()).toList(),
+                          [
+                            for (final property in _attachments)
+                              DavRawPropertyValue(
+                                value: property.rawValue,
+                                parameters: property.parameters,
+                              ),
+                          ],
                         );
                       },
                 primary: true,
@@ -832,7 +1005,7 @@ class _JournalEditorState extends State<_JournalEditor> {
   }
 }
 
-bool _sameDescriptions(
+bool _sameProperties(
   List<IcalProperty> current,
   List<DavRawPropertyValue> values,
 ) {

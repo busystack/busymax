@@ -169,6 +169,7 @@ final class JournalRepository {
     String? status,
     IcalProperty? start,
     List<DavRawPropertyValue> descriptions = const [],
+    List<DavRawPropertyValue> attachments = const [],
   }) {
     final uid = '${const Uuid().v4()}@busymax.local';
     final utc = DateTime.now().toUtc().toIso8601String();
@@ -186,6 +187,8 @@ final class JournalRepository {
         if (start != null) start.deepCopy(),
         for (final description in descriptions)
           _property('DESCRIPTION', description.value, description.parameters),
+        for (final attachment in attachments)
+          _property('ATTACH', attachment.value, attachment.parameters),
       ],
     );
     return _createRaw(

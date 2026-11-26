@@ -1,3 +1,5 @@
+import '../../dav/ical/ical_attachments.dart';
+import '../../features/attachments/presentation/dav_attachment_file_name.dart';
 import '../../features/sync/sync_request.dart';
 import '../../features/sync/sync_activity_icon.dart';
 import 'android_sync_feedback.dart';
@@ -586,6 +588,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                                 files: JournalFileActions(
                                   read: _readJournalFile,
                                   export: _exportJournalFile,
+                                  pickAttachment: _pickJournalAttachment,
+                                  saveAttachment: _saveJournalAttachment,
                                 ),
                               ),
                             ),
@@ -6586,6 +6590,22 @@ Future<List<int>?> _readJournalFile() async =>
     (await BusyMaxAndroidPlatform.instance.openDocument(
       maximumBytes: 16 * 1024 * 1024,
     ))?.bytes;
+
+Future<JournalAttachmentFile?> _pickJournalAttachment() async {
+  final file = await BusyMaxAndroidPlatform.instance.openDocument(
+    maximumBytes: maximumIcalAttachmentBytes,
+  );
+  return file == null
+      ? null
+      : (name: file.name ?? 'attachment.bin', bytes: file.bytes);
+}
+
+Future<String?> _saveJournalAttachment(IcalAttachment attachment) =>
+    BusyMaxAndroidPlatform.instance.createDocument(
+      suggestedName: davAttachmentFileName(attachment),
+      mimeType: attachment.mimeType,
+      bytes: attachment.decode(),
+    );
 
 Future<void> _exportJournalFile(String raw) async {
   await BusyMaxAndroidPlatform.instance.createDocument(

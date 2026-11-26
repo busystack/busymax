@@ -1,4 +1,5 @@
 import 'package:busymax/src/dav/ical/dav_native_export.dart';
+import 'package:busymax/src/dav/ical/ical_attachments.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_conflict_analyzer.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
@@ -71,6 +72,20 @@ void main() {
           ],
         ),
       ],
+      attachments: [
+        const DavRawPropertyValue(value: 'https://example.invalid/reference'),
+        const DavRawPropertyValue(
+          value: 'AAD/',
+          parameters: [
+            IcalParameter(name: 'VALUE', values: ['BINARY'], wasQuoted: false),
+            IcalParameter(
+              name: 'ENCODING',
+              values: ['BASE64'],
+              wasQuoted: false,
+            ),
+          ],
+        ),
+      ],
     );
     final entry =
         (await repository
@@ -87,6 +102,11 @@ void main() {
       'First',
       'Deux',
     ]);
+    final attachments = readIcalAttachmentProperties(
+      initial.component.component.propertiesNamed('ATTACH').toList(),
+    );
+    expect(attachments.first.uri, 'https://example.invalid/reference');
+    expect(attachments.last.decode(), [0, 0, 255]);
     await repository.edit(initial, [
       DavPatchOperation.setText('SUMMARY', 'Example'),
     ]);
@@ -102,8 +122,29 @@ void main() {
     ).collection('account', 'source')).single;
     expect(exported.rawIcs, contains('DESCRIPTION;LANGUAGE=fr:Deux'));
     expect(exported.rawIcs, contains('SUMMARY:Example'));
+    expect(
+      exported.rawIcs,
+      contains('ATTACH;VALUE=BINARY;ENCODING=BASE64:AAD/'),
+    );
     expect(exported.uid, initial.entry.uid);
-    await repository.deleteResource(await repository.read(edited));
+    await repository.edit(await repository.read(edited), [
+      DavPatchOperation.replaceRepeatedRaw('ATTACH', [
+        DavRawPropertyValue(
+          value: attachments.last.rawValue,
+          parameters: attachments.last.parameters,
+        ),
+      ]),
+    ]);
+    final retained = await repository.read(edited);
+    expect(
+      retained.effectiveRawIcs,
+      isNot(contains('example.invalid/reference')),
+    );
+    expect(
+      retained.effectiveRawIcs,
+      contains('ATTACH;VALUE=BINARY;ENCODING=BASE64:AAD/'),
+    );
+    await repository.deleteResource(retained);
     expect(await repository.watchEntries().first, isEmpty);
     expect(await db.select(db.pendingOps).get(), isEmpty);
   });

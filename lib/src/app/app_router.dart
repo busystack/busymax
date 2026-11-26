@@ -12,12 +12,14 @@ import '../features/schedule/presentation/schedule_workspace.dart';
 import '../schedule/schedule_scope.dart';
 import '../l10n/l10n.dart';
 import '../journal/presentation/journal_workspace.dart';
-import '../journal/presentation/material_journal_controls.dart';
+import '../journal/presentation/linux_journal_controls.dart';
+import '../platform/gtk_header_icon_service.dart';
 import 'app_bootstrap.dart';
 import 'busymax_design.dart';
 import 'busymax_layout.dart';
 import 'busymax_surface_colors.dart';
 import 'linux/linux_page_frame.dart';
+import 'linux/linux_header_style.dart';
 import 'linux/linux_window_host.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -79,10 +81,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/journals',
-        builder: (context, state) => Scaffold(
-          appBar: AppBar(title: Text(context.l10n.journals)),
+        builder: (context, state) => LinuxPageFrame(
+          header: BusyMaxLinuxHeaderLayout(
+            leading: BusyMaxLinuxHeaderControlGroup(
+              children: [
+                BusyMaxLinuxHeaderIconButton(
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                  icon: BusyMaxLinuxHeaderIcon.back,
+                  onPressed: () => context.canPop()
+                      ? context.pop()
+                      : context.go('/schedule'),
+                ),
+              ],
+            ),
+            title: BusyMaxLinuxHeaderTitle(context.l10n.journals),
+          ),
           body: const JournalWorkspace(
-            controls: MaterialJournalControls(),
+            controls: LinuxJournalControls(),
             files: journalDesktopFiles,
           ),
         ),

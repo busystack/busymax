@@ -91,6 +91,20 @@ final _mimeType = RegExp(
   r"^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,127}/[A-Za-z0-9!#$%&'*+.^_`|~-]{1,127}$",
 );
 
+/// Read an explicitly supplied list of ATTACH properties without inheritance.
+List<IcalAttachment> readIcalAttachmentProperties(
+  List<IcalProperty> properties,
+) {
+  if (properties.length > maximumIcalAttachments ||
+      properties.any((property) => property.name != 'ATTACH')) {
+    throw const FormatException('Invalid attachment collection.');
+  }
+  return List.unmodifiable([
+    for (final (index, property) in properties.indexed)
+      IcalAttachment._(property, index, false),
+  ]);
+}
+
 /// Strict RFC4648 base64, including padding and unused pad bits. Dart's decoder
 /// additionally accepts normalized URL/percent encodings; ATTACH must not.
 int? _binaryLength(String value) {
