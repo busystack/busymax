@@ -84,6 +84,7 @@ final class JournalComponent {
           singleton.any((name) => journal.propertiesNamed(name).length > 1) ||
           disallowed.any((name) => journal.firstProperty(name) != null) ||
           journal.components.any((child) => child.name == 'VALARM') ||
+          !_hasValidStatusChildren(journal) ||
           journal.properties.any((property) {
             final zone = property.parameterValue('TZID');
             return zone != null && !zones.contains(zone);
@@ -93,6 +94,13 @@ final class JournalComponent {
     }
   }
 }
+
+bool _hasValidStatusChildren(IcalComponent parent) => parent.components.every(
+  (child) => child.name == 'VSTATUS'
+      ? parent.propertiesNamed('STATUS').length == 1 &&
+            child.propertiesNamed('STATUS').length == 1
+      : _hasValidStatusChildren(child),
+);
 
 DavException _invalidJournal() => const DavException(
   kind: DavErrorKind.invalidCalendarData,

@@ -1,3 +1,4 @@
+import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/dav_native_export.dart';
 import 'package:busymax/src/dav/ical/ical_attachments.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
@@ -170,7 +171,9 @@ void main() {
   });
 
   test('title edit retains raw description lines and opaque extensions', () {
-    final original = journal([bodyOne, bodyTwo]);
+    const review =
+        'BEGIN:VSTATUS\r\nSTATUS:FINAL\r\nCOMMENT:Reviewed\r\nEND:VSTATUS';
+    final original = journal([bodyOne, bodyTwo, 'STATUS:FINAL', review]);
     final patch = DavMutationPatch(
       target: const IcalComponentKey(
         componentType: 'VJOURNAL',
@@ -183,6 +186,16 @@ void main() {
     expect(result, contains('$bodyOne\r\n$bodyTwo\r\n'));
     expect(result, contains('X-JOURNAL;X-PARAM="a,b":retained'));
     expect(result, contains('SUMMARY:Edited'));
+    expect(result, contains(review));
+    final removeStatus = DavMutationPatch(
+      target: patch.target,
+      scope: patch.scope,
+      operations: [DavPatchOperation.setRaw('STATUS', null)],
+    );
+    expect(
+      () => removeStatus.applyTo(original, nowUtc: DateTime.utc(2026)),
+      throwsA(isA<DavException>()),
+    );
   });
 
   test('reordered remote descriptions prevent automatic body merge', () {

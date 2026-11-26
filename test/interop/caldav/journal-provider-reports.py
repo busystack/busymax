@@ -123,6 +123,15 @@ def main():
             for identifier in ('period-occurrence-start', 'period-interior-excludes-start'):
                 print(json.dumps(dict(case=identifier, blocked='fixture rejected at admission')),
                       flush=True)
+        vstatus = ['BEGIN:VSTATUS', 'STATUS:FINAL', 'COMMENT:Reviewed', 'END:VSTATUS']
+        status, _, _ = dav.request(
+            'PUT', collection + 'vstatus.ics',
+            support['representation']('vstatus', {'journal': ['STATUS:FINAL', *vstatus]}),
+            {**ICAL, 'If-None-Match': '*'},
+        )
+        read_status, _, read = dav.request('GET', collection + 'vstatus.ics')
+        record('rfc10051-vstatus-readback', status, status == 201
+               and read_status == 200 and '\r\n'.join(vstatus).encode() in read, True)
     finally:
         status, _, _ = dav.request('DELETE', collection)
         if status not in (200, 204):
