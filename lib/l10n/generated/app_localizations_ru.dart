@@ -4159,6 +4159,13 @@ class AppLocalizationsRu extends AppLocalizations {
       'Это автономное обновление содержит разные версии одного и того же экземпляра записи журнала. Перед повторным применением просмотрите версии и выберите одну для каждого экземпляра. Исходное обновление можно экспортировать в пакете восстановления.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery =>
       'Экспортировать пакет восстановления (JSON)';
 

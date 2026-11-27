@@ -51,7 +51,8 @@ void main() {
               ..setTrustedCertificates(ca),
           ),
         );
-        final accountClient = client();
+        final mutations = <(String, Uri, Map<String, String>)>[];
+        final accountClient = _JournalMutationClient(client(), mutations);
         final peer = client();
         addTearDown(accountClient.close);
         addTearDown(peer.close);
@@ -289,6 +290,220 @@ void main() {
             ).allMatches(corrected.body),
             hasLength(1),
           );
+
+          final queuedCreateFile = File('${directory.path}/legacy-create.db');
+          await queuedCreateFile.writeAsBytes(
+            gzip.decode(
+              File('test/journal/fixtures/legacy-create-range-v28.sqlite.gz')
+                  .readAsBytesSync(),
+            ),
+          );
+          final queuedCreateDb = AppDatabase(NativeDatabase(queuedCreateFile));
+          final PendingOp legacyCreate;
+          final DavObject legacyCreateObject;
+          try {
+            legacyCreate = await queuedCreateDb
+                .select(queuedCreateDb.pendingOps)
+                .getSingle();
+            legacyCreateObject =
+                await (queuedCreateDb.select(
+                      queuedCreateDb.davObjects,
+                    )..where((row) => row.id.equals(legacyCreate.davObjectId!)))
+                    .getSingle();
+          } finally {
+            await queuedCreateDb.close();
+          }
+          final recordedCreate = jsonDecode(legacyCreate.requestJson) as Map;
+          final createHref = collectionUri.resolve(
+            recordedCreate['initialMemberName'] as String,
+          );
+          final localId = await DavObjectRepository(database: database)
+              .projectPendingImport(
+                accountId: accountId,
+                collectionId: collection.id,
+                nowUtc: DateTime.utc(2026, 11, 27),
+                object: DavPreparedObject.parse(
+                  hrefKey: createHref.path,
+                  requestUri: createHref,
+                  etag: null,
+                  contentType: 'text/calendar',
+                  rawIcsBody: legacyCreateObject.rawIcsBody,
+                ),
+              );
+          await database
+              .into(database.pendingOps)
+              .insert(
+                legacyCreate.copyWith(
+                  accountId: accountId,
+                  provider: Value(provider.storageValue),
+                  davObjectId: Value(localId),
+                  davCollectionId: Value(collection.id),
+                  davCollectionHref: Value(collection.hrefKey),
+                  davMemberHref: Value(createHref.path),
+                ),
+              );
+          mutations.clear();
+          expect((await replay()).appliedCount, 0);
+          expect(mutations, isEmpty);
+          expect((await request('GET', createHref)).statusCode, 404);
+          await database.close();
+          database = AppDatabase(NativeDatabase(file));
+          journals = JournalRepository(database);
+          final newEntry = (await journals.watchEntries().first).singleWhere(
+            (row) =>
+                row.uid == recordedCreate['uid'] && row.recurrenceIdKey == null,
+          );
+          final oldCreate = (await journals.read(newEntry)).pendingRecovery!;
+          expect(oldCreate.toJson()['requestJson'], legacyCreate.requestJson);
+          expect(oldCreate.invalidCandidate, recordedCreate['rawIcs']);
+          final snapshot = await DavNativeExportService(database)
+              .collectionForReview(accountId, collection.id);
+          expect(snapshot.excludedJournalCount, 1);
+          expect(
+            snapshot.pendingJournalRecoveries.single.toJson(),
+            oldCreate.toJson(),
+          );
+          final oldCompeting = DavJournalPendingRecovery.competingComponents(
+            IcalSemanticDocument.parse(oldCreate.invalidCandidate),
+          ).entries.single;
+          await journals.repairPendingUpdate(oldCreate, {
+            oldCompeting.key: oldCompeting.value.indexWhere(
+              (item) => item.recurrenceRange == 'THISANDFUTURE',
+            ),
+          });
+          expect(
+            (await database.select(database.pendingOps).getSingle()).id,
+            legacyCreate.id,
+          );
+          expect((await replay()).appliedCount, 1);
+          expect(mutations.single.$1, 'PUT');
+          expect(mutations.single.$2, createHref);
+          expect(mutations.single.$3['if-none-match'], '*');
+          final created = await request('GET', createHref);
+          expect(created.statusCode, 200);
+          expect(created.body, contains('SUMMARY:Offline future edit'));
+          expect(
+            created.body,
+            isNot(contains('SUMMARY:Original detached entry')),
+          );
+          expect(
+            RegExp(
+              r'^RECURRENCE-ID;',
+              multiLine: true,
+            ).allMatches(created.body),
+            hasLength(1),
+          );
+
+          final revisionHref = collectionUri.resolve('series-revision.ics');
+          const organizer = 'mailto:journal-author@example.invalid';
+          const oldStamp = '20261125T080000Z';
+          const seriesUid = 'series-revision-probe';
+          final rawSeries = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//BusyMax//Test//EN',
+            for (final (id, start, sequence) in [
+              (null, '20261126T090000Z', 1),
+              ('20261127T090000Z', '20261127T110000Z', 3),
+              ('20261128T090000Z', '20261128T120000Z', 5),
+            ]) ...[
+              'BEGIN:VJOURNAL',
+              'UID:$seriesUid',
+              'DTSTAMP:$oldStamp',
+              'LAST-MODIFIED:$oldStamp',
+              'SEQUENCE:$sequence',
+              if (sequence != 3) 'ORGANIZER:$organizer',
+              'DTSTART:$start',
+              if (id == null)
+                'RRULE:FREQ=DAILY;COUNT=5'
+              else
+                'RECURRENCE-ID:$id',
+              'END:VJOURNAL',
+            ],
+            'END:VCALENDAR',
+            '',
+          ].join('\r\n');
+          expect(
+            (await request(
+              'PUT',
+              revisionHref,
+              body: rawSeries,
+              headers: {'Content-Type': 'text/calendar', 'If-None-Match': '*'},
+            )).statusCode,
+            201,
+          );
+          await pull();
+          final baseline = await request('GET', revisionHref);
+          expect(baseline.statusCode, 200);
+          await (database.update(
+            database.davAccountServices,
+          )..where((row) => row.accountId.equals(accountId))).write(
+            DavAccountServicesCompanion(
+              calendarUserAddressesJson: Value(jsonEncode([organizer])),
+            ),
+          );
+          final master = (await journals.watchEntries().first).singleWhere(
+            (entry) => entry.uid == seriesUid && entry.recurrenceIdKey == null,
+          );
+          journals = JournalRepository(
+            database,
+            nowUtc: () => DateTime.utc(2026, 11, 28, 9, 10, 11),
+          );
+          await journals.edit(await journals.read(master), [
+            DavPatchOperation.setRaw('DTSTART', '20261126T090000'),
+          ]);
+          void assertConvertedRevisions(String raw) {
+            final components = raw
+                .split('BEGIN:VJOURNAL')
+                .skip(1)
+                .map(
+                  (part) => part
+                      .split('END:VJOURNAL')
+                      .first
+                      .split(RegExp(r'\r?\n'))
+                      .toSet(),
+                )
+                .toList();
+            expect(components, hasLength(3));
+            for (final (id, start, sequence) in [
+              (null, '20261126T090000', 2),
+              ('20261127T090000', '20261127T110000', 4),
+              ('20261128T090000', '20261128T120000', 6),
+            ]) {
+              final component = components.singleWhere(
+                (part) => id == null
+                    ? !part.any((line) => line.startsWith('RECURRENCE-ID'))
+                    : part.contains('RECURRENCE-ID:$id'),
+              );
+              expect(
+                component,
+                containsAll([
+                  'DTSTART:$start',
+                  'SEQUENCE:$sequence',
+                  'DTSTAMP:20261128T091011Z',
+                  'LAST-MODIFIED:20261128T091011Z',
+                ]),
+              );
+              expect(component, isNot(contains('DTSTAMP:$oldStamp')));
+            }
+          }
+
+          final revision = (await journals.read(master)).effectiveRawIcs;
+          assertConvertedRevisions(revision);
+          await database.close();
+          database = AppDatabase(NativeDatabase(file));
+          journals = JournalRepository(database);
+          expect((await journals.read(master)).effectiveRawIcs, revision);
+          mutations.clear();
+          expect((await replay()).appliedCount, 1);
+          expect(mutations.single.$3['if-match'], baseline.headers['etag']);
+          final revisionReadback = await request('GET', revisionHref);
+          expect(revisionReadback.statusCode, 200);
+          expect(
+            revisionReadback.headers['etag'],
+            isNot(baseline.headers['etag']),
+          );
+          assertConvertedRevisions(revisionReadback.body);
 
           const zone =
               'BEGIN:VTIMEZONE\r\nTZID:QA/Transitions\r\n'
@@ -932,4 +1147,22 @@ void main() {
       timeout: const Timeout(Duration(minutes: 5)),
     );
   }
+}
+
+final class _JournalMutationClient extends http.BaseClient {
+  _JournalMutationClient(this.inner, this.mutations);
+
+  final http.Client inner;
+  final List<(String, Uri, Map<String, String>)> mutations;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (const {'PUT', 'DELETE', 'MOVE', 'COPY'}.contains(request.method)) {
+      mutations.add((request.method, request.url, Map.of(request.headers)));
+    }
+    return inner.send(request);
+  }
+
+  @override
+  void close() => inner.close();
 }

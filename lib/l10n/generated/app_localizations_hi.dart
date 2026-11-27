@@ -4110,6 +4110,13 @@ class AppLocalizationsHi extends AppLocalizations {
       'इस ऑफ़लाइन बदलाव में जर्नल की एक ही आवृत्ति के अलग-अलग संस्करण हैं। बदलाव फिर से लागू करने से पहले हर आवृत्ति के संस्करणों की समीक्षा करके एक चुनें। मूल बदलाव को पुनर्प्राप्ति बंडल के रूप में निर्यात कर सकते हैं।';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => 'पुनर्प्राप्ति बंडल निर्यात करें (JSON)';
 
   @override

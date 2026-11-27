@@ -4299,6 +4299,13 @@ class AppLocalizationsPl extends AppLocalizations {
       'Ta zmiana offline zawiera sprzeczne wersje tego samego wystąpienia wpisu w dzienniku. Sprawdź wersje i wybierz jedną dla każdego wystąpienia, zanim ponownie zastosujesz zmianę. Możesz wyeksportować pierwotną zmianę w pakiecie odzyskiwania.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => 'Eksportuj pakiet odzyskiwania (JSON)';
 
   @override

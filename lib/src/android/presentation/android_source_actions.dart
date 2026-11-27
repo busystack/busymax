@@ -927,23 +927,11 @@ class _AndroidSourceActions {
 
   Future<void> _exportCollection(String accountId, String collectionId) async {
     final l10n = context.l10n;
-    final resources = await ref
+    final snapshot = await ref
         .read(nextcloudNativeExportServiceProvider)
-        .collection(accountId, collectionId);
-    final folder = await BusyMaxAndroidPlatform.instance.exportDocumentTree(
-      folderName:
-          'BusyMax-export-${DateTime.now().toUtc().millisecondsSinceEpoch}',
-      resources: [
-        for (var index = 0; index < resources.length; index++)
-          AndroidExportResource(
-            name: 'resource-${index + 1}.ics',
-            bytes: Uint8List.fromList(utf8.encode(resources[index].rawIcs)),
-          ),
-      ],
-    );
-    if (folder != null) {
-      _message(l10n.exportedFile(folder));
-    }
+        .collectionForReview(accountId, collectionId);
+    final message = await exportAndroidDavCollection(snapshot, l10n);
+    if (mounted && message != null) _message(message);
   }
 
   Future<String?> _textPrompt({

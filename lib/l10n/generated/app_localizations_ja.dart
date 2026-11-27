@@ -4007,6 +4007,13 @@ class AppLocalizationsJa extends AppLocalizations {
       'このオフライン更新には、同じ日誌の繰り返し項目の異なる版が含まれています。更新を再適用する前に内容を確認し、各項目につき一つの版を選択してください。元の更新は復旧用ファイルに書き出せます。';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => '復旧用ファイルを書き出す (JSON)';
 
   @override

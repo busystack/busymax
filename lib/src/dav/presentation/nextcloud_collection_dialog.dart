@@ -142,19 +142,24 @@ class _LinuxNextcloudCollectionDialogState
     onChanged: (value) => model.change(property, value ? yes : no),
   );
 
-  Future<void> _showExportComplete(String path) => showBusyMaxModalDialog<void>(
-    context,
-    builder: (dialogContext) => BusyMaxDialogShell(
-      title: context.l10n.nextcloudExportCollection,
-      actions: [
-        BusyMaxPushButton.suggested(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: Text(context.l10n.close),
+  Future<void> _showExportResult(String? path, int excluded) =>
+      showBusyMaxModalDialog<void>(
+        context,
+        builder: (dialogContext) => BusyMaxDialogShell(
+          title: context.l10n.nextcloudExportCollection,
+          actions: [
+            BusyMaxPushButton.suggested(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(context.l10n.close),
+            ),
+          ],
+          children: [
+            if (path != null) Text(context.l10n.exportedFile(path)),
+            if (excluded > 0)
+              Text(context.l10n.journalCollectionExportRecovery),
+          ],
         ),
-      ],
-      children: [Text(context.l10n.exportedFile(path))],
-    ),
-  );
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -410,13 +415,16 @@ class _LinuxNextcloudCollectionDialogState
                   title: l10n.nextcloudExportCollection,
                   leading: const Icon(Icons.file_download_outlined),
                   enabled: !model.busy,
-                  onTap: () => model.exportTo((resources) async {
-                    final path =
-                        await exportNativeCollectionWithDirectoryDialog(
-                          resources,
-                        );
-                    if (mounted && path != null) {
-                      await _showExportComplete(path);
+                  onTap: () => model.exportTo((snapshot) async {
+                    final path = await exportDavCollectionWithDirectoryDialog(
+                      snapshot,
+                    );
+                    if (mounted &&
+                        (path != null || snapshot.excludedJournalCount > 0)) {
+                      await _showExportResult(
+                        path,
+                        snapshot.excludedJournalCount,
+                      );
                     }
                   }),
                 ),

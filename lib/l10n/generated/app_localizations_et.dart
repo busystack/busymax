@@ -4098,6 +4098,13 @@ class AppLocalizationsEt extends AppLocalizations {
       'Võrguühenduseta salvestatud muudatus sisaldab päeviku sama korduse vastuolulisi versioone. Vaata need üle ja vali enne muudatuse uuesti rakendamist iga korduse jaoks üks versioon. Algse muudatuse saad eksportida taastepaketina.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => 'Ekspordi taastepakett (JSON)';
 
   @override

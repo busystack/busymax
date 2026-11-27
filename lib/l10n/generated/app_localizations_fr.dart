@@ -4144,6 +4144,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Cette mise à jour hors ligne contient plusieurs versions de la même occurrence du journal. Vérifiez-les et choisissez-en une par occurrence avant de réappliquer la mise à jour. Vous pouvez exporter la mise à jour d’origine dans un fichier de récupération.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery =>
       'Exporter le fichier de récupération (JSON)';
 

@@ -146,7 +146,7 @@ void main() {
         exported['invalidCandidateIcs'],
         contains('SUMMARY:Original detached entry'),
       );
-      final apply = find.widgetWithText(FilledButton, 'Queue reviewed update');
+      final apply = find.widgetWithText(FilledButton, 'Queue reviewed journal');
       expect(tester.widget<FilledButton>(apply).onPressed, isNull);
       final choice = find.text('2. Offline future edit');
       await tester.ensureVisible(choice);

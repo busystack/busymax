@@ -1185,6 +1185,19 @@ final class JournalRepository {
                       .components
                       .length >
                   1)) {
+        if (operations.any(
+          (item) => const {
+            DavPatchOperationType.addComponent,
+            DavPatchOperationType.removeComponent,
+            DavPatchOperationType.replaceJournalResource,
+          }.contains(item.type),
+        )) {
+          throw const DavException(
+            kind: DavErrorKind.invalidCalendarData,
+            code: 'IcalJournalDateConversionUnavailable',
+            safeMessage: 'Convert the journal date mode separately from changes to its occurrence set.',
+          );
+        }
         final converted = convertJournalSeriesDate(
           editing.effectiveRawIcs,
           originalStart,
@@ -1208,6 +1221,52 @@ final class JournalRepository {
     );
     final edited = changes.applyTo(editing.effectiveRawIcs, nowUtc: now);
     if (edited == editing.effectiveRawIcs) return;
+    if (scope == DavMutationScope.object) {
+      final original = IcalSemanticDocument.parse(editing.effectiveRawIcs);
+      final converted = IcalSemanticDocument.parse(edited);
+      // Conversion traverses the original component order. Detached IDs may
+      // have changed lexical form, so the old keys cannot address the result.
+      final patcher = IcalDocumentPatcher(converted.document);
+      final addresses = await _journalOrganizerAddresses(entry.accountId);
+      for (final (index, component) in converted.components.indexed) {
+        final before = original.components[index].documentComponent;
+        final after = component.documentComponent;
+        if (changedIcalProperties(before, after).isEmpty &&
+            component.recurrenceId != null) {
+          continue;
+        }
+        final sequence = await _nextJournalSequence(
+          entry.accountId,
+          before,
+          after,
+          master: component.recurrenceId == null ? null : previous,
+          addresses: addresses,
+        );
+        if (sequence != null) {
+          patcher.replaceComponentSingletonRaw(
+            after,
+            'SEQUENCE',
+            sequence,
+            preserveParameters: true,
+          );
+        }
+        reviseJournalTimestamps(patcher, after, _revisionTime(now));
+      }
+      await _queueEdit(
+        entry,
+        DavMutationPatch(
+          target: editing.key,
+          scope: scope,
+          operations: [
+            DavPatchOperation.replaceJournalResource(
+              patcher.document.serialize(),
+            ),
+          ],
+        ),
+        provider: BusyProviderCodec.requireStorageValue(account.provider),
+      );
+      return;
+    }
     final updated = IcalDocumentPatcher(IcalDocument.parse(edited))
         .requireComponent(editing.key);
     final revision = await _revisionOperations(
@@ -1236,6 +1295,39 @@ final class JournalRepository {
     bool recurrenceChanged = false,
     IcalComponent? master,
   }) async {
+    final sequence = await _nextJournalSequence(
+      accountId,
+      previous,
+      updated,
+      recurrenceChanged: recurrenceChanged,
+      master: master,
+    );
+    return [
+      if (sequence != null)
+        DavPatchOperation.setRaw(
+          'SEQUENCE',
+          sequence,
+          preserveParameters: true,
+        ),
+      DavPatchOperation.reviseJournal(stamp),
+    ];
+  }
+
+  Future<List<Object?>> _journalOrganizerAddresses(String accountId) async {
+    final service = await (database.select(
+      database.davAccountServices,
+    )..where((row) => row.accountId.equals(accountId))).getSingleOrNull();
+    return jsonDecode(service?.calendarUserAddressesJson ?? '[]') as List;
+  }
+
+  Future<String?> _nextJournalSequence(
+    String accountId,
+    IcalComponent previous,
+    IcalComponent updated, {
+    bool recurrenceChanged = false,
+    IcalComponent? master,
+    List<Object?>? addresses,
+  }) async {
     final organizer =
         previous.firstProperty('ORGANIZER')?.rawValue ??
         updated.firstProperty('ORGANIZER')?.rawValue ??
@@ -1255,16 +1347,13 @@ final class JournalRepository {
             'ATTENDEE',
           }.contains,
         );
-    var ownsOrganizer = false;
-    if (significant &&
-        organizer != null &&
-        !isDerivedJournalProperty(sequence)) {
-      final service = await (database.select(
-        database.davAccountServices,
-      )..where((row) => row.accountId.equals(accountId))).getSingleOrNull();
-      final addresses =
-          jsonDecode(service?.calendarUserAddressesJson ?? '[]') as List;
-      ownsOrganizer = addresses.contains(organizer);
+    if (!significant ||
+        organizer == null ||
+        isDerivedJournalProperty(sequence) ||
+        !(addresses ?? await _journalOrganizerAddresses(accountId)).contains(
+          organizer,
+        )) {
+      return null;
     }
     final previousSequence =
         int.tryParse(
@@ -1273,15 +1362,7 @@ final class JournalRepository {
               '',
         ) ??
         0;
-    return [
-      if (ownsOrganizer)
-        DavPatchOperation.setRaw(
-          'SEQUENCE',
-          '${previousSequence + 1}',
-          preserveParameters: true,
-        ),
-      DavPatchOperation.reviseJournal(stamp),
-    ];
+    return '${previousSequence + 1}';
   }
 
   Future<void> _queueEdit(

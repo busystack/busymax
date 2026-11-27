@@ -374,13 +374,20 @@ class _WindowsNextcloudCollectionDialogState
           Button(
             onPressed: model.busy
                 ? null
-                : () => model.exportTo((resources) async {
-                    final path =
-                        await exportNativeCollectionWithDirectoryDialog(
-                          resources,
-                        );
-                    if (mounted && path != null) {
-                      await _confirm(l10n.exportedFile(path), l10n.close);
+                : () => model.exportTo((snapshot) async {
+                    final path = await exportDavCollectionWithDirectoryDialog(
+                      snapshot,
+                    );
+                    if (mounted &&
+                        (path != null || snapshot.excludedJournalCount > 0)) {
+                      await _confirm(
+                        [
+                          if (path != null) l10n.exportedFile(path),
+                          if (snapshot.excludedJournalCount > 0)
+                            l10n.journalCollectionExportRecovery,
+                        ].join('\n'),
+                        l10n.close,
+                      );
                     }
                   }),
             child: Text(l10n.nextcloudExportCollection),

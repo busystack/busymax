@@ -517,6 +517,15 @@ final class DavConditionalMutationService {
   final void Function({String? baseline, String? candidate})?
   schedulingValidator;
 
+  Future<DavFetchedMember> fetchForJournalRecovery({
+    required Uri uri,
+    required String correlationId,
+  }) => _remoteClient.fetch(
+    hrefKey: uri.path,
+    uri: uri,
+    correlationId: correlationId,
+  );
+
   bool _sameIntendedObject(String intended, String current) =>
       _sameSemanticObject(intended, current, scheduling: implicitScheduling);
 
@@ -559,7 +568,7 @@ final class DavConditionalMutationService {
         : _remoteClient;
     var memberName = object.initialMemberName;
     if (reconcileFirst) {
-      final uri = _memberUri(collectionUri, memberName);
+      final uri = davCreationMemberUri(collectionUri, memberName);
       final existing = await remote.fetch(
         hrefKey: uri.path,
         uri: uri,
@@ -579,7 +588,7 @@ final class DavConditionalMutationService {
       }
     }
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
-      final uri = _memberUri(collectionUri, memberName);
+      final uri = davCreationMemberUri(collectionUri, memberName);
       final hrefKey = uri.path;
       // The queue must durably reserve each replacement filename before PUT.
       // A failed reservation must never transmit the request.
@@ -1113,7 +1122,7 @@ IcalProperty _newProperty(
   isDirty: true,
 );
 
-Uri _memberUri(Uri collectionUri, String memberName) {
+Uri davCreationMemberUri(Uri collectionUri, String memberName) {
   if (!RegExp(r'^[A-Za-z0-9-]+[.]ics$').hasMatch(memberName)) {
     throw ArgumentError.value(memberName, 'memberName');
   }

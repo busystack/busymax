@@ -4108,6 +4108,13 @@ class AppLocalizationsVi extends AppLocalizations {
       'Bản cập nhật ngoại tuyến này có nhiều phiên bản cho cùng một lần lặp của mục nhật ký. Hãy xem lại và chọn một phiên bản cho mỗi lần lặp trước khi áp dụng lại. Bạn có thể xuất bản cập nhật gốc dưới dạng gói khôi phục.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => 'Xuất gói khôi phục (JSON)';
 
   @override

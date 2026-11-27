@@ -30,6 +30,8 @@ import 'dav_pending_operation_selection.dart';
 const davPendingOperationSchemaVersion = 1;
 const davPartialMoveRetryClassification = 'partial_move';
 const _davMoveMayHaveCompletedRequestKey = 'moveMayHaveCompleted';
+const _reviewableJournalRecovery = 'journal_recovery_reviewable';
+const _reconciledJournalRecovery = 'journal_recovery_reconciled';
 
 bool isDavPartiallyCompletedMove(PendingOp operation) =>
     operation.operationType == 'dav.move' &&
@@ -93,26 +95,37 @@ final class DavJournalPendingRecovery {
   }
 
   bool get canReplace =>
-      operation.attemptCount == 0 &&
-      (operation.state == 'pending' ||
-          operation.state == 'failed' &&
-              operation.retryClassification == 'permanent' &&
+      operation.davObjectId != null &&
+      operation.operationType != 'dav.move' &&
+      ((operation.state == 'pending' &&
+              !_davOperationNeedsReconciliation(operation)) ||
+          (operation.state == 'failed' &&
               const {
-                duplicateJournalPositionCode,
-                'IcalInvalidJournal',
-              }.contains(operation.lastErrorCode));
+                _reviewableJournalRecovery,
+                _reconciledJournalRecovery,
+              }.contains(operation.retryClassification)));
+
+  bool get canCheckServer =>
+      !canReplace &&
+      operation.davObjectId != null &&
+      operation.operationType != 'dav.move' &&
+      operation.state == 'failed' &&
+      operation.retryClassification == 'permanent';
 
   Map<String, Object?> toJson() => {
-    'format': 'busymax-journal-update-recovery',
-    'version': 1,
+    'format': 'busymax-journal-pending-recovery',
+    'version': 2,
     'diagnostic': duplicateJournalPositionCode,
     'operationId': operation.id,
+    'operationType': operation.operationType,
     'operationState': operation.state,
+    'dependsOnOperationId': operation.dependsOnOpId,
     'collectionId': operation.davCollectionId,
     'resourceHref': operation.davMemberHref,
     'baselineEtag': operation.baselineEtag,
     'baselineIcs': operation.baselineRawIcs,
     'mutationPatchJson': operation.mutationPatchJson,
+    'requestJson': operation.requestJson,
     'invalidCandidateIcs': invalidCandidate,
   };
 }
@@ -408,7 +421,16 @@ final class DavPendingOperationQueue {
     required String objectId,
   }) async {
     final context = await _objectContext(accountId, collectionId, objectId);
-    final operation = await _effectiveObjectOperation(objectId);
+    final operations = await _objectOperations(objectId);
+    final operation = effectiveDavExportOperation(operations, objectId);
+    for (final candidate in _operationChain(operation, operations)) {
+      if (identical(candidate, operation)) continue;
+      _pendingJournalCandidate(candidate, _nowUtc().toUtc());
+    }
+    final journal = operation == null
+        ? null
+        : _pendingJournalCandidate(operation, _nowUtc().toUtc());
+    if (journal != null) return journal;
     if (operation?.operationType == 'dav.create') {
       return _decodeCreate(operation!.requestJson).rawIcs;
     }
@@ -429,34 +451,38 @@ final class DavPendingOperationQueue {
     required String objectId,
   }) async {
     final context = await _objectContext(accountId, collectionId, objectId);
-    final canAccessBaseline =
-        context.collection.journalInventoryComplete &&
-        collectionCapabilitiesFromStored(context.collection)
-            .canAttemptUpdateJournal;
-    if (!canAccessBaseline) {
-      return null;
+    final operations = await _objectOperations(objectId);
+    final effective = effectiveDavExportOperation(operations, objectId);
+    for (final operation in _operationChain(
+      effective,
+      operations,
+    ).toList().reversed) {
+      final recovery = _invalidJournalRecovery(operation, _nowUtc().toUtc());
+      if (recovery != null &&
+          _canReviewJournalRecovery(context.collection, operation)) {
+        return recovery;
+      }
     }
-    final operation = await _effectiveObjectOperation(objectId);
-    if (operation == null ||
-        operation.operationType != 'dav.update' ||
-        operation.entityType != 'journal') {
-      return null;
-    }
-    final patch = _decodePatch(operation);
-    final baseline = _required(operation.baselineRawIcs);
-    try {
-      patch.applyTo(baseline, nowUtc: _nowUtc().toUtc());
-      return null;
-    } on DavException catch (error) {
-      if (error.code != duplicateJournalPositionCode) rethrow;
-      return DavJournalPendingRecovery._(
-        operation,
-        patch.renderJournalRecovery(baseline, nowUtc: _nowUtc().toUtc()),
-      );
-    }
+    return null;
   }
 
-  /// Replaces a reviewed, provably unsent invalid update in place so queued
+  Future<DavJournalPendingRecovery?> journalRecoveryForUnanchoredCreate(
+    PendingOp operation,
+  ) async {
+    if (operation.operationType != 'dav.create' ||
+        operation.davObjectId != null) {
+      throw _invalidPendingOperation();
+    }
+    final context = await _context(
+      operation.accountId,
+      _required(operation.davCollectionId),
+    );
+    return _canReviewJournalRecovery(context.collection, operation)
+        ? _invalidJournalRecovery(operation, _nowUtc().toUtc())
+        : null;
+  }
+
+  /// Replaces a reviewed invalid write in place so queued
   /// dependents still wait for the same conditional operation.
   Future<void> replaceRecoveredJournal({
     required DavJournalPendingRecovery reviewed,
@@ -480,9 +506,41 @@ final class DavPendingOperationQueue {
     );
     final capabilities = collectionCapabilitiesFromStored(context.collection);
     if (!context.account.journalsEnabled ||
-        !context.collection.journalInventoryComplete ||
-        !capabilities.canAttemptUpdateJournal) {
+        !_canReviewJournalRecovery(context.collection, operation)) {
       throw _permissionError();
+    }
+    final now = _nowUtc().toUtc();
+    if (operation.operationType == 'dav.create') {
+      final original = _decodeCreate(operation.requestJson);
+      final candidate = IcalSemanticDocument.parse(rawIcs);
+      if (context.object.serverDeleted ||
+          context.object.etag != null ||
+          context.object.primaryUid != original.uid ||
+          candidate.primaryUid != original.uid ||
+          candidate.dominantComponentType != 'VJOURNAL') {
+        throw _operationAlreadyPending();
+      }
+      _validateJournalCandidate(
+        candidate,
+        rawIcs,
+        capabilities.maximumResourceSize,
+      );
+      final request = (jsonDecode(operation.requestJson) as Map)
+        ..['rawIcs'] = rawIcs;
+      await _resumeReviewedJournal(
+        operation,
+        now,
+        requestJson: jsonEncode(request),
+      );
+      await DavObjectRepository(database: _database)
+          .projectLocalMutationCandidate(
+            accountId: operation.accountId,
+            collectionId: context.collection.id,
+            objectId: context.object.id,
+            provider: context.provider,
+            candidateRawIcs: rawIcs,
+          );
+      return;
     }
     if (context.object.serverDeleted ||
         context.object.etag != operation.baselineEtag ||
@@ -494,7 +552,6 @@ final class DavPendingOperationQueue {
         safeMessage: 'The server version has changed. Export the recovery bundle before reconciling the entry.',
       );
     }
-    final now = _nowUtc().toUtc();
     final components = IcalSemanticDocument.parse(context.object.rawIcsBody)
         .components;
     final existing =
@@ -515,22 +572,7 @@ final class DavPendingOperationQueue {
       valid,
       capabilities.maximumResourceSize,
     );
-    await (_database.update(
-      _database.pendingOps,
-    )..where((row) => row.id.equals(operation.id))).write(
-      PendingOpsCompanion(
-        mutationPatchJson: Value(patch.toJsonString()),
-        mutationPatchSchemaVersion: Value(patch.schemaVersion),
-        targetComponentKey: Value(_componentKeyJson(patch.target)),
-        mutationScope: Value(patch.scope.name),
-        state: const Value('pending'),
-        retryClassification: const Value('conditional_update'),
-        lastErrorCode: const Value(null),
-        lastErrorMessage: const Value(null),
-        nextAttemptAtUtc: const Value(null),
-        updatedAtUtc: Value(now.toIso8601String()),
-      ),
-    );
+    await _resumeReviewedJournal(operation, now, patch: patch);
     await DavObjectRepository(database: _database)
         .projectLocalMutationCandidate(
           accountId: operation.accountId,
@@ -540,6 +582,46 @@ final class DavPendingOperationQueue {
           candidateRawIcs: valid,
         );
   });
+
+  Future<void> _resumeReviewedJournal(
+    PendingOp operation,
+    DateTime timestamp, {
+    String? requestJson,
+    DavMutationPatch? patch,
+  }) =>
+      (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(operation.id))).write(
+        PendingOpsCompanion(
+          requestJson: requestJson == null
+              ? const Value.absent()
+              : Value(requestJson),
+          mutationPatchJson: patch == null
+              ? const Value.absent()
+              : Value(patch.toJsonString()),
+          mutationPatchSchemaVersion: patch == null
+              ? const Value.absent()
+              : Value(patch.schemaVersion),
+          targetComponentKey: patch == null
+              ? const Value.absent()
+              : Value(_componentKeyJson(patch.target)),
+          mutationScope: patch == null
+              ? const Value.absent()
+              : Value(patch.scope.name),
+          state: const Value('pending'),
+          retryClassification: Value(
+            operation.retryClassification == _reconciledJournalRecovery
+                ? 'manual_retry'
+                : patch == null
+                ? 'conditional_create'
+                : 'conditional_update',
+          ),
+          lastErrorCode: const Value(null),
+          lastErrorMessage: const Value(null),
+          nextAttemptAtUtc: const Value(null),
+          updatedAtUtc: Value(timestamp.toIso8601String()),
+        ),
+      );
 
   /// Applies a typed patch to a create that is still entirely local.
   ///
@@ -1325,12 +1407,10 @@ final class DavPendingOperationQueue {
         .getSingleOrNull();
   }
 
-  Future<PendingOp?> _effectiveObjectOperation(String objectId) async {
-    final operations = await (_database.select(
-      _database.pendingOps,
-    )..where((row) => row.davObjectId.equals(objectId))).get();
-    return effectiveDavExportOperation(operations, objectId);
-  }
+  Future<List<PendingOp>> _objectOperations(String objectId) =>
+      (_database.select(
+        _database.pendingOps,
+      )..where((row) => row.davObjectId.equals(objectId))).get();
 
   Future<PendingOp?> _editableCreate({
     required String accountId,
@@ -1629,6 +1709,7 @@ final class DavPendingOperationsReplayer {
       }
       try {
         final result = await _replay(op);
+        if (result == null) continue;
         if (result.outcome == DavMutationOutcome.conflict) {
           await _recordConflict(op, result);
           conflicts += 1;
@@ -1722,15 +1803,87 @@ final class DavPendingOperationsReplayer {
     );
   }
 
-  Future<DavMutationResult> _replay(PendingOp op) async {
-    if (op.entityType == 'journal' && op.operationType == 'dav.update') {
-      _decodePatch(op).applyTo(_required(op.baselineRawIcs), nowUtc: _nowUtc());
+  Future<void> _quarantineInvalidJournal(PendingOp op) async {
+    var classification = 'permanent';
+    if (op.operationType != 'dav.move') {
+      if (op.state == 'pending' && !_davOperationNeedsReconciliation(op)) {
+        classification = _reviewableJournalRecovery;
+      } else {
+        final collection = await _requiredCollection(op);
+        final account = await (_database.select(
+          _database.accounts,
+        )..where((row) => row.id.equals(_accountId))).getSingle();
+        if (!account.journalsEnabled ||
+            !_canReviewJournalRecovery(collection, op)) {
+          throw _permissionError();
+        }
+        final service = await _serviceFactory(
+          account: account,
+          collection: collection,
+        );
+        final creating = op.operationType == 'dav.create';
+        final remote = await service.fetchForJournalRecovery(
+          uri: creating
+              ? davCreationMemberUri(
+                  Uri.parse(collection.requestUri),
+                  _decodeCreate(op.requestJson).initialMemberName,
+                )
+              : await _requiredObjectUri(op, collection),
+          correlationId: _idFactory(),
+        );
+        if (creating
+            ? remote.missing
+            : !remote.missing &&
+                  op.baselineEtag != null &&
+                  !op.baselineEtag!.startsWith('W/') &&
+                  remote.etag == op.baselineEtag &&
+                  remote.rawIcsBody == op.baselineRawIcs) {
+          classification = _reconciledJournalRecovery;
+        }
+      }
+    }
+    const error = DavException(
+      kind: DavErrorKind.invalidCalendarData,
+      code: duplicateJournalPositionCode,
+      safeMessage:
+          'Review the competing occurrences before sending this journal.',
+    );
+    await _block(
+      op,
+      state: DavPendingState.failed,
+      classification: classification,
+      error: error,
+    );
+    await _reportPermanentFailure(op, error);
+  }
+
+  Future<DavMutationResult?> _replay(PendingOp op) async {
+    final String? journal;
+    try {
+      journal = _pendingJournalCandidate(op, _nowUtc().toUtc());
+    } on DavException catch (error) {
+      if (op.entityType != 'journal' ||
+          error.code != duplicateJournalPositionCode) {
+        rethrow;
+      }
+      await _quarantineInvalidJournal(op);
+      return null;
     }
     final collection = await _requiredCollection(op);
     final account = await (_database.select(
       _database.accounts,
     )..where((row) => row.id.equals(_accountId))).getSingle();
     final capabilities = collectionCapabilitiesFromStored(collection);
+    if (journal != null) {
+      final destination = op.operationType == 'dav.move'
+          ? await _requiredDestinationCollection(op)
+          : collection;
+      _validateJournalCandidate(
+        IcalSemanticDocument.parse(journal),
+        journal,
+        destination.maximumResourceSize,
+      );
+    }
     final reconcileFirst = _davOperationNeedsReconciliation(op);
     final allowDeletedMoveSource =
         op.operationType == 'dav.move' && reconcileFirst;
@@ -2778,6 +2931,69 @@ String _moveCandidateRaw(PendingOp op, DateTime nowUtc) {
   return patch == null
       ? baseline
       : patch.applyTo(baseline, nowUtc: nowUtc.toUtc());
+}
+
+Iterable<PendingOp> _operationChain(
+  PendingOp? terminal,
+  List<PendingOp> operations,
+) sync* {
+  final byId = {for (final operation in operations) operation.id: operation};
+  final seen = <String>{};
+  var current = terminal;
+  while (current != null && seen.add(current.id)) {
+    yield current;
+    current = byId[current.dependsOnOpId];
+  }
+}
+
+bool _canReviewJournalRecovery(DavCollection collection, PendingOp operation) {
+  final capabilities = collectionCapabilitiesFromStored(collection);
+  return collection.journalInventoryComplete &&
+      capabilities.canRead &&
+      (operation.operationType == 'dav.create'
+          ? capabilities.canAttemptCreateJournal
+          : capabilities.canAttemptUpdateJournal);
+}
+
+String? _pendingJournalCandidate(PendingOp op, DateTime nowUtc) {
+  if (op.entityType != 'journal') return null;
+  final raw = switch (op.operationType) {
+    'dav.create' => _decodeCreate(op.requestJson).rawIcs,
+    'dav.update' => _decodePatch(
+      op,
+    ).applyTo(_required(op.baselineRawIcs), nowUtc: nowUtc),
+    'dav.move' => _moveCandidateRaw(op, nowUtc),
+    _ => null,
+  };
+  if (raw == null) return null;
+  JournalComponent.validateAuthored(IcalSemanticDocument.parse(raw));
+  return raw;
+}
+
+DavJournalPendingRecovery? _invalidJournalRecovery(
+  PendingOp op,
+  DateTime nowUtc,
+) {
+  try {
+    _pendingJournalCandidate(op, nowUtc);
+    return null;
+  } on DavException catch (error) {
+    if (error.code != duplicateJournalPositionCode) rethrow;
+    final raw = switch (op.operationType) {
+      'dav.create' => _decodeCreate(op.requestJson).rawIcs,
+      'dav.update' => _decodePatch(
+        op,
+      ).renderJournalRecovery(_required(op.baselineRawIcs), nowUtc: nowUtc),
+      'dav.move' =>
+        _decodeOptionalMovePatch(op)?.renderJournalRecovery(
+              _required(op.baselineRawIcs),
+              nowUtc: nowUtc,
+            ) ??
+            _required(op.baselineRawIcs),
+      _ => throw _invalidPendingOperation(),
+    };
+    return DavJournalPendingRecovery._(op, raw);
+  }
 }
 
 bool _requestMarksMoveMayHaveCompleted(String source) {

@@ -619,6 +619,19 @@ void main() {
             updatedAtUtc: 'now',
           ),
         );
+    await db
+        .into(db.davAccountServices)
+        .insert(
+          DavAccountServicesCompanion.insert(
+            accountId: 'account',
+            canonicalServiceUri: 'https://example.invalid/',
+            canonicalOrigin: 'https://example.invalid',
+            calendarUserAddressesJson: const Value(
+              '["mailto:author@example.invalid"]',
+            ),
+            discoveredAtUtc: 'now',
+          ),
+        );
     const zone =
         'BEGIN:VTIMEZONE\r\nTZID:QA/Civil\r\nBEGIN:STANDARD\r\n'
         'DTSTART:20200101T000000\r\nTZOFFSETFROM:+0530\r\nTZOFFSETTO:+0530\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n';
@@ -628,13 +641,21 @@ void main() {
               'RRULE:FREQ=DAILY;UNTIL=20261130',
               'RDATE;VALUE=DATE:20261201',
               'EXDATE;VALUE=DATE:20261127',
+              'ORGANIZER:mailto:author@example.invalid',
+              'LAST-MODIFIED;DERIVED=TRUE:20261125T080000Z',
+              'SEQUENCE:10',
             ])
             .replaceFirst('BEGIN:VJOURNAL', '${zone}BEGIN:VJOURNAL')
             .replaceFirst(
               'END:VCALENDAR',
               'BEGIN:VJOURNAL\r\nUID:journal-fixture\r\nDTSTAMP:20261125T080000Z\r\n'
                   'RECURRENCE-ID;VALUE=DATE;X-LOCAL=retained:20261128\r\n'
-                  'DTSTART;VALUE=DATE:20261129\r\nDESCRIPTION:Moved\r\nEND:VJOURNAL\r\nEND:VCALENDAR',
+                  'DTSTART;VALUE=DATE:20261129\r\nDESCRIPTION:Moved\r\n'
+                  'LAST-MODIFIED:20261125T080000Z\r\nSEQUENCE:3\r\nEND:VJOURNAL\r\n'
+                  'BEGIN:VJOURNAL\r\nUID:journal-fixture\r\nDTSTAMP:20261125T080000Z\r\n'
+                  'RECURRENCE-ID;VALUE=DATE:20261201\r\nDTSTART;VALUE=DATE:20261202\r\n'
+                  'ORGANIZER:mailto:foreign@example.invalid\r\nSEQUENCE:8\r\n'
+                  'END:VJOURNAL\r\nEND:VCALENDAR',
             );
     final imported = await DavNativeImportService(db).import(
       accountId: 'account',
@@ -642,7 +663,32 @@ void main() {
       preview: NextcloudNativeImportPreview.parse(IcalDocument.parse(original)),
     );
     expect(imported.single.status, NativeImportItemStatus.queued);
-    final repository = JournalRepository(db);
+    var now = DateTime.utc(2026, 11, 28, 9);
+    final repository = JournalRepository(db, nowUtc: () => now);
+    void expectRevisions(String raw, String stamp, List<String> sequences) {
+      final components = IcalDocument.parse(raw).calendarComponents
+          .where((item) => item.name == 'VJOURNAL')
+          .toList();
+      expect(
+        components.map((c) => c.firstProperty('DTSTAMP')?.rawValue),
+        List.filled(3, stamp),
+      );
+      expect(
+        components.map((c) => c.firstProperty('LAST-MODIFIED')?.rawValue),
+        ['20261125T080000Z', stamp, null],
+      );
+      expect(
+        components.first
+            .firstProperty('LAST-MODIFIED')
+            ?.parameterValue('DERIVED'),
+        'TRUE',
+      );
+      expect(
+        components.map((c) => c.firstProperty('SEQUENCE')?.rawValue),
+        sequences,
+      );
+    }
+
     final entry = (await repository.watchEntries().first).singleWhere(
       (item) => item.recurrenceIdKey == null,
     );
@@ -650,6 +696,11 @@ void main() {
     final utc = DavPatchOperation.setRaw('DTSTART', '20261126T090000Z');
     await repository.edit(before, [utc]);
     final converted = await repository.read(entry);
+    expectRevisions(converted.effectiveRawIcs, '20261128T090000Z', [
+      '11',
+      '4',
+      '8',
+    ]);
     expect(
       converted.effectiveRawIcs,
       contains('RRULE:FREQ=DAILY;UNTIL=20261130T090000Z'),
@@ -670,10 +721,16 @@ void main() {
         ('20261130T090000Z', '20261130T090000Z'),
       ]),
     );
+    now = now.add(const Duration(seconds: 1));
     await repository.edit(converted, [
       DavPatchOperation.setRaw('DTSTART', '20261126T090000'),
     ]);
     final floating = await repository.read(entry);
+    expectRevisions(floating.effectiveRawIcs, '20261128T090001Z', [
+      '12',
+      '5',
+      '8',
+    ]);
     expect(
       floating.effectiveRawIcs,
       contains('RRULE:FREQ=DAILY;UNTIL=20261130T090000\r\n'),
@@ -683,6 +740,7 @@ void main() {
       values: ['QA/Civil'],
       wasQuoted: false,
     );
+    now = now.add(const Duration(seconds: 1));
     await repository.edit(floating, [
       DavPatchOperation.setRaw(
         'DTSTART',
@@ -691,6 +749,11 @@ void main() {
       ),
     ]);
     final zoned = await repository.read(entry);
+    expectRevisions(zoned.effectiveRawIcs, '20261128T090002Z', [
+      '13',
+      '6',
+      '8',
+    ]);
     expect(
       zoned.effectiveRawIcs,
       contains('RRULE:FREQ=DAILY;UNTIL=20261130T033000Z'),

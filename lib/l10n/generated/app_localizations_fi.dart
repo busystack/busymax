@@ -4151,6 +4151,13 @@ class AppLocalizationsFi extends AppLocalizations {
       'Tämä offline-päivitys sisältää ristiriitaisia versioita samasta päiväkirjamerkinnän esiintymästä. Tarkista versiot ja valitse kullekin esiintymälle yksi ennen päivityksen käyttöönottoa. Voit viedä alkuperäisen päivityksen palautuspakettina.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => 'Vie palautuspaketti (JSON)';
 
   @override

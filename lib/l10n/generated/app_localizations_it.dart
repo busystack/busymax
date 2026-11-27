@@ -4148,6 +4148,13 @@ class AppLocalizationsIt extends AppLocalizations {
       'Questo aggiornamento offline contiene più versioni della stessa occorrenza del diario. Controllale e scegline una per ogni occorrenza prima di riapplicare l’aggiornamento. Puoi esportare l’aggiornamento originale in un pacchetto di recupero.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => 'Esporta pacchetto di recupero (JSON)';
 
   @override

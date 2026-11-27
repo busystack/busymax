@@ -3930,6 +3930,13 @@ class AppLocalizationsZh extends AppLocalizations {
       '这项离线更新包含同一个日志重复实例的不同版本。重新应用前，请查看版本并为每个实例选择一个版本。你也可以将原始更新导出为恢复包。';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => '导出恢复包 (JSON)';
 
   @override

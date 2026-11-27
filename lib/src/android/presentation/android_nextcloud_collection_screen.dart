@@ -1,8 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:busymax_android_platform/busymax_android_platform.dart';
 
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +9,7 @@ import '../../dav/nextcloud/nextcloud_collection_service.dart';
 import '../../dav/xml/dav_xml.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
+import 'android_dav_collection_export.dart';
 import 'android_settings_screen.dart' show AndroidNextcloudSharingScreen;
 import 'android_nextcloud_scheduling_screen.dart';
 import 'android_editor_group.dart';
@@ -318,20 +315,15 @@ class _AndroidNextcloudCollectionScreenState
                   leading: const Icon(Icons.file_download_outlined),
                   title: Text(context.l10n.nextcloudExportCollection),
                   enabled: !model.busy,
-                  onTap: () => model.exportTo((resources) async {
-                    await BusyMaxAndroidPlatform.instance.exportDocumentTree(
-                      folderName:
-                          'BusyMax-export-${DateTime.now().toUtc().millisecondsSinceEpoch}',
-                      resources: [
-                        for (var index = 0; index < resources.length; index++)
-                          AndroidExportResource(
-                            name: 'resource-${index + 1}.ics',
-                            bytes: Uint8List.fromList(
-                              utf8.encode(resources[index].rawIcs),
-                            ),
-                          ),
-                      ],
+                  onTap: () => model.exportTo((snapshot) async {
+                    final message = await exportAndroidDavCollection(
+                      snapshot,
+                      context.l10n,
                     );
+                    if (mounted && message != null) {
+                      ScaffoldMessenger.of(this.context)
+                          .showSnackBar(SnackBar(content: Text(message)));
+                    }
                   }),
                 ),
               ],

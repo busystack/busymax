@@ -33,7 +33,13 @@ final class DavNativeExportService {
   Future<List<NativeImportResource>> collection(
     String accountId,
     String collectionId,
-  ) async => (await collectionForReview(accountId, collectionId)).resources;
+  ) async {
+    final snapshot = await collectionForReview(accountId, collectionId);
+    if (snapshot.excludedJournalCount > 0) {
+      throw StateError('Review excluded pending journals before exporting.');
+    }
+    return snapshot.resources;
+  }
 
   Future<DavCollectionExport> collectionForReview(
     String accountId,
@@ -128,7 +134,21 @@ final class DavNativeExportService {
     // Normal editor-created resources can have a projection but no raw-object
     // anchor until their first server PUT. They belong in the same export.
     for (final op in unanchoredCreations) {
-      resources.add(_pendingCreationResource(op));
+      final resource = _pendingCreationResource(op);
+      if (resource.componentType == 'VJOURNAL') {
+        try {
+          JournalComponent.validateAuthored(
+            IcalSemanticDocument.parse(resource.rawIcs),
+          );
+        } on DavException catch (error) {
+          if (error.code != duplicateJournalPositionCode) rethrow;
+          excludedJournalCount += 1;
+          final recovery = await queue.journalRecoveryForUnanchoredCreate(op);
+          if (recovery != null) recoveries.add(recovery);
+          continue;
+        }
+      }
+      resources.add(resource);
     }
     return DavCollectionExport(
       List.unmodifiable(resources),

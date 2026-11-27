@@ -4136,17 +4136,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+      'This pending journal contains competing versions of the same occurrence. Choose one version for each occurrence before sending. You can export the original request as a recovery bundle.';
+
+  @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
 
   @override
   String get journalExportRecovery => 'Export recovery bundle (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+  String get journalReapplyReviewedUpdate => 'Queue reviewed journal';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+      'Entries awaiting recovery were left out of the calendar export. Open an affected entry in Journals to review or export its pending request.';
 
   @override
   String get journalDraftSaved => 'Draft saved on this device';

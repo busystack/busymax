@@ -4138,6 +4138,13 @@ class AppLocalizationsEs extends AppLocalizations {
       'Esta actualización sin conexión contiene versiones en conflicto de la misma instancia del diario. Revisa las versiones y elige una por instancia antes de volver a aplicar la actualización. Puedes exportar la actualización original en un paquete de recuperación.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => 'Exportar paquete de recuperación (JSON)';
 
   @override

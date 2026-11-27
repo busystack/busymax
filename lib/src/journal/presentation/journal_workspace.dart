@@ -394,8 +394,10 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
     }
 
     if (current?.pendingRecovery case final recovery?) {
-      if (editorSource?.journalInventoryComplete != true ||
-          caps?.canAttemptUpdateJournal != true) {
+      final recoveryWritable = recovery.operation.operationType == 'dav.create'
+          ? caps?.canAttemptCreateJournal == true
+          : caps?.canAttemptUpdateJournal == true;
+      if (editorSource?.journalInventoryComplete != true || !recoveryWritable) {
         return Column(
           children: [
             Text(l10n.davPermissionChanged),
@@ -412,6 +414,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(l10n.journalPendingRecovery),
+          if (!recovery.canReplace) Text(l10n.journalRecoveryUncertain),
           if (_error != null) Text(_error!),
           for (final group in competing) ...[
             Text(group.value.first.recurrenceId?.rawValue ?? l10n.noDate),
@@ -419,7 +422,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
               ui.button(
                 '${_recoveryChoices[group.key] == component.$1 ? '✓ ' : ''}'
                 '${component.$1 + 1}. ${component.$2.summary ?? l10n.untitledJournal}',
-                !_busy && recovery.canReplace && writable
+                !_busy && recovery.canReplace && recoveryWritable
                     ? () => setState(
                         () => _recoveryChoices[group.key] = component.$1,
                       )
@@ -449,11 +452,34 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                       ? null
                       : () => _run(() => widget.files!.exportDraft!(report)),
                 ),
+              if (recovery.canCheckServer)
+                ui.button(
+                  l10n.journalCheckRecovery,
+                  _busy
+                      ? null
+                      : () => _run(() async {
+                          final op = recovery.operation;
+                          await DavPendingOperationQueue(
+                            database: repository.database,
+                          ).retryBlockedOperation(
+                            accountId: op.accountId,
+                            operationId: op.id,
+                          );
+                          await ref.read(manualSyncRunnerProvider)(
+                            davCollectionSyncScope(
+                              op.accountId,
+                              editorSource!.id,
+                            ),
+                          );
+                          final fresh = await repository.read(current!.entry);
+                          if (mounted) setState(() => _open = fresh);
+                        }),
+                ),
               ui.button(
                 l10n.journalReapplyReviewedUpdate,
                 !_busy &&
                         recovery.canReplace &&
-                        writable &&
+                        recoveryWritable &&
                         competing.every(
                           (group) => _recoveryChoices.containsKey(group.key),
                         )
@@ -465,6 +491,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                                 recovery.invalidCandidate ||
                             reviewed.operation.mutationPatchJson !=
                                 recovery.operation.mutationPatchJson ||
+                            reviewed.operation.requestJson !=
+                                recovery.operation.requestJson ||
                             !reviewed.canReplace) {
                           throw const DavException(
                             kind: DavErrorKind.conflict,

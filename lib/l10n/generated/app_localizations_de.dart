@@ -4130,6 +4130,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Diese Offline-Änderung enthält mehrere Versionen desselben Journaleintrags in einer Serie. Prüfen Sie die Versionen und wählen Sie vor dem erneuten Anwenden eine pro Termin. Die ursprüngliche Änderung lässt sich als Wiederherstellungspaket exportieren.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery =>
       'Wiederherstellungspaket exportieren (JSON)';
 

@@ -4151,6 +4151,13 @@ class AppLocalizationsFa extends AppLocalizations {
       'این به‌روزرسانی آفلاین نسخه‌های متعارضی از یک رخداد یادداشت دارد. پیش از اعمال دوباره، نسخه‌ها را بررسی کنید و برای هر رخداد یکی را انتخاب کنید. می‌توانید به‌روزرسانی اصلی را به‌صورت بستهٔ بازیابی صادر کنید.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => 'صدور بستهٔ بازیابی (JSON)';
 
   @override

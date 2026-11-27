@@ -4013,6 +4013,13 @@ class AppLocalizationsKo extends AppLocalizations {
       '이 오프라인 업데이트에는 같은 일지 반복 항목의 서로 다른 버전이 있습니다. 업데이트를 다시 적용하기 전에 버전을 검토하고 항목마다 하나를 선택하세요. 원래 업데이트는 복구 묶음으로 내보낼 수 있습니다.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => '복구 묶음 내보내기 (JSON)';
 
   @override

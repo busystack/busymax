@@ -4162,6 +4162,13 @@ class AppLocalizationsAr extends AppLocalizations {
       'يتضمن هذا التحديث دون اتصال نسخًا متعارضة من واقعة التدوينة نفسها. راجع النسخ واختر واحدة لكل واقعة قبل إعادة تطبيق التحديث. يمكنك تصدير التحديث الأصلي في حزمة استرداد.';
 
   @override
+  String get journalRecoveryUncertain =>
+      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+
+  @override
+  String get journalCheckRecovery => 'Check server before repair';
+
+  @override
   String get journalExportRecovery => 'تصدير حزمة الاسترداد (JSON)';
 
   @override

@@ -411,7 +411,22 @@ final class IcalDocumentPatcher {
     List<IcalParameter> parameters = const [],
     bool preserveParameters = false,
   }) {
-    final component = requireComponent(key);
+    replaceComponentSingletonRaw(
+      requireComponent(key),
+      propertyName,
+      rawValue,
+      parameters: parameters,
+      preserveParameters: preserveParameters,
+    );
+  }
+
+  void replaceComponentSingletonRaw(
+    IcalComponent component,
+    String propertyName,
+    String? rawValue, {
+    List<IcalParameter> parameters = const [],
+    bool preserveParameters = false,
+  }) {
     _replaceSingleton(
       component,
       propertyName,

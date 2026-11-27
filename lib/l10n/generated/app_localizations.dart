@@ -6883,8 +6883,20 @@ abstract class AppLocalizations {
   /// No description provided for @journalPendingRecovery.
   ///
   /// In en, this message translates to:
-  /// **'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.'**
+  /// **'This pending journal contains competing versions of the same occurrence. Choose one version for each occurrence before sending. You can export the original request as a recovery bundle.'**
   String get journalPendingRecovery;
+
+  /// No description provided for @journalRecoveryUncertain.
+  ///
+  /// In en, this message translates to:
+  /// **'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.'**
+  String get journalRecoveryUncertain;
+
+  /// No description provided for @journalCheckRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Check server before repair'**
+  String get journalCheckRecovery;
 
   /// No description provided for @journalExportRecovery.
   ///
@@ -6895,13 +6907,13 @@ abstract class AppLocalizations {
   /// No description provided for @journalReapplyReviewedUpdate.
   ///
   /// In en, this message translates to:
-  /// **'Queue reviewed update'**
+  /// **'Queue reviewed journal'**
   String get journalReapplyReviewedUpdate;
 
   /// No description provided for @journalCollectionExportRecovery.
   ///
   /// In en, this message translates to:
-  /// **'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.'**
+  /// **'Entries awaiting recovery were left out of the calendar export. Open an affected entry in Journals to review or export its pending request.'**
   String get journalCollectionExportRecovery;
 
   /// No description provided for @journalDraftSaved.

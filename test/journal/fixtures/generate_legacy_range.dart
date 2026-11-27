@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -15,6 +16,8 @@ void main() {
     () async {
       final path = Platform.environment['BUSYMAX_LEGACY_JOURNAL_FIXTURE']!;
       final file = File(path);
+      final creating =
+          Platform.environment['BUSYMAX_LEGACY_JOURNAL_CREATE'] == '1';
       expect(file.existsSync(), isFalse);
       final db = AppDatabase(NativeDatabase(file));
       addTearDown(db.close);
@@ -81,6 +84,7 @@ void main() {
           ],
         ),
       ]) {
+        if (creating && uid == 'legacy') continue;
         final raw = [
           'BEGIN:VCALENDAR',
           'VERSION:2.0',
@@ -107,9 +111,36 @@ void main() {
         db,
         nowUtc: () => DateTime.utc(2026, 11, 27),
       );
+      if (creating) {
+        final start = IcalDocument.parse(
+          'BEGIN:VCALENDAR\r\nBEGIN:VJOURNAL\r\n'
+          'DTSTART;VALUE=DATE:20261126\r\nRRULE:FREQ=DAILY;COUNT=5\r\n'
+          'END:VJOURNAL\r\nEND:VCALENDAR\r\n',
+        ).calendarComponents.single;
+        await repository.create(
+          (await db.select(db.davCollections).get()).single,
+          title: 'Series',
+          start: start.firstProperty('DTSTART'),
+          details: [start.firstProperty('RRULE')!],
+        );
+      }
       final entry = (await repository.watchEntries().first).singleWhere(
-        (row) => row.uid == 'legacy' && row.recurrenceIdKey == null,
+        (row) => row.uid != 'sibling' && row.recurrenceIdKey == null,
       );
+      if (creating) {
+        final initial = await repository.read(entry);
+        final occurrence = repository
+            .occurrences(initial, DateTime.utc(2026, 11))
+            .singleWhere((row) => row.recurrenceId.rawValue == '20261127');
+        await repository.editOccurrence(
+          repository.inspectOccurrence(
+            initial,
+            occurrence,
+            thisAndFuture: false,
+          ),
+          [DavPatchOperation.setText('SUMMARY', 'Original detached entry')],
+        );
+      }
       final saved = await repository.read(entry);
       final moved = repository
           .occurrences(saved, DateTime.utc(2026, 11))
@@ -119,7 +150,7 @@ void main() {
         [DavPatchOperation.setText('SUMMARY', 'Offline future edit')],
       );
       final pending = (await db.select(db.pendingOps).get()).single;
-      expect(pending.operationType, 'dav.update');
+      expect(pending.operationType, creating ? 'dav.create' : 'dav.update');
       expect(pending.state, 'pending');
       final local = await repository.read(entry);
       expect(local.effectiveRawIcs, contains('SUMMARY:Offline future edit'));

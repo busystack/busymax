@@ -505,19 +505,11 @@ final class DavMutationPatch {
           component.structurallyDirty = true;
         case DavPatchOperationType.reviseJournal:
           if (!isJournal) throw _invalidPatch();
-          final component = patcher.requireComponent(target);
-          for (final name in const ['DTSTAMP', 'LAST-MODIFIED']) {
-            final property = component.firstProperty(name);
-            if ((name == 'DTSTAMP' || property != null) &&
-                !isDerivedJournalProperty(property)) {
-              patcher.replaceSingletonRaw(
-                target,
-                name,
-                operation.value!,
-                preserveParameters: true,
-              );
-            }
-          }
+          reviseJournalTimestamps(
+            patcher,
+            patcher.requireComponent(target),
+            operation.value!,
+          );
         case DavPatchOperationType.replaceJournalResource:
           if (!isJournal) throw _invalidPatch();
           patcher.requireComponent(target);
@@ -558,6 +550,25 @@ final class DavMutationPatch {
       );
     }
     return complete;
+  }
+}
+
+void reviseJournalTimestamps(
+  IcalDocumentPatcher patcher,
+  IcalComponent component,
+  String timestamp,
+) {
+  for (final name in const ['DTSTAMP', 'LAST-MODIFIED']) {
+    final property = component.firstProperty(name);
+    if ((name == 'DTSTAMP' || property != null) &&
+        !isDerivedJournalProperty(property)) {
+      patcher.replaceComponentSingletonRaw(
+        component,
+        name,
+        timestamp,
+        preserveParameters: true,
+      );
+    }
   }
 }
 
