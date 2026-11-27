@@ -11,6 +11,7 @@ import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_collection_controller.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/journal/journal_component.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -26,6 +27,200 @@ import '../dav/nextcloud/nextcloud_admin_fixture.dart';
 void main() {
   for (final creating in [false, true]) {
     for (final attempt in [false, true]) {
+      test(
+        'Diagnostics discards a quarantined journal ${creating ? 'create' : 'update'} with attempted=$attempt',
+        () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'journal-discard',
+          );
+          addTearDown(() => directory.delete(recursive: true));
+          final file = File('${directory.path}/journal.db');
+          await file.writeAsBytes(
+            gzip.decode(
+              File(
+                'test/journal/fixtures/${creating ? 'legacy-create-range-v28.sqlite.gz' : 'legacy-range-v28.sqlite.gz'}',
+              ).readAsBytesSync(),
+            ),
+          );
+          final db = AppDatabase(NativeDatabase(file));
+          addTearDown(db.close);
+          final journals = JournalRepository(db);
+          final original = await db.select(db.pendingOps).getSingle();
+          final entries = await journals.watchEntries().first;
+          final originalObject = entries.firstWhere(
+            (entry) => entry.davObjectId == original.davObjectId,
+          );
+          final sibling = entries.singleWhere(
+            (entry) => entry.uid == 'sibling',
+          );
+          final siblingRaw = (await journals.read(sibling)).effectiveRawIcs;
+          await db
+              .update(db.accounts)
+              .write(const AccountsCompanion(authState: Value('signed_in')));
+          final selected = db.update(db.pendingOps)
+            ..where((row) => row.id.equals(original.id));
+          if (attempt) {
+            await selected.write(
+              PendingOpsCompanion(
+                state: const Value('in_progress'),
+                // An interrupted first dispatch can still have a zero count.
+                attemptCount: Value(creating ? 0 : 1),
+              ),
+            );
+          }
+          final source = await db.select(db.davCollections).getSingle();
+          await journals.create(source, title: 'Dependent journal');
+          final dependent = await (db.select(
+            db.pendingOps,
+          )..where((row) => row.id.isNotValue(original.id))).getSingle();
+          final linked = db.update(db.pendingOps)
+            ..where((row) => row.id.equals(dependent.id));
+          await linked.write(
+            PendingOpsCompanion(dependsOnOpId: Value(original.id)),
+          );
+          await journals.create(source, title: 'Independent journal');
+          final independent =
+              await (db.select(db.pendingOps)..where(
+                    (row) => row.id.isNotIn([original.id, dependent.id]),
+                  ))
+                  .getSingle();
+
+          final requests = <String>[];
+          var remoteMatches = !attempt;
+          final authority = Uri.parse('https://example.invalid/');
+          final client = MockClient((request) async {
+            requests.add(request.method);
+            expect(request.method, 'GET');
+            expect(request.url.path, original.davMemberHref);
+            if (remoteMatches && creating) return http.Response('', 404);
+            return http.Response(
+              remoteMatches ? original.baselineRawIcs! : siblingRaw,
+              200,
+              headers: {
+                'etag': remoteMatches ? original.baselineEtag! : '"different"',
+                'content-type': 'text/calendar',
+              },
+            );
+          });
+          final transport = DavHttpTransport(
+            client: client,
+            profile: davProviderProfile(
+              BusyProvider.caldav,
+              caldavServer: authority,
+            ),
+            accountAuthority: authority,
+          );
+          final replayer = DavPendingOperationsReplayer(
+            database: db,
+            accountId: 'account',
+            serviceFactory: ({required account, required collection}) async =>
+                DavConditionalMutationService(
+                  remoteClient: DavMutationHttpClient(
+                    transport: transport,
+                    accountId: account.id,
+                    collectionId: collection.id,
+                    credential: DavBasicCredential(
+                      username: 'fixture',
+                      password: 'fixture',
+                    ),
+                  ),
+                ),
+          );
+          Future<void> replaySelected() async {
+            final result = await replayer.replayDueOperations(
+              operationIds: {original.id},
+            );
+            expect(result.appliedCount, 0);
+          }
+
+          final diagnostics = PendingOpResolutionService(
+            database: db,
+            accountId: 'account',
+            syncCalendar: () async {},
+            syncTasks: replaySelected,
+          );
+          await replaySelected();
+          expect(requests, attempt ? ['GET'] : isEmpty);
+          final parked = (await db.pendingOpsDao.getOp(original.id))!;
+          expect(parked.state, 'failed');
+          expect(parked.lastErrorCode, duplicateJournalPositionCode);
+          if (attempt) {
+            expect(parked.retryClassification, 'permanent');
+            await expectLater(
+              diagnostics.discard(original.id),
+              throwsStateError,
+            );
+            expect(await db.pendingOpsDao.getOp(original.id), parked);
+            remoteMatches = true;
+            await DavPendingOperationQueue(database: db).retryBlockedOperation(
+              accountId: 'account',
+              operationId: original.id,
+            );
+            await expectLater(
+              diagnostics.discard(original.id),
+              throwsStateError,
+            );
+            await replaySelected();
+          }
+          final quarantined = (await db.pendingOpsDao.getOp(original.id))!;
+          expect(
+            quarantined.retryClassification,
+            attempt
+                ? 'journal_recovery_reconciled'
+                : 'journal_recovery_reviewable',
+          );
+          expect(isDavCreateLocallyEditable(quarantined), isFalse);
+          await linked.write(
+            const PendingOpsCompanion(
+              retryClassification: Value('manual_retry'),
+            ),
+          );
+          await expectLater(diagnostics.discard(original.id), throwsStateError);
+          expect(await db.pendingOpsDao.getOp(original.id), quarantined);
+          await linked.write(
+            PendingOpsCompanion(
+              retryClassification: Value(dependent.retryClassification),
+            ),
+          );
+          await diagnostics.discard(original.id);
+
+          expect(requests, attempt ? ['GET', 'GET'] : isEmpty);
+          expect(await db.select(db.pendingOps).get(), [independent]);
+          final remaining = await journals.watchEntries().first;
+          expect(
+            remaining.map((entry) => entry.title),
+            isNot(contains('Dependent journal')),
+          );
+          expect(
+            remaining.map((entry) => entry.title),
+            contains('Independent journal'),
+          );
+          expect((await journals.read(sibling)).effectiveRawIcs, siblingRaw);
+          final affected = remaining.where(
+            (entry) => entry.davObjectId == originalObject.davObjectId,
+          );
+          if (creating) {
+            expect(affected, isEmpty);
+            expect(
+              await (db.select(db.davObjects)
+                    ..where((row) => row.id.equals(original.davObjectId!)))
+                  .getSingleOrNull(),
+              isNull,
+            );
+          } else {
+            expect(
+              affected.map((entry) => entry.title),
+              unorderedEquals(['Series', 'Original detached entry']),
+            );
+            final master = affected.singleWhere(
+              (entry) => entry.recurrenceIdKey == null,
+            );
+            final restored = await journals.read(master);
+            expect(restored.pendingRecovery, isNull);
+            expect(restored.effectiveRawIcs, original.baselineRawIcs);
+          }
+        },
+      );
       test(
         'a former release journal ${creating ? 'create' : 'update'} with attempted=$attempt is recoverable',
         () async {

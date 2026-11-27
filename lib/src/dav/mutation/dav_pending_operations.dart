@@ -828,7 +828,7 @@ final class DavPendingOperationQueue {
       for (final dependent in operations.skip(1)) {
         if (!isDavPendingOperation(dependent) ||
             dependent.state != DavPendingState.pending.storageValue ||
-            dependent.attemptCount != 0) {
+            _davOperationNeedsReconciliation(dependent)) {
           throw StateError(
             'A dependent DAV operation cannot be discarded safely.',
           );
@@ -908,6 +908,31 @@ final class DavPendingOperationQueue {
   }
 
   void _ensureDavDiscardable(PendingOp operation) {
+    final journalWrite =
+        operation.entityType == 'journal' &&
+        (operation.operationType == 'dav.create' ||
+            operation.operationType == 'dav.update');
+    if (journalWrite) {
+      if (operation.state == DavPendingState.failed.storageValue &&
+          operation.lastErrorCode == duplicateJournalPositionCode) {
+        // Reconciliation records an absent create target or an unchanged
+        // update baseline with a strong ETag. Both permit local discard.
+        if (operation.retryClassification == _reconciledJournalRecovery ||
+            (operation.retryClassification == _reviewableJournalRecovery &&
+                !_davOperationNeedsReconciliation(operation))) {
+          return;
+        }
+        throw StateError(
+          'This journal failure cannot be discarded without reconciliation.',
+        );
+      }
+      if (operation.state == DavPendingState.pending.storageValue &&
+          _davOperationNeedsReconciliation(operation)) {
+        throw StateError(
+          'This journal operation cannot be discarded until its outcome is known.',
+        );
+      }
+    }
     if (operation.operationType == 'dav.create') {
       if (!isDavCreateLocallyEditable(operation)) {
         throw StateError(
@@ -1439,8 +1464,8 @@ final class DavPendingOperationQueue {
   }
 }
 
-/// Whether a local DAV create may be rewritten or cancelled without risking a
-/// duplicate remote object.
+/// Whether a local DAV create is eligible for ordinary coalesced edits.
+/// Journal recovery has separate repair and discard rules.
 ///
 /// A pending, never-attempted create is entirely local. A permanently failed
 /// create is also safe only when the stored message proves that the server
