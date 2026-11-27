@@ -290,100 +290,170 @@ void main() {
             hasLength(1),
           );
 
-          final rangeHref = collectionUri.resolve('single-at-range.ics');
-          const rangeBaseline =
-              'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
-              'BEGIN:VJOURNAL\r\nUID:single-at-range\r\nDTSTAMP:20261125T000000Z\r\n'
-              'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:0\r\n'
-              'DTSTART:20261126T090000Z\r\nRRULE:FREQ=DAILY;COUNT=5\r\n'
-              'DESCRIPTION:Master\r\nEND:VJOURNAL\r\n'
-              'BEGIN:VJOURNAL\r\nUID:single-at-range\r\nDTSTAMP:20261126T000000Z\r\n'
-              'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:1\r\n'
-              'RECURRENCE-ID;RANGE=THISANDFUTURE:20261127T090000Z\r\n'
-              'DTSTART:20261127T110000Z\r\nDESCRIPTION:Future body\r\n'
-              'X-QA:range metadata\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
-          const cancellation =
-              'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
-              'METHOD:CANCEL\r\nBEGIN:VJOURNAL\r\nUID:single-at-range\r\n'
-              'DTSTAMP:20261127T120000Z\r\nORGANIZER:mailto:range@example.invalid\r\n'
-              'SEQUENCE:2\r\nRECURRENCE-ID:20261127T090000Z\r\n'
-              'STATUS:CANCELLED\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
-          final seededRange = await request(
-            'PUT',
-            rangeHref,
-            body: rangeBaseline,
-            headers: {'If-None-Match': '*', 'Content-Type': 'text/calendar'},
-          );
-          expect(seededRange.statusCode, 201);
-          await pull();
-          final preview = NextcloudNativeImportPreview.parse(
-            IcalDocument.parse(cancellation),
-          );
-          Future<NativeImportItemResult> importCancellation() async =>
-              (await DavNativeImportService(database).import(
-                accountId: accountId,
-                collectionId: collection.id,
-                preview: preview,
-              )).single;
-          expect(
-            (await importCancellation()).status,
-            NativeImportItemStatus.queued,
-          );
-          Future<String> exportRange() async =>
-              (await DavNativeExportService(database).collection(
-                accountId,
-                collection.id,
-              )).singleWhere((item) => item.uid == 'single-at-range').rawIcs;
-          final cancelledRange = await exportRange();
-          expect(cancelledRange, isNot(contains('METHOD:')));
-          await database.close();
-          database = AppDatabase(NativeDatabase(file));
-          journals = JournalRepository(database);
-          expect(await exportRange(), cancelledRange);
-          expect(
-            (await importCancellation()).status,
-            NativeImportItemStatus.duplicate,
-          );
-          expect((await replay()).appliedCount, 1);
-          final rangeReadback = await request('GET', rangeHref);
-          expect(rangeReadback.statusCode, 200);
-          final series = rangeReadback.body
-              .replaceAll(RegExp(r'\r?\n[ \t]'), '')
-              .split('BEGIN:VJOURNAL')
-              .skip(1)
-              .map(
-                (part) => part
-                    .split('END:VJOURNAL')
-                    .first
-                    .split(RegExp(r'\r?\n'))
-                    .toSet(),
+          const zone =
+              'BEGIN:VTIMEZONE\r\nTZID:QA/Transitions\r\n'
+              'BEGIN:STANDARD\r\nDTSTART:20251102T020000\r\n'
+              'TZOFFSETFROM:-0700\r\nTZOFFSETTO:-0800\r\nEND:STANDARD\r\n'
+              'BEGIN:DAYLIGHT\r\nDTSTART:20260308T020000\r\n'
+              'TZOFFSETFROM:-0800\r\nTZOFFSETTO:-0700\r\nEND:DAYLIGHT\r\n'
+              'END:VTIMEZONE\r\n';
+          for (final (
+                mode,
+                params,
+                zones,
+                master,
+                anchor,
+                moved,
+                successor,
+                successorStart,
               )
-              .toList();
-          expect(series, hasLength(3));
-          expect(
-            series.singleWhere(
-              (part) => part.contains('RECURRENCE-ID:20261127T090000Z'),
-            ),
-            containsAll([
-              'STATUS:CANCELLED',
-              'DTSTART:20261127T110000Z',
-              'SEQUENCE:2',
-            ]),
-          );
-          expect(
-            series.singleWhere(
-              (part) => part.contains(
-                'RECURRENCE-ID;RANGE=THISANDFUTURE:20261128T090000Z',
+              in [
+                (
+                  'utc',
+                  '',
+                  '',
+                  '20261126T090000Z',
+                  '20261127T090000Z',
+                  '20261127T110000Z',
+                  '20261128T090000Z',
+                  '20261128T110000Z',
+                ),
+                (
+                  'date',
+                  ';VALUE=DATE',
+                  '',
+                  '20261126',
+                  '20261127',
+                  '20261128',
+                  '20261128',
+                  '20261129',
+                ),
+                (
+                  'floating',
+                  '',
+                  '',
+                  '20260306T013000',
+                  '20260307T013000',
+                  '20260307T023000',
+                  '20260308T013000',
+                  '20260308T023000',
+                ),
+                (
+                  'tzid',
+                  ';TZID=QA/Transitions',
+                  zone,
+                  '20260306T013000',
+                  '20260307T013000',
+                  '20260307T023000',
+                  '20260308T013000',
+                  '20260308T023000',
+                ),
+              ]) {
+            final uid = 'single-at-range-$mode';
+            final rangeHref = collectionUri.resolve('$uid.ics');
+            final rangeBaseline =
+                'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
+                '${zones}BEGIN:VJOURNAL\r\nUID:$uid\r\nDTSTAMP:20261125T000000Z\r\n'
+                'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:0\r\n'
+                'DTSTART$params:$master\r\nRRULE:FREQ=DAILY;COUNT=5\r\n'
+                'DESCRIPTION:Master\r\nEND:VJOURNAL\r\n'
+                'BEGIN:VJOURNAL\r\nUID:$uid\r\nDTSTAMP:20261126T000000Z\r\n'
+                'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:1\r\n'
+                'RECURRENCE-ID$params;RANGE=THISANDFUTURE:$anchor\r\n'
+                'DTSTART$params:$moved\r\nDESCRIPTION:Future body\r\n'
+                'X-QA:range metadata\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+            final cancellation =
+                'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
+                'METHOD:CANCEL\r\n${zones}BEGIN:VJOURNAL\r\nUID:$uid\r\n'
+                'DTSTAMP:20261127T120000Z\r\nORGANIZER:mailto:range@example.invalid\r\n'
+                'SEQUENCE:2\r\nRECURRENCE-ID$params:$anchor\r\n'
+                'STATUS:CANCELLED\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+            final seededRange = await request(
+              'PUT',
+              rangeHref,
+              body: rangeBaseline,
+              headers: {'If-None-Match': '*', 'Content-Type': 'text/calendar'},
+            );
+            expect(seededRange.statusCode, 201, reason: 'seed $mode range');
+            await pull();
+            final preview = NextcloudNativeImportPreview.parse(
+              IcalDocument.parse(cancellation),
+            );
+            Future<NativeImportItemResult> importCancellation() async =>
+                (await DavNativeImportService(database).import(
+                  accountId: accountId,
+                  collectionId: collection.id,
+                  preview: preview,
+                )).single;
+            expect(
+              (await importCancellation()).status,
+              NativeImportItemStatus.queued,
+            );
+            Future<String> exportRange() async =>
+                (await DavNativeExportService(database).collection(
+                  accountId,
+                  collection.id,
+                )).singleWhere((item) => item.uid == uid).rawIcs;
+            final cancelledRange = await exportRange();
+            expect(cancelledRange, isNot(contains('METHOD:')));
+            await database.close();
+            database = AppDatabase(NativeDatabase(file));
+            journals = JournalRepository(database);
+            expect(await exportRange(), cancelledRange);
+            expect(
+              (await importCancellation()).status,
+              NativeImportItemStatus.duplicate,
+            );
+            expect((await replay()).appliedCount, 1);
+            final rangeReadback = await request('GET', rangeHref);
+            expect(rangeReadback.statusCode, 200);
+            final series = rangeReadback.body
+                .replaceAll(RegExp(r'\r?\n[ \t]'), '')
+                .split('BEGIN:VJOURNAL')
+                .skip(1)
+                .map(
+                  (part) => part
+                      .split('END:VJOURNAL')
+                      .first
+                      .split(RegExp(r'\r?\n'))
+                      .toSet(),
+                )
+                .toList();
+            expect(series, hasLength(3), reason: mode);
+            bool recurrenceId(
+              Set<String> component,
+              String value, {
+              required bool range,
+            }) => component.any(
+              (line) =>
+                  line.startsWith('RECURRENCE-ID') &&
+                  line.endsWith(':$value') &&
+                  line.contains(';RANGE=THISANDFUTURE') == range &&
+                  (params.isEmpty || line.contains(params)),
+            );
+            expect(
+              series.singleWhere(
+                (part) => recurrenceId(part, anchor, range: false),
               ),
-            ),
-            containsAll([
-              'DTSTART:20261128T110000Z',
-              'DESCRIPTION:Future body',
-              'X-QA:range metadata',
-              'SEQUENCE:1',
-            ]),
-          );
-          expect(rangeReadback.body, isNot(contains('METHOD:')));
+              containsAll([
+                'STATUS:CANCELLED',
+                'DTSTART$params:$moved',
+                'SEQUENCE:2',
+              ]),
+            );
+            expect(
+              series.singleWhere(
+                (part) => recurrenceId(part, successor, range: true),
+              ),
+              containsAll([
+                'DTSTART$params:$successorStart',
+                'DESCRIPTION:Future body',
+                'X-QA:range metadata',
+                'SEQUENCE:1',
+              ]),
+            );
+            expect(rangeReadback.body, isNot(contains('METHOD:')));
+          }
 
           return;
         }
