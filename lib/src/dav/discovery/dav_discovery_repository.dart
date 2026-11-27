@@ -153,6 +153,24 @@ final class DavDiscoveryRepository {
         final id = existing?.id ?? _idFactory();
         returnedIds.add(id);
         final now = service.discoveredAtUtc.toIso8601String();
+        final privileges = jsonEncode(
+          discovered.currentUserPrivileges.toList()..sort(),
+        );
+        final oldMetadata = existing?.journalInventoryComplete == true
+            ? jsonDecode(existing?.safeDisplayMetadataJson ?? '{}')
+            : null;
+        final sameJournalView =
+            oldMetadata is Map &&
+            oldMetadata['accountPrincipalHref'] ==
+                service.principalHref.toString() &&
+            oldMetadata['principalHref'] ==
+                discovered.principalHref?.toString() &&
+            oldMetadata['delegated'] == discovered.delegated &&
+            oldMetadata['privilegesKnown'] ==
+                discovered.safeDisplayMetadata['privilegesKnown'] &&
+            existing?.currentUserPrivilegesJson == privileges &&
+            existing?.readOnly == discovered.capabilities.isReadOnly &&
+            existing?.ownerHref == discovered.ownerHref;
         await _database
             .into(_database.davCollections)
             .insertOnConflictUpdate(
@@ -175,9 +193,7 @@ final class DavDiscoveryRepository {
                 supportedReportsJson: Value(
                   jsonEncode(discovered.supportedReports.toList()..sort()),
                 ),
-                currentUserPrivilegesJson: Value(
-                  jsonEncode(discovered.currentUserPrivileges.toList()..sort()),
-                ),
+                currentUserPrivilegesJson: Value(privileges),
                 ownerHref: Value(discovered.ownerHref),
                 safeDisplayMetadataJson: Value(
                   jsonEncode({
@@ -212,12 +228,7 @@ final class DavDiscoveryRepository {
                   discovered.journalProjectionEnabled &&
                       existing?.journalProjectionEnabled == true &&
                       existing?.journalInventoryComplete == true &&
-                      existing?.readOnly ==
-                          discovered.capabilities.isReadOnly &&
-                      existing?.ownerHref == discovered.ownerHref &&
-                      (jsonDecode(existing?.safeDisplayMetadataJson ?? '{}')
-                              as Map)['principalHref'] ==
-                          discovered.principalHref?.toString(),
+                      sameJournalView,
                 ),
                 eventsSelected: Value(existing?.eventsSelected ?? true),
                 tasksSelected: Value(existing?.tasksSelected ?? true),

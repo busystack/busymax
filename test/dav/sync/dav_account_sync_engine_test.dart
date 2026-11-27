@@ -58,6 +58,90 @@ void main() {
     applicationDirectory = null;
   });
 
+  test('journal discovery refetches the authoritative view after privilege changes at the same ETag', () async {
+    const write = '<d:privilege><d:write/></d:privilege>';
+    const etag = '"stable-view"';
+    var grants = '';
+    var fetched = 0;
+    const redacted =
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Fixture//EN\r\n'
+        'BEGIN:VJOURNAL\r\nUID:privilege-view\r\nCLASS:CONFIDENTIAL\r\n'
+        'DTSTART:20261126T090000Z\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+    final full = redacted.replaceFirst(
+      'CLASS:CONFIDENTIAL\r\n',
+      'CLASS:CONFIDENTIAL\r\nDTSTAMP:20261125T000000Z\r\nDESCRIPTION:Authoritative body\r\n',
+    );
+    final client = MockClient((request) async {
+      if (request.method == 'OPTIONS') {
+        return http.Response(
+          '',
+          200,
+          headers: {'dav': '1, calendar-access, sync-collection'},
+        );
+      }
+      if (request.method == 'PROPFIND') {
+        if (request.body.contains('<d:current-user-principal/>')) {
+          return _discoveryMultistatus(_currentPrincipalResponse);
+        }
+        if (request.body.contains('<c:calendar-home-set/>')) {
+          return _discoveryMultistatus(_principalPropertiesResponse);
+        }
+        return _discoveryMultistatus(
+          _twoCollectionInventoryResponse
+              .replaceFirst(write, grants)
+              .replaceFirst(
+                '<c:comp name="VEVENT"/><c:comp name="VTODO"/>',
+                '<c:comp name="VJOURNAL"/>',
+              ),
+        );
+      }
+      if (request.body.contains('sync-collection')) {
+        return http.Response(
+          _syncResponse(token: 'urn:privileges', etag: etag),
+          207,
+        );
+      }
+      if (request.body.contains('calendar-multiget')) {
+        fetched++;
+        return http.Response(
+          _multigetResponse(grants.isEmpty ? redacted : full, etag),
+          207,
+        );
+      }
+      fail('Unexpected ${request.method} ${request.url}');
+    });
+    addTearDown(client.close);
+    final engine = DavAccountSyncEngine(
+      database: database,
+      secretStore: secrets,
+      httpClient: client,
+      accountId: 'account',
+      nowUtc: () => _now,
+    );
+    Future<void> pull(
+      String privileges,
+      int expectedReads,
+      String expectedBody,
+    ) async {
+      grants = privileges;
+      await engine.synchronize(full: true, collectionId: 'collection');
+      final row = await (database.select(
+        database.davObjects,
+      )..where((row) => row.collectionId.equals('collection'))).getSingle();
+      expect(row.rawIcsBody, expectedBody);
+      expect(row.etag, etag);
+      expect(fetched, expectedReads);
+    }
+
+    await pull('', 1, redacted);
+    await pull(write, 2, full);
+    const expandedWrite =
+        '$write<d:privilege><d:read-current-user-privilege-set/></d:privilege>';
+    await pull(expandedWrite, 3, full);
+    await pull(expandedWrite, 3, full);
+    await pull('', 4, redacted);
+  });
+
   test('one DAV projection pulls its mixed physical collection during complete discovery', () async {
     await _seedDestination(database);
     final paths = <String>[];
