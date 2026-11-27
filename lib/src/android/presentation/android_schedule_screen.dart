@@ -588,6 +588,30 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                               child: JournalWorkspace(
                                 controls: const MaterialJournalControls(),
                                 openScheduleItem: _openJournalScheduleReference,
+                                onRefresh: (scope) async {
+                                  if (scope.kind == SyncScopeKind.all) {
+                                    await refreshAndroidAccounts(context, ref);
+                                    return;
+                                  }
+                                  final account = await ref
+                                      .read(accountsRepositoryProvider)
+                                      .accountById(scope.accountId!);
+                                  if (!context.mounted) return;
+                                  if (account?.provider.isDav == true &&
+                                      !await ensureAndroidLocalNetworkAccess(
+                                        context,
+                                        account!.authority,
+                                      )) {
+                                    return;
+                                  }
+                                  if (context.mounted) {
+                                    await refreshFromAndroid(
+                                      context,
+                                      ref,
+                                      scope,
+                                    );
+                                  }
+                                },
                                 files: const JournalFileActions(
                                   read: _readJournalFile,
                                   export: _exportJournalFile,

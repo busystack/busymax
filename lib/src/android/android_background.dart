@@ -240,8 +240,8 @@ final class AndroidHeadlessRuntime {
           overrides: [
             buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
             databaseProvider.overrideWithValue(database),
-            contactsDavServerAccessCheckProvider.overrideWithValue(
-              requireAndroidContactsServerAccess,
+            davServerAccessCheckProvider.overrideWithValue(
+              requireAndroidDavServerAccess,
             ),
             secureStorageProvider.overrideWithValue(storage),
             initialAppSettingsProvider.overrideWithValue(settings),

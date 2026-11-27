@@ -181,6 +181,10 @@ final nextcloudHttpClientFactoryProvider = Provider<NextcloudHttpClientFactory>(
   },
 );
 
+final davServerAccessCheckProvider = Provider<Future<void> Function(Uri)?>(
+  (ref) => null,
+);
+
 final davAccountHttpClientProvider = Provider.family<http.Client, String>((
   ref,
   id,
@@ -188,6 +192,7 @@ final davAccountHttpClientProvider = Provider.family<http.Client, String>((
   final client = DavAccountHttpClient(
     accountId: id,
     persistence: ref.watch(authorizationPersistenceProvider),
+    requireServerAccess: ref.watch(davServerAccessCheckProvider),
     createClient: (credential) => switch (credential) {
       NextcloudSecretRecord() =>
         ref
@@ -529,9 +534,6 @@ final busyMaxContactsStoreProvider = Provider<BusyMaxContactsStore>((ref) {
   return BusyMaxContactsStore(ref.watch(databaseProvider));
 });
 
-final contactsDavServerAccessCheckProvider =
-    Provider<Future<void> Function(Uri)?>((ref) => null);
-
 final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
   ref,
 ) {
@@ -551,7 +553,7 @@ final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
     ),
     httpClient: ref.watch(baseHttpClientProvider),
     nextcloudClients: ref.watch(nextcloudHttpClientFactoryProvider),
-    requireDavServerAccess: ref.watch(contactsDavServerAccessCheckProvider),
+    requireDavServerAccess: ref.watch(davServerAccessCheckProvider),
     accountGate: ref.watch(crossEngineAccountGateProvider),
     linkedNextcloudClient: (id) => ref.read(davAccountHttpClientProvider(id)),
     readDavSecret: (accountId) => storage.read(key: key(accountId)),

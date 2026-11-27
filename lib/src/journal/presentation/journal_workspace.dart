@@ -123,11 +123,13 @@ class JournalWorkspace extends ConsumerStatefulWidget {
     this.files,
     this.navigationCoordinator,
     this.openScheduleItem,
+    this.onRefresh,
     super.key,
   });
 
   final JournalControls controls;
   final JournalFileActions? files;
+  final Future<void> Function(SyncScope)? onRefresh;
   final BusyMaxWindowCloseCoordinator? navigationCoordinator;
   final Future<void> Function(BuildContext, ScheduleWorkspaceCommand)?
   openScheduleItem;
@@ -1031,21 +1033,26 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                       _busy
                           ? null
                           : () => _run(() async {
-                              final result = await ref.read(manualSyncRunnerProvider)(
-                                subscriptionSource != null
-                                    ? calendarSyncScope(
-                                        subscriptionSources[subscriptionSource]!
-                                            .accountId,
-                                        subscriptionSources[subscriptionSource]!
-                                            .id,
-                                      )
-                                    : filteredSource == null
-                                    ? allSyncScope
-                                    : davCollectionSyncScope(
-                                        filteredSource.accountId,
-                                        filteredSource.id,
-                                      ),
-                              );
+                              final scope = subscriptionSource != null
+                                  ? calendarSyncScope(
+                                      subscriptionSources[subscriptionSource]!
+                                          .accountId,
+                                      subscriptionSources[subscriptionSource]!
+                                          .id,
+                                    )
+                                  : filteredSource == null
+                                  ? allSyncScope
+                                  : davCollectionSyncScope(
+                                      filteredSource.accountId,
+                                      filteredSource.id,
+                                    );
+                              if (widget.onRefresh case final refresh?) {
+                                await refresh(scope);
+                                return;
+                              }
+                              final result = await ref.read(
+                                manualSyncRunnerProvider,
+                              )(scope);
                               if (result.needsAttention && mounted) {
                                 setState(
                                   () => _error = l10n.journalOperationFailed,

@@ -81,10 +81,10 @@ Future<bool> androidServerRequiresLocalNetworkAccess(Uri server) =>
     );
 
 /// Called by transports, including headless engines. Never opens permission UI.
-Future<void> requireAndroidContactsServerAccess(Uri server) async {
+Future<void> requireAndroidDavServerAccess(Uri server) async {
   if (await androidServerRequiresLocalNetworkAccess(server) &&
       !await BusyMaxAndroidPlatform.instance.hasLocalNetworkAccess()) {
-    throw const AndroidContactsLocalNetworkPermissionException();
+    throw const AndroidDavLocalNetworkPermissionException();
   }
 }
 
@@ -129,14 +129,17 @@ Future<bool> ensureAndroidLocalNetworkAccess(
   return false;
 }
 
-final class AndroidContactsLocalNetworkPermissionException
-    extends dav.DavException
+final class AndroidDavLocalNetworkPermissionException extends dav.DavException
     implements dav.DavRequestNotDispatchedException {
-  const AndroidContactsLocalNetworkPermissionException()
+  const AndroidDavLocalNetworkPermissionException()
     : super(
         kind: dav.DavErrorKind.authorization,
         code: 'android-local-network-required',
         safeMessage:
             'Allow local network access in Android settings, then retry.',
+        // A device grant does not change the server's ACL or the account's
+        // credentials. Keep replay eligible after Android restores access.
+        categoryOverride: dav.DavErrorCategory.davTransientNetwork,
+        retryAfter: Duration.zero,
       );
 }

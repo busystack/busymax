@@ -22,6 +22,7 @@ final class DavAccountHttpClient extends http.BaseClient
     required this.accountId,
     required this.persistence,
     required this.createClient,
+    this.requireServerAccess,
     this.maximumLifetime = const Duration(minutes: 2),
     this.acquisitionTimeout = const Duration(minutes: 2),
   });
@@ -30,6 +31,7 @@ final class DavAccountHttpClient extends http.BaseClient
   final String accountId;
   final AuthorizationPersistence persistence;
   final http.Client Function(SecretRecord) createClient;
+  final Future<void> Function(Uri)? requireServerAccess;
   final _active = <http.Client>{};
   final _idle = <_ReusableClient>[];
   String? _binding;
@@ -151,7 +153,9 @@ final class DavAccountHttpClient extends http.BaseClient
           _active.remove(lease);
         }
       }),
-      validate: () async {},
+      validate: () async {
+        await requireServerAccess?.call(request.url);
+      },
     );
     _active.add(lease);
     try {

@@ -41,7 +41,7 @@ void main() {
       final f = ContactsFixture(
         AppDatabase(NativeDatabase(File('${directory.path}/qa.sqlite'))),
         realDav: true,
-        requireDavServerAccess: requireAndroidContactsServerAccess,
+        requireDavServerAccess: requireAndroidDavServerAccess,
       );
       final dav = DavFixture();
       f.respondDav = dav.respond;

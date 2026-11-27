@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:busymax/src/android/android_local_network_access.dart';
 import 'package:busymax/src/core/auth/authorization_persistence.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/http/dav_account_http_client.dart';
@@ -54,12 +55,14 @@ void main() {
     String id, {
     Duration lifetime = const Duration(minutes: 2),
     Duration acquisitionTimeout = const Duration(minutes: 2),
+    Future<void> Function(Uri)? requireServerAccess,
   }) {
     final value = DavAccountHttpClient(
       accountId: id,
       persistence: persistence,
       maximumLifetime: lifetime,
       acquisitionTimeout: acquisitionTimeout,
+      requireServerAccess: requireServerAccess,
       createClient: (credential) {
         final value = credential as NextcloudSecretRecord;
         return factory.create(
@@ -115,6 +118,35 @@ void main() {
     await server.close(force: true);
     await db.close();
   });
+
+  test(
+    'a revoked LAN grant blocks DAV dispatch even on a reused connection',
+    () async {
+      var granted = true;
+      final checkedDestinations = <Uri>[];
+      final guarded = client(
+        'one',
+        requireServerAccess: (uri) async {
+          checkedDestinations.add(uri);
+          if (!granted) throw const AndroidDavLocalNetworkPermissionException();
+        },
+      );
+      final public = client('two');
+      expect((await guarded.get(endpoint)).statusCode, 200);
+      granted = false;
+      final journal = endpoint.resolve('journal.ics');
+      await expectLater(
+        guarded.put(journal, body: 'BEGIN:VJOURNAL\r\nEND:VJOURNAL\r\n'),
+        throwsA(isA<AndroidDavLocalNetworkPermissionException>()),
+      );
+      expect(requests, hasLength(1));
+      expect((await public.get(endpoint)).statusCode, 200);
+      granted = true;
+      expect((await guarded.get(journal)).statusCode, 200);
+      expect(checkedDestinations, [endpoint, journal, journal]);
+      expect(requests, hasLength(3));
+    },
+  );
 
   test(
     'completed responses reuse TLS connections within one generation',
