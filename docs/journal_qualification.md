@@ -16,7 +16,7 @@ same candidate. A fresh build reproduced the verified JAR digest shown below.
 
 | Requirement | Expected result and evidence | Scope remaining |
 | --- | --- | --- |
-| A1 and J16–J18, RFC 5545 §3.8.4.4 and RFC 5546 §3.5.3 | An individual cancellation at the start of a range changes that occurrence only. The next unoccupied original position carries the prior range. `JournalMessage.update` and `IcalRecurrenceExpander` passed the UTC, DATE, floating and embedded-DST tests in `journal_itip_test.dart`. The UTC case also passed pending export, database reopen, conditional replay and independent HTTPS readback on both services in `journal_live_test.dart`. | Provider replay of all date forms, combined multi-component messages and full native occurrence editing. |
+| A1 and J16–J18, RFC 5545 §3.8.4.4 and RFC 5546 §3.5.3 | An individual cancellation at the start of a range changes that occurrence only. The next unoccupied original position carries the prior range. `JournalMessage.update` and `IcalRecurrenceExpander` passed the UTC, DATE, floating and embedded-DST tests in `journal_itip_test.dart`. All four date modes then passed pending export, database reopen, idempotent reimport, conditional replay and independent HTTPS readback on both services in `journal_live_test.dart`. | The full provider matrix for combined messages and native occurrence editing. |
 | A2 and O09, RFC 4791 §5.3 | The historical SQLite fixture from `df88856c2ec98aae37152f5cdc887c99de3bf6b3` stays inspectable, and the invalid candidate never reaches the mutation transport. The file database regression passes pending and failed reopen, exact JSON export, unaffected collection export, access gating and conditional reapply after choosing the range. The workspace regression exercises export and explicit selection. Both focused `journal range and historical queue recovery` HTTPS cases passed conditional replay and independent readback after reviewed repair. | Complete native package recovery with each platform's real file adapter and dependent queue scenarios beyond the file database regression. |
 | A3 and J23, RFC 5545 §§3.6.3 and 3.8.7.2 | The oracle counts malformed, floating, grouped and parameterized duplicates before validating the only direct stamp. Both real providers passed the default repair assertion under their own expected policy. BusyStack rejected the unstamped object with HTTP 403 and unchanged state. Nextcloud returned 201, then GET 200 with one valid UTC stamp and unchanged remaining content. | Stock Nextcloud's separate query and storage failures remain visible. |
 | B1 and J12, RFC 9253 §§2, 7 and 9.1 | The repository resolves projected journals, events and tasks using collection-local UID or an exact same-account resource URI. It uses the existing schedule detail routes and sends XML URI references to the external handler with their fragment intact. `journal_repository_test.dart` passes mixed target lookup, account boundaries, and visible unresolved values after event hiding or task deselection. | Native route exercise, ambiguous recurring event projections and complete cross-server transfer qualification. |
@@ -51,9 +51,9 @@ record is in `build/qualification/vjournal-completion-20261127`.
 | Runtime or gate | Observed result |
 | --- | --- |
 | Linux production window | The release bundle built from `2f4239b` opened a mapped X11 window in an isolated profile. The executable SHA-256 is `4386e9dbaa87edeb6be0bb9e5d1c54ec0a59b7d63038b3d0c706cb54faf6ad07` and the AOT library SHA-256 is `b1a2cf10e6421f4843a2f44ac3ec41c024b7387390017d6471a5bd6ba06020fe`. |
-| Linux two-process journal replay | Both providers passed queued create, edit and delete through a process restart, SQLite and the isolated native keyring. The same run's separate Nextcloud editor test hit an HTTPS connection close during refresh. |
+| Linux journal workflows | Both providers passed queued create, edit and delete through a process restart, SQLite and the isolated native keyring. The same run's separate Nextcloud editor test hit an HTTPS connection close during refresh. The subsequent final-source Linux editor smoke passed for both providers. |
 | Android API 35 | The two named editor smoke tests passed using their separate installed QA APKs and independent HTTPS checks. The fixed minimum marker set remains incomplete. |
-| Android API 37 | The Nextcloud LAN smoke passed the system permission dialog and journal creation, GET and cleanup over HTTPS. The first BusyStack test passed the system grant and encountered the server's configured loopback origin in the principal response. The disposable LAN fixture now advertises its LAN origin for the retry. |
+| Android API 37 | Both routed LAN smoke cases passed the system permission dialog and journal creation, GET and cleanup over trusted HTTPS. The first BusyStack test encountered a principal on its configured loopback origin. The successful retry used an explicitly configured LAN origin and the same verified server JAR. |
 | Android test-signed release | Both APK and AAB passed inspection, including 16 KB alignment. The APK opened on both API 35 and API 37, and both installed copies matched its SHA-256 `8b7ab03664a42c9b257beff7abc8d523829ab48eb4b3046b753768d42db7877e`. The AAB SHA-256 is `497323e21827306cb4d800469af34d8d3d6e6157d17ebcd5037afe2fede8c09f`. Production provider registration, signing and the distribution build code remain required. |
 | Windows and strict Snap | The Windows launcher requires an authorized healthy desktop host. The local VM booted into Automatic Repair. The canonical Snap builder requires the owner’s desktop OAuth configuration. The installed-package gates remain open. |
 
@@ -61,8 +61,23 @@ The final-source journal HTTPS suite passed four named cases, including
 recovery after downstream denial and historical queue repair. The follow-up
 event and task regression used the official Calendar 6.7.0 and Tasks 0.18.1
 apps. Its exact-version test encountered an unknown HTTP mutation outcome
-and the large-collection test also failed. These results are separate from
-the eleven-fixture journal admission corpus.
+and large-collection rediscovery timed out. The separate user and group
+sharing test passed.
+
+The final-source Flutter gate first reported 5,531 passes, 125 skips and two
+failures. A bounded rerun with the unmodified runner's `--timeout 90s` option
+reported 5,532 passes, 125 skips and one five-second tray timeout. The failed
+TLS, activation and tray cases passed in isolated reruns. Both journal
+migration tests also passed in isolation. Android platform unit tests and
+lint, SDK and package integrity, formatting, analysis, platform boundaries
+and the five CalDAV Python harness tests passed.
+
+The candidate-aware BusyStack lifecycle suite passed five of its six named
+cases, including direct and group permissions, strict paged sync, and
+credential revocation, expiry and disabling. Its profile restoration hit an
+early readiness failure during the transformed timezone scenario. The
+focused retry after the QA readiness correction reached the ten-minute
+test limit. The suite's full result remains failed.
 
 ## Property and behavior checklist
 
