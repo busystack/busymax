@@ -4,6 +4,7 @@
 import argparse
 import base64
 import datetime as dt
+import errno
 import hashlib
 import json
 import os
@@ -169,9 +170,18 @@ def main():
             with binary.open('rb') as executable:
                 results[label]['executableSha256'] = hashlib.file_digest(executable, 'sha256').hexdigest()
         try:
+            def active_mount(mount):
+                try:
+                    return mount.is_mount()
+                except OSError as error:
+                    if error.errno == errno.ENOTCONN:
+                        return True  # The portal exited with its FUSE mount still attached.
+                    raise
             for mount in (runtime / 'doc', runtime / 'gvfs'):
-                if mount.is_mount():
-                    subprocess.run(['fusermount3', '-uz', str(mount)], check=True)
+                if active_mount(mount):
+                    result = subprocess.run(['fusermount3', '-uz', str(mount)], capture_output=True)
+                    if result.returncode and active_mount(mount):
+                        result.check_returncode()
             shutil.rmtree(root)
         except (OSError, subprocess.CalledProcessError) as error:
             results[label]['cleanupError'] = str(error)

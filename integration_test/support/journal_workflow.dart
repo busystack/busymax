@@ -534,11 +534,13 @@ void runJournalWorkflow({
       );
       debugPrint('JOURNAL_WORKFLOW_CASE $provider delete-sync-tombstone PASS');
 
-      await _editorAction(tester, button('Rename', false));
+      final rename = button('Rename', false);
+      await waitJournalWidget(tester, rename);
+      await tester.tap(rename);
       await waitJournalWidget(tester, input('Title'));
       final renamed = '$collectionName renamed';
       await tester.enterText(input('Title'), renamed);
-      await _editorAction(tester, button('Save', true));
+      await tester.tap(button('Save', true));
       await waitJournalWidget(tester, button('Save', true), absent: true);
       final renamedRemote = (await tester.runAsync(
         () => request(
@@ -557,12 +559,12 @@ void runJournalWorkflow({
             .innerText,
         renamed,
       );
-      await _editorAction(tester, button('Delete collection', false));
+      await tester.tap(button('Delete collection', false));
       await waitJournalWidget(
         tester,
         find.text('Permanently delete this collection and all its contents?'),
       );
-      await _editorAction(tester, button('Delete', false));
+      await tester.tap(button('Delete', false));
       await waitJournalWidget(
         tester,
         find.text('Permanently delete this collection and all its contents?'),
