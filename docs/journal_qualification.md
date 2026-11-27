@@ -40,7 +40,10 @@ database reopen, a conditional write and independent HTTPS readback.
 Follow-up evidence is under `build/qualification/vjournal-recovery-followup`.
 The portable evidence archive contains the manifest, coverage, sanitized logs,
 artifact hashes and Git tree comparisons. Earlier source and binary identities
-remain separately identified. The shared DAV lifecycle tests use calendar
+remain separately identified. The Linux production entry point passed a
+two-process recovery scenario on the historical create fixture. Its native
+GTK picker saved the exact request and the next process queued the reviewed
+repair. The shared DAV lifecycle tests use calendar
 and task fixtures. The earlier API 37 LAN smoke exercised the system
 permission and direct HTTPS. The full native journal matrix and installed
 release package qualification remain open.
