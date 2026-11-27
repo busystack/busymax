@@ -24,6 +24,8 @@ PROXY = (
     'python:3.13.7-slim-bookworm@'
     'sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf183395f0ebc4d3428bd22d92d'
 )
+CALENDAR_LIMITS = {'rateLimitCalendarCreation': 100,
+                   'maximumCalendarsSubscriptions': 100}
 
 
 def docker(*args, content=None, check=True):
@@ -84,6 +86,11 @@ def start(runtime):
         else:
             raise RuntimeError('Nextcloud fixture did not complete its fresh install')
 
+        # Repeated qualification creates isolated collections well above the
+        # stock per-hour quota. Keep a bounded fixture quota through normal occ.
+        for key, limit in CALENDAR_LIMITS.items():
+            occ(project, 'config:app:set', 'dav', key, '--type=integer', f'--value={limit}')
+
         docker('run', '-d', '--name', project + '-tls', '--network', project,
                '--publish', '127.0.0.1::8443',
                '--volume', f'{FIXTURES / "https_proxy.py"}:/fixtures/https_proxy.py:ro',
@@ -142,6 +149,7 @@ def start(runtime):
             php=docker('exec', project, 'php', '-r', 'echo PHP_VERSION;'),
             database=occ(project, 'config:system:get', 'dbtype'),
             sabreDav=versions['sabre/dav'], sabreVObject=versions['sabre/vobject'],
+            calendarLimits=CALENDAR_LIMITS,
         )
         (private / 'identity.json').write_text(json.dumps(identity, indent=2) + '\n')
         config = private / 'busymax-live.json'

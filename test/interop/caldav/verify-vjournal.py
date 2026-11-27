@@ -172,6 +172,8 @@ def main():
                          for platform in ('linux', 'windows', 'android')
                          for provider in profiles},
     }
+    if 'calendarLimits' in nextcloud_info:
+        evidence['nextcloud']['calendarLimits'] = nextcloud_info['calendarLimits']
     results = evidence['gates']
     environment = dict(os.environ, BUSYMAX_JOURNAL_LIVE_FIXTURE=str(fixture),
                        BUSYMAX_JOURNAL_CORPUS=str(corpus))
