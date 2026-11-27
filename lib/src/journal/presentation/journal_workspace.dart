@@ -912,8 +912,9 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                                   )
                                   .update(filteredSource.id, changes);
                             }
-                            if (mounted)
+                            if (mounted) {
                               setState(() => _renameCollection = false);
+                            }
                           }),
                     primary: true,
                   ),
