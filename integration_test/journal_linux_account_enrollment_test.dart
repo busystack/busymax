@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:xml/xml.dart';
 
@@ -31,9 +32,11 @@ void main() {
       final dataHome = Directory(Platform.environment['XDG_DATA_HOME']!);
       final configHome = Directory(Platform.environment['XDG_CONFIG_HOME']!);
       expect(dataHome.existsSync(), isTrue);
-      expect(dataHome.listSync(), isEmpty);
       expect(configHome.existsSync(), isTrue);
       expect(configHome.listSync(), isEmpty);
+      final support = (await tester.runAsync(getApplicationSupportDirectory))!;
+      expect(support.path, startsWith('${dataHome.path}/'));
+      expect(File('${support.path}/busymax.sqlite').existsSync(), isFalse);
       final profile = (await tester.runAsync(
         () => desktopJournalFixture('caldav'),
       ))!;

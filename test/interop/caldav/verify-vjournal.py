@@ -112,6 +112,8 @@ def main():
                         help='Authorized executable that runs the Windows native journal suite')
     parser.add_argument('--linux-process-restart', action='store_true',
                         help='Run the Linux offline workflow in two native processes using an isolated keyring')
+    parser.add_argument('--linux-account-enrollment', action='store_true',
+                        help='Run BusyStack enrollment via the real Linux Settings UI on isolated X11')
     args = parser.parse_args()
     artifact = args.artifacts.resolve() / ('vjournal-' + uuid.uuid4().hex[:12])
     artifact.mkdir(parents=True, mode=0o700)
@@ -212,7 +214,7 @@ def main():
         return dict(status='fail' if not smoke_passed else 'partial' if missing else 'pass',
                     executed=sorted(executed), missing=missing)
 
-    def linux_profile(label, command, named, *, restart=False):
+    def linux_profile(label, command, named, *, restart=False, enrollment=False):
         root = Path(tempfile.mkdtemp(prefix='journal-native-profile-'))
         runtime = root / 'runtime'
         runtime.mkdir(mode=0o700)
@@ -222,7 +224,13 @@ def main():
                      'GIO_USE_VFS': 'local'}
         if restart:
             extra_env['BUSYMAX_JOURNAL_RESTART_PROFILE'] = str(root / 'profile')
-        passed = run(label, ['dbus-run-session', '--', *command],
+        launcher = ['dbus-run-session', '--']
+        if enrollment:
+            for directory in (root / 'config', root / 'data'):
+                directory.mkdir(mode=0o700)
+            extra_env.update(GDK_BACKEND='x11', BUSYMAX_JOURNAL_LINUX_NATIVE_ENROLLMENT='1')
+            launcher = ['xvfb-run', '-a', '-s', '-screen 0 1280x1024x24', *launcher]
+        passed = run(label, [*launcher, *command],
                      named=named, extra_env=extra_env)
         binary = BUSYMAX / 'build/linux/x64/debug/bundle/busymax'
         if passed:
@@ -268,6 +276,20 @@ done
             named=[f'Linux offline journal {stage} across processes on {provider}'
                    for stage in ('queue', 'replay')],
             restart=True,
+        )
+        return label, passed
+
+    def linux_account_enrollment():
+        label = 'linux-caldav-account-enrollment'
+        command = '''
+set -eu
+printf %s busymax-journal-test-keyring | gnome-keyring-daemon --unlock --components=secrets
+flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment_test.dart --reporter expanded
+'''
+        passed = linux_profile(
+            label, ['bash', '-c', command],
+            named=['Linux production CalDAV enrollment discovers a journal source'],
+            enrollment=True,
         )
         return label, passed
 
@@ -409,6 +431,10 @@ done
                     restart_label, restart_passed = linux_restart(provider)
                     labels.append(restart_label)
                     passed = passed and restart_passed
+                if provider == 'caldav' and args.linux_account_enrollment:
+                    enrollment_label, enrollment_passed = linux_account_enrollment()
+                    labels.append(enrollment_label)
+                    passed = passed and enrollment_passed
                 result = native_result(platform, provider, labels, passed)
             elif platform == 'android':
                 result = android(provider, profiles[provider])
