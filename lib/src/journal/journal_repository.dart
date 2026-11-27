@@ -461,7 +461,13 @@ final class JournalRepository {
             collectionId: entry.collectionId,
             objectId: entry.davObjectId,
           );
-          if (recovery == null) rethrow;
+          if (recovery == null) {
+            throw const DavException(
+              kind: DavErrorKind.authorization,
+              code: 'DavJournalRecoveryRequiresFullAccess',
+              safeMessage: 'Refresh a source with write access to review the retained journal update.',
+            );
+          }
           final object = await (database.select(
             database.davObjects,
           )..where((row) => row.id.equals(entry.davObjectId))).getSingle();

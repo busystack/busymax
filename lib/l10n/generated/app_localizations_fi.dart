@@ -4148,17 +4148,18 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+      'Tämä offline-päivitys sisältää ristiriitaisia versioita samasta päiväkirjamerkinnän esiintymästä. Tarkista versiot ja valitse kullekin esiintymälle yksi ennen päivityksen käyttöönottoa. Voit viedä alkuperäisen päivityksen palautuspakettina.';
 
   @override
-  String get journalExportRecovery => 'Export recovery bundle (JSON)';
+  String get journalExportRecovery => 'Vie palautuspaketti (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+  String get journalReapplyReviewedUpdate =>
+      'Lisää tarkistettu päivitys jonoon';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+      'Palautusta odottavat merkinnät jätettiin pois kalenteriviennistä. Avaa kyseinen merkintä tarkistaaksesi tai viedäksesi odottavan päivityksen.';
 
   @override
   String get journalDraftSaved => 'Luonnos tallennettiin tähän laitteeseen';
@@ -4236,7 +4237,7 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get journalSeriesDateModeNotice =>
-      'Changing a series time mode keeps its local dates and clock times. For an all-day series, the chosen time is applied to every original date.';
+      'Sarjan aikatilan vaihtaminen säilyttää paikalliset päivämäärät ja kellonajat. Koko päivän sarjassa valittua kellonaikaa käytetään jokaiselle alkuperäiselle päivälle.';
 
   @override
   String get journalStatus => 'Tila';

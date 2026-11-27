@@ -569,12 +569,14 @@ final class IcalRecurrenceExpander {
       for (final wallValue in candidates) {
         if (wallValue.isBefore(anchor.localValue)) continue;
         final value = _withWallValue(anchor, wallValue);
-        if (until != null && _afterUntil(value, until, timeZoneResolver))
+        if (until != null && _afterUntil(value, until, timeZoneResolver)) {
           return;
+        }
         generatedForCount += 1;
         yield value;
-        if (rule.count case final count? when generatedForCount == count)
+        if (rule.count case final count? when generatedForCount == count) {
           return;
+        }
       }
     }
     if (limit != null &&
@@ -583,8 +585,9 @@ final class IcalRecurrenceExpander {
           limit,
           anchor,
           timeZoneResolver,
-        ))
+        )) {
       return;
+    }
     throw _limitError(
       'IcalRecurrenceIterationLimitExceeded',
       'A recurrence rule exceeded the safe expansion limit.',

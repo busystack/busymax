@@ -4156,17 +4156,19 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+      'Это автономное обновление содержит разные версии одного и того же экземпляра записи журнала. Перед повторным применением просмотрите версии и выберите одну для каждого экземпляра. Исходное обновление можно экспортировать в пакете восстановления.';
 
   @override
-  String get journalExportRecovery => 'Export recovery bundle (JSON)';
+  String get journalExportRecovery =>
+      'Экспортировать пакет восстановления (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+  String get journalReapplyReviewedUpdate =>
+      'Поставить проверенное обновление в очередь';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+      'Записи, ожидающие восстановления, исключены из экспорта календаря. Откройте такую запись, чтобы просмотреть или экспортировать ожидающее обновление.';
 
   @override
   String get journalDraftSaved => 'Черновик сохранён на этом устройстве';
@@ -4244,7 +4246,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get journalSeriesDateModeNotice =>
-      'Changing a series time mode keeps its local dates and clock times. For an all-day series, the chosen time is applied to every original date.';
+      'При смене режима времени серии сохраняются местные даты и время. Для серии на весь день выбранное время применяется к каждой исходной дате.';
 
   @override
   String get journalStatus => 'Статус';

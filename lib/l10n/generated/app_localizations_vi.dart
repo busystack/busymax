@@ -4105,17 +4105,18 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+      'Bản cập nhật ngoại tuyến này có nhiều phiên bản cho cùng một lần lặp của mục nhật ký. Hãy xem lại và chọn một phiên bản cho mỗi lần lặp trước khi áp dụng lại. Bạn có thể xuất bản cập nhật gốc dưới dạng gói khôi phục.';
 
   @override
-  String get journalExportRecovery => 'Export recovery bundle (JSON)';
+  String get journalExportRecovery => 'Xuất gói khôi phục (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+  String get journalReapplyReviewedUpdate =>
+      'Đưa bản cập nhật đã xem lại vào hàng đợi';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+      'Các mục đang chờ khôi phục đã được loại khỏi bản xuất lịch. Mở mục bị ảnh hưởng để xem lại hoặc xuất bản cập nhật đang chờ.';
 
   @override
   String get journalDraftSaved => 'Đã lưu bản nháp trên thiết bị này';
@@ -4192,7 +4193,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get journalSeriesDateModeNotice =>
-      'Changing a series time mode keeps its local dates and clock times. For an all-day series, the chosen time is applied to every original date.';
+      'Đổi chế độ giờ của chuỗi sẽ giữ nguyên ngày và giờ địa phương. Với chuỗi cả ngày, giờ đã chọn sẽ được áp dụng cho từng ngày gốc.';
 
   @override
   String get journalStatus => 'Trạng thái';

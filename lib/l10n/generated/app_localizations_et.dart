@@ -4095,17 +4095,18 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+      'Võrguühenduseta salvestatud muudatus sisaldab päeviku sama korduse vastuolulisi versioone. Vaata need üle ja vali enne muudatuse uuesti rakendamist iga korduse jaoks üks versioon. Algse muudatuse saad eksportida taastepaketina.';
 
   @override
-  String get journalExportRecovery => 'Export recovery bundle (JSON)';
+  String get journalExportRecovery => 'Ekspordi taastepakett (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+  String get journalReapplyReviewedUpdate =>
+      'Lisa ülevaadatud muudatus järjekorda';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+      'Taastamist ootavad kirjed jäid kalendri ekspordist välja. Ootel muudatuse ülevaatamiseks või eksportimiseks ava vastav kirje.';
 
   @override
   String get journalDraftSaved => 'Mustand salvestati sellesse seadmesse';
@@ -4182,7 +4183,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get journalSeriesDateModeNotice =>
-      'Changing a series time mode keeps its local dates and clock times. For an all-day series, the chosen time is applied to every original date.';
+      'Seeria ajarežiimi muutmisel säilivad kohalikud kuupäevad ja kellaajad. Kogu päeva seerias rakendatakse valitud kellaaega igale algsele kuupäevale.';
 
   @override
   String get journalStatus => 'Olek';

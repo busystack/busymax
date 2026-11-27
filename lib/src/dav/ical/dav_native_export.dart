@@ -12,10 +12,15 @@ import '../storage/dav_collection_capabilities.dart';
 import 'dav_native_import.dart';
 
 final class DavCollectionExport {
-  const DavCollectionExport(this.resources, this.pendingJournalRecoveries);
+  const DavCollectionExport(
+    this.resources,
+    this.pendingJournalRecoveries,
+    this.excludedJournalCount,
+  );
 
   final List<NativeImportResource> resources;
   final List<DavJournalPendingRecovery> pendingJournalRecoveries;
+  final int excludedJournalCount;
 }
 
 /// A consistent, account-scoped snapshot of effective local resources. Each
@@ -86,6 +91,7 @@ final class DavNativeExportService {
     final queue = DavPendingOperationQueue(database: database);
     final resources = <NativeImportResource>[];
     final recoveries = <DavJournalPendingRecovery>[];
+    var excludedJournalCount = 0;
     for (final object in objects) {
       final operation = effectiveByObject[object.id];
       if (operation?.operationType == 'dav.delete' ||
@@ -102,6 +108,7 @@ final class DavNativeExportService {
         );
       } on DavException catch (error) {
         if (error.code != duplicateJournalPositionCode) rethrow;
+        excludedJournalCount += 1;
         final recovery = await queue.journalRecoveryForObject(
           accountId: accountId,
           collectionId: object.collectionId,
@@ -126,6 +133,7 @@ final class DavNativeExportService {
     return DavCollectionExport(
       List.unmodifiable(resources),
       List.unmodifiable(recoveries),
+      excludedJournalCount,
     );
   });
 }

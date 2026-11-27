@@ -4135,17 +4135,18 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+      'Esta actualización sin conexión contiene versiones en conflicto de la misma instancia del diario. Revisa las versiones y elige una por instancia antes de volver a aplicar la actualización. Puedes exportar la actualización original en un paquete de recuperación.';
 
   @override
-  String get journalExportRecovery => 'Export recovery bundle (JSON)';
+  String get journalExportRecovery => 'Exportar paquete de recuperación (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+  String get journalReapplyReviewedUpdate =>
+      'Poner en cola la actualización revisada';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+      'Las entradas pendientes de recuperación quedaron fuera de la exportación del calendario. Abre una entrada afectada para revisar o exportar su actualización pendiente.';
 
   @override
   String get journalDraftSaved => 'Borrador guardado en este dispositivo';
@@ -4222,7 +4223,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get journalSeriesDateModeNotice =>
-      'Changing a series time mode keeps its local dates and clock times. For an all-day series, the chosen time is applied to every original date.';
+      'Al cambiar el modo horario de una serie se conservan las fechas y horas locales. En una serie de día completo, la hora elegida se aplica a cada fecha original.';
 
   @override
   String get journalStatus => 'Estado';

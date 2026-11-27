@@ -56,8 +56,9 @@ String convertJournalSeriesDate(
       .toList();
   for (final component in target.components) {
     for (final property in component.documentComponent.properties) {
-      if (property.name == 'DTSTART' && component.recurrenceId == null)
+      if (property.name == 'DTSTART' && component.recurrenceId == null) {
         continue;
+      }
       if (property.name == 'RRULE') {
         property.rawValue = property.rawValue
             .split(';')
@@ -95,8 +96,9 @@ String convertJournalSeriesDate(
                 final wall = fromZone.fromUtc(utc, fromId);
                 civilBoundary = _wallText(wall);
                 final roundTrip = _temporalWithZone(civilBoundary, fromId);
-                if (fromZone.toUtc(roundTrip) != utc)
+                if (fromZone.toUtc(roundTrip) != utc) {
                   throw _conversionUnavailable();
+                }
               }
               var adjusted = temporal(civilBoundary);
               if (to.timeZoneId case final toId?) {
@@ -107,7 +109,7 @@ String convertJournalSeriesDate(
                 }
                 adjusted = '${_wallText(utc)}Z';
               }
-              return '${name}=$adjusted';
+              return '$name=$adjusted';
             })
             .join(';');
         property.isDirty = true;
@@ -117,8 +119,9 @@ String convertJournalSeriesDate(
         'RECURRENCE-ID',
         'RDATE',
         'EXDATE',
-      }.contains(property.name))
+      }.contains(property.name)) {
         continue;
+      }
       if (property.parameterValue('VALUE')?.toUpperCase() == 'PERIOD') {
         throw _conversionUnavailable();
       }

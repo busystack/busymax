@@ -3927,17 +3927,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+      '这项离线更新包含同一个日志重复实例的不同版本。重新应用前，请查看版本并为每个实例选择一个版本。你也可以将原始更新导出为恢复包。';
 
   @override
-  String get journalExportRecovery => 'Export recovery bundle (JSON)';
+  String get journalExportRecovery => '导出恢复包 (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+  String get journalReapplyReviewedUpdate => '将已审核的更新加入队列';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+      '等待恢复的条目未包含在日历导出中。请打开相关条目，查看或导出待处理的更新。';
 
   @override
   String get journalDraftSaved => '草稿已保存在此设备上';
@@ -4010,7 +4010,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get journalSeriesDateModeNotice =>
-      'Changing a series time mode keeps its local dates and clock times. For an all-day series, the chosen time is applied to every original date.';
+      '更改序列的时间模式会保留本地日期和时刻。对于全天序列，所选时刻将应用到每个原始日期。';
 
   @override
   String get journalStatus => '状态';
@@ -7949,6 +7949,20 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get journalOperationFailed => '日志操作失败。';
 
   @override
+  String get journalPendingRecovery =>
+      '这项离线更新包含同一个日志重复实例的不同版本。重新应用前，请查看版本并为每个实例选择一个版本。你也可以将原始更新导出为恢复包。';
+
+  @override
+  String get journalExportRecovery => '导出恢复包 (JSON)';
+
+  @override
+  String get journalReapplyReviewedUpdate => '将已审核的更新加入队列';
+
+  @override
+  String get journalCollectionExportRecovery =>
+      '等待恢复的条目未包含在日历导出中。请打开相关条目，查看或导出待处理的更新。';
+
+  @override
   String get journalDraftSaved => '草稿已保存在此设备上';
 
   @override
@@ -8016,6 +8030,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get journalDate => '日期';
+
+  @override
+  String get journalSeriesDateModeNotice =>
+      '更改序列的时间模式会保留本地日期和时刻。对于全天序列，所选时刻将应用到每个原始日期。';
 
   @override
   String get journalStatus => '状态';
@@ -11955,6 +11973,20 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get journalOperationFailed => '日誌操作失敗。';
 
   @override
+  String get journalPendingRecovery =>
+      '這項離線更新包含同一個日誌重複項目的不同版本。重新套用前，請檢閱各版本，並為每個項目選擇一個版本。你也可以將原始更新匯出為復原套件。';
+
+  @override
+  String get journalExportRecovery => '匯出復原套件 (JSON)';
+
+  @override
+  String get journalReapplyReviewedUpdate => '將已檢閱的更新加入佇列';
+
+  @override
+  String get journalCollectionExportRecovery =>
+      '等待復原的項目未包含在行事曆匯出中。請開啟受影響的項目，檢閱或匯出待處理的更新。';
+
+  @override
   String get journalDraftSaved => '草稿已儲存在這部裝置上';
 
   @override
@@ -12022,6 +12054,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get journalDate => '日期';
+
+  @override
+  String get journalSeriesDateModeNotice =>
+      '變更系列的時間模式會保留本地日期和時間。對於全天系列，選取的時間將套用至每個原始日期。';
 
   @override
   String get journalStatus => '狀態';

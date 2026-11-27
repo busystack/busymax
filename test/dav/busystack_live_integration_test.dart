@@ -34,7 +34,7 @@ final _candidateDirectory = Platform.environment['BUSYMAX_CALDAV_CANDIDATE'];
 final _lifecycleLabel = _candidateDirectory == null
     ? 'BusyStack 0.1.0'
     : 'BusyStack journal candidate';
-late final Uri _lifecycleEndpoint = _candidateDirectory == null
+final Uri _lifecycleEndpoint = _candidateDirectory == null
     ? Uri.parse('https://localhost:18448/dav/')
     : Uri.parse(
         (jsonDecode(
@@ -143,7 +143,7 @@ void main() {
         final generation = await f.persistence.generation(f.id);
         await expectLater(
           f.onboarding.connectCalDav(
-            serverUrl: _lifecycleEndpoint.origin + '/',
+            serverUrl: '${_lifecycleEndpoint.origin}/',
             username: f.username,
             password: f.password,
           ),
@@ -1002,7 +1002,10 @@ Future<void> control(String action, [String? argument]) async {
 Future<void> manage(List<String> arguments) async {
   final result = await Process.run('python3', [
     'test/interop/caldav/busystack-fixture.py',
-    if (_candidateDirectory != null) ...['--candidate', _candidateDirectory],
+    if (_candidateDirectory case final directory?) ...[
+      '--candidate',
+      directory,
+    ],
     ...arguments,
   ]);
   expect(

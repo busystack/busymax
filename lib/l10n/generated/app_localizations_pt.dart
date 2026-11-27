@@ -8383,6 +8383,21 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   String get journalOperationFailed => 'A operação no diário falhou.';
 
   @override
+  String get journalPendingRecovery =>
+      'Esta atualização offline contém versões em conflito da mesma ocorrência do diário. Reveja as versões e escolha uma para cada ocorrência antes de voltar a aplicar a atualização. Pode exportar a atualização original num pacote de recuperação.';
+
+  @override
+  String get journalExportRecovery => 'Exportar pacote de recuperação (JSON)';
+
+  @override
+  String get journalReapplyReviewedUpdate =>
+      'Colocar a atualização revista em fila';
+
+  @override
+  String get journalCollectionExportRecovery =>
+      'As entradas a aguardar recuperação foram excluídas da exportação do calendário. Abra uma entrada afetada para rever ou exportar a respetiva atualização pendente.';
+
+  @override
   String get journalDraftSaved => 'Rascunho guardado neste dispositivo';
 
   @override
@@ -8454,6 +8469,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get journalDate => 'Data';
+
+  @override
+  String get journalSeriesDateModeNotice =>
+      'Alterar o modo de hora de uma série mantém as datas e horas locais. Numa série de dia inteiro, a hora escolhida aplica-se a cada data original.';
 
   @override
   String get journalStatus => 'Estado';

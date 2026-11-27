@@ -381,7 +381,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
     }
 
     if (current?.pendingRecovery case final recovery?) {
-      if (editorSource == null || caps?.canRead != true) {
+      if (editorSource?.journalInventoryComplete != true ||
+          caps?.canAttemptUpdateJournal != true) {
         return Column(
           children: [
             Text(l10n.davPermissionChanged),
@@ -915,15 +916,11 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                                     );
                                 if (mounted &&
                                     (path != null ||
-                                        exported
-                                            .pendingJournalRecoveries
-                                            .isNotEmpty)) {
+                                        exported.excludedJournalCount > 0)) {
                                   setState(
                                     () => _notice = [
                                       if (path != null) l10n.exportedFile(path),
-                                      if (exported
-                                          .pendingJournalRecoveries
-                                          .isNotEmpty)
+                                      if (exported.excludedJournalCount > 0)
                                         l10n.journalCollectionExportRecovery,
                                     ].join('\n'),
                                   );

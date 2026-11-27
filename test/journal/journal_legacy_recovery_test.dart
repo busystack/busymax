@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
 import 'package:busymax/src/dav/ical/dav_native_export.dart';
@@ -68,6 +69,29 @@ void main() {
           .collectionForReview('account', 'source');
       expect(exported.resources.map((entry) => entry.uid), ['sibling']);
       expect(exported.pendingJournalRecoveries.single.toJson(), bundle);
+      final source = db.update(db.davCollections)
+        ..where((row) => row.id.equals('source'));
+      await source.write(
+        const DavCollectionsCompanion(journalInventoryComplete: Value(false)),
+      );
+      await expectLater(
+        repository.read(selected),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'DavJournalRecoveryRequiresFullAccess',
+          ),
+        ),
+      );
+      final restricted = await DavNativeExportService(db)
+          .collectionForReview('account', 'source');
+      expect(restricted.excludedJournalCount, 1);
+      expect(restricted.pendingJournalRecoveries, isEmpty);
+      expect(restricted.resources.map((entry) => entry.uid), ['sibling']);
+      await source.write(
+        const DavCollectionsCompanion(journalInventoryComplete: Value(true)),
+      );
 
       await (db.update(db.accounts)..where((row) => row.id.equals('account')))
           .write(const AccountsCompanion(authState: Value('signed_in')));

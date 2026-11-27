@@ -4010,17 +4010,17 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+      '이 오프라인 업데이트에는 같은 일지 반복 항목의 서로 다른 버전이 있습니다. 업데이트를 다시 적용하기 전에 버전을 검토하고 항목마다 하나를 선택하세요. 원래 업데이트는 복구 묶음으로 내보낼 수 있습니다.';
 
   @override
-  String get journalExportRecovery => 'Export recovery bundle (JSON)';
+  String get journalExportRecovery => '복구 묶음 내보내기 (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+  String get journalReapplyReviewedUpdate => '검토한 업데이트 대기열에 추가';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+      '복구 대기 중인 항목은 캘린더 내보내기에서 제외되었습니다. 해당 항목을 열어 보류 중인 업데이트를 검토하거나 내보내세요.';
 
   @override
   String get journalDraftSaved => '이 기기에 초안을 저장했습니다';
@@ -4094,7 +4094,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get journalSeriesDateModeNotice =>
-      'Changing a series time mode keeps its local dates and clock times. For an all-day series, the chosen time is applied to every original date.';
+      '반복 일정의 시간 모드를 변경해도 현지 날짜와 시간은 유지됩니다. 종일 반복 일정에서는 선택한 시간이 원래 날짜마다 적용됩니다.';
 
   @override
   String get journalStatus => '상태';

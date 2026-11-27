@@ -429,13 +429,19 @@ final class DavPendingOperationQueue {
     required String objectId,
   }) async {
     final context = await _objectContext(accountId, collectionId, objectId);
-    if (!collectionCapabilitiesFromStored(context.collection).canRead)
+    final canAccessBaseline =
+        context.collection.journalInventoryComplete &&
+        collectionCapabilitiesFromStored(context.collection)
+            .canAttemptUpdateJournal;
+    if (!canAccessBaseline) {
       return null;
+    }
     final operation = await _effectiveObjectOperation(objectId);
     if (operation == null ||
         operation.operationType != 'dav.update' ||
-        operation.entityType != 'journal')
+        operation.entityType != 'journal') {
       return null;
+    }
     final patch = _decodePatch(operation);
     final baseline = _required(operation.baselineRawIcs);
     try {
@@ -475,8 +481,9 @@ final class DavPendingOperationQueue {
     final capabilities = collectionCapabilitiesFromStored(context.collection);
     if (!context.account.journalsEnabled ||
         !context.collection.journalInventoryComplete ||
-        !capabilities.canAttemptUpdateJournal)
+        !capabilities.canAttemptUpdateJournal) {
       throw _permissionError();
+    }
     if (context.object.serverDeleted ||
         context.object.etag != operation.baselineEtag ||
         context.object.rawIcsBody != operation.baselineRawIcs ||
