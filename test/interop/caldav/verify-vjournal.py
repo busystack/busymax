@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from urllib.parse import urlsplit
 
@@ -42,6 +43,34 @@ def commit(path):
 
 def clean(path):
     return not subprocess.check_output(['git', 'status', '--porcelain'], cwd=path)
+
+
+def remove_linux_profile(root):
+    def active_mount(mount):
+        try:
+            return mount.is_mount()
+        except OSError as error:
+            if error.errno == errno.ENOTCONN:
+                return True
+            raise
+
+    for attempt in range(12):
+        try:
+            for mount in (root / 'runtime/doc', root / 'runtime/gvfs'):
+                if active_mount(mount):
+                    result = subprocess.run(['fusermount3', '-uz', str(mount)], capture_output=True)
+                    if result.returncode and active_mount(mount):
+                        result.check_returncode()
+            shutil.rmtree(root)
+            return
+        except (OSError, subprocess.CalledProcessError) as error:
+            if isinstance(error, OSError) and error.errno != errno.ENOTCONN:
+                raise
+            if attempt == 11:
+                raise
+            # A portal can detach its FUSE mount between is_mount and
+            # rmtree. Wait for that process to finish, then inspect again.
+            time.sleep(0.5)
 
 
 def apk_signer_digests(output):
@@ -244,19 +273,7 @@ def main():
                 passed = False
             checkpoint(artifact, evidence)
         try:
-            def active_mount(mount):
-                try:
-                    return mount.is_mount()
-                except OSError as error:
-                    if error.errno == errno.ENOTCONN:
-                        return True  # The portal exited with its FUSE mount still attached.
-                    raise
-            for mount in (runtime / 'doc', runtime / 'gvfs'):
-                if active_mount(mount):
-                    result = subprocess.run(['fusermount3', '-uz', str(mount)], capture_output=True)
-                    if result.returncode and active_mount(mount):
-                        result.check_returncode()
-            shutil.rmtree(root)
+            remove_linux_profile(root)
         except (OSError, subprocess.CalledProcessError) as error:
             results[label]['cleanupError'] = str(error)
             passed = False

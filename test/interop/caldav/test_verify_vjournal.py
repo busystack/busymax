@@ -1,13 +1,43 @@
 """Check the qualifier's provider and package identity assertions."""
 
+import errno
 from pathlib import Path
 import runpy
+from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 
 runner = runpy.run_path(str(Path(__file__).with_name('verify-vjournal.py')))
 digests = runner['apk_signer_digests']
 classify = runner['classify_nextcloud_admission']
+
+
+class LinuxProfileCleanupTest(unittest.TestCase):
+    def test_portal_disconnect_during_cleanup_is_retried(self):
+        with TemporaryDirectory() as folder:
+            profile = Path(folder) / 'profile'
+            profile.mkdir()
+            remove = runner['shutil'].rmtree
+            with patch.object(runner['shutil'], 'rmtree', side_effect=[
+                OSError(errno.ENOTCONN, 'Portal is detaching'), None,
+            ]) as cleanup, patch.object(runner['time'], 'sleep') as wait:
+                runner['remove_linux_profile'](profile)
+                self.assertEqual(cleanup.call_count, 2)
+                wait.assert_called_once_with(0.5)
+            remove(profile)
+
+    def test_permission_error_remains_visible(self):
+        with TemporaryDirectory() as folder:
+            profile = Path(folder) / 'profile'
+            profile.mkdir()
+            with patch.object(runner['shutil'], 'rmtree', side_effect=[
+                PermissionError(errno.EACCES, 'Profile access denied'),
+            ]) as cleanup, patch.object(runner['time'], 'sleep') as wait:
+                with self.assertRaises(PermissionError):
+                    runner['remove_linux_profile'](profile)
+                cleanup.assert_called_once_with(profile)
+                wait.assert_not_called()
 
 
 class ApkSigningIdentityTest(unittest.TestCase):
