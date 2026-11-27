@@ -55,7 +55,7 @@ def cleanup(project):
     docker('network', 'rm', project, check=False)
 
 
-def start(runtime):
+def start(runtime, *, memory_backed=False):
     private = Path(tempfile.mkdtemp(prefix='busymax-vjournal-nextcloud-', dir=runtime))
     project = private.name
     script = private / 'make-certificates.sh'
@@ -72,8 +72,9 @@ def start(runtime):
     admin_file.chmod(0o600)
     try:
         docker('network', 'create', project)
+        storage = ('--tmpfs', '/var/www/html:rw,size=2g') if memory_backed else ()
         docker('run', '-d', '--name', project, '--network', project,
-               '--env-file', str(admin_file), NEXTCLOUD)
+               '--env-file', str(admin_file), *storage, NEXTCLOUD)
         deadline = time.monotonic() + 240
         while time.monotonic() < deadline:
             try:
@@ -148,6 +149,7 @@ def start(runtime):
             nextcloud=status['version'], image=NEXTCLOUD, imageId=image_id,
             php=docker('exec', project, 'php', '-r', 'echo PHP_VERSION;'),
             database=occ(project, 'config:system:get', 'dbtype'),
+            storage='tmpfs' if memory_backed else 'docker-volume',
             sabreDav=versions['sabre/dav'], sabreVObject=versions['sabre/vobject'],
             calendarLimits=CALENDAR_LIMITS,
         )
@@ -165,11 +167,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['start', 'stop'])
     parser.add_argument('path', type=Path, help='Runtime parent for start or the named fixture for stop')
+    parser.add_argument('--memory-backed', action='store_true',
+                        help='Use disposable RAM storage on start. Unsuitable for restart qualification.')
     args = parser.parse_args()
+    if args.action != 'start' and args.memory_backed:
+        parser.error('--memory-backed requires start')
     path = args.path.resolve()
     os.umask(0o077)
     if args.action == 'start':
-        start(path)
+        start(path, memory_backed=args.memory_backed)
     else:
         manifest = json.loads((path / 'identity.json').read_text())
         if manifest['project'] != path.name or manifest['directory'] != str(path) or not path.name.startswith('busymax-vjournal-nextcloud-'):
