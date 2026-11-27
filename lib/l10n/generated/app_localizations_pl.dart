@@ -4296,25 +4296,25 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'Ta zmiana offline zawiera sprzeczne wersje tego samego wystąpienia wpisu w dzienniku. Sprawdź wersje i wybierz jedną dla każdego wystąpienia, zanim ponownie zastosujesz zmianę. Możesz wyeksportować pierwotną zmianę w pakiecie odzyskiwania.';
+      'Ten oczekujący wpis dziennika zawiera sprzeczne wersje tego samego wystąpienia. Przed wysłaniem wybierz jedną wersję dla każdego wystąpienia. Oryginalne żądanie możesz wyeksportować jako pakiet odzyskiwania.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'Oryginalne żądanie mogło dotrzeć do serwera. Naprawa będzie dostępna, gdy serwer potwierdzi, że żądanie można bezpiecznie zastąpić. Nadal możesz wyeksportować pakiet odzyskiwania.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'Sprawdź serwer przed naprawą';
 
   @override
   String get journalExportRecovery => 'Eksportuj pakiet odzyskiwania (JSON)';
 
   @override
   String get journalReapplyReviewedUpdate =>
-      'Dodaj sprawdzoną zmianę do kolejki';
+      'Dodaj sprawdzony wpis dziennika do kolejki';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Wpisy oczekujące na odzyskanie pominięto w eksporcie kalendarza. Otwórz taki wpis, aby sprawdzić lub wyeksportować oczekującą zmianę.';
+      'Wpisy oczekujące na odzyskanie pominięto przy eksporcie kalendarza. Otwórz odpowiedni wpis w Dziennikach, aby sprawdzić lub wyeksportować oczekujące żądanie.';
 
   @override
   String get journalDraftSaved => 'Zapisano szkic na tym urządzeniu';

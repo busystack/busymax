@@ -4148,25 +4148,25 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'Tämä offline-päivitys sisältää ristiriitaisia versioita samasta päiväkirjamerkinnän esiintymästä. Tarkista versiot ja valitse kullekin esiintymälle yksi ennen päivityksen käyttöönottoa. Voit viedä alkuperäisen päivityksen palautuspakettina.';
+      'Tässä odottavassa päiväkirjamerkinnässä on samasta esiintymästä ristiriitaisia versioita. Valitse ennen lähettämistä yksi versio kustakin esiintymästä. Voit viedä alkuperäisen pyynnön palautuspakettina.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'Alkuperäinen pyyntö on saattanut saapua palvelimelle. Korjaaminen onnistuu, kun palvelin vahvistaa, että pyynnön voi korvata turvallisesti. Voit edelleen viedä palautuspaketin.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'Tarkista palvelin ennen korjaamista';
 
   @override
   String get journalExportRecovery => 'Vie palautuspaketti (JSON)';
 
   @override
   String get journalReapplyReviewedUpdate =>
-      'Lisää tarkistettu päivitys jonoon';
+      'Lisää tarkistettu päiväkirjamerkintä jonoon';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Palautusta odottavat merkinnät jätettiin pois kalenteriviennistä. Avaa kyseinen merkintä tarkistaaksesi tai viedäksesi odottavan päivityksen.';
+      'Palautusta odottavat merkinnät jätettiin kalenteriviennin ulkopuolelle. Avaa kyseinen päiväkirjamerkintä ja tarkista tai vie sen odottava pyyntö.';
 
   @override
   String get journalDraftSaved => 'Luonnos tallennettiin tähän laitteeseen';

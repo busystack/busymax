@@ -4159,25 +4159,25 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'يتضمن هذا التحديث دون اتصال نسخًا متعارضة من واقعة التدوينة نفسها. راجع النسخ واختر واحدة لكل واقعة قبل إعادة تطبيق التحديث. يمكنك تصدير التحديث الأصلي في حزمة استرداد.';
+      'تحتوي هذه اليومية المعلّقة على نسخ متعارضة للتكرار نفسه. اختر نسخة لكل تكرار قبل الإرسال. يمكنك تصدير الطلب الأصلي كحزمة استرداد.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'ربما وصل الطلب الأصلي إلى الخادم. يمكنك الإصلاح بعد أن يؤكد الخادم إمكانية استبدال الطلب بأمان. لا يزال بإمكانك تصدير حزمة الاسترداد.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'تحقّق من الخادم قبل الإصلاح';
 
   @override
   String get journalExportRecovery => 'تصدير حزمة الاسترداد (JSON)';
 
   @override
   String get journalReapplyReviewedUpdate =>
-      'إضافة التحديث المُراجَع إلى قائمة الانتظار';
+      'أضف اليومية التي راجعتها إلى قائمة الانتظار';
 
   @override
   String get journalCollectionExportRecovery =>
-      'استُبعدت التدوينات التي تنتظر الاسترداد من تصدير التقويم. افتح تدوينة متأثرة لمراجعة تحديثها المعلّق أو تصديره.';
+      'استُبعدت من تصدير التقويم الإدخالات التي تنتظر الاسترداد. افتح أحدها في اليوميات لمراجعة طلبه المعلّق أو تصديره.';
 
   @override
   String get journalDraftSaved => 'حُفظت المسودة على هذا الجهاز';

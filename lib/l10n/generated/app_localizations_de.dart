@@ -4127,25 +4127,26 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'Diese Offline-Änderung enthält mehrere Versionen desselben Journaleintrags in einer Serie. Prüfen Sie die Versionen und wählen Sie vor dem erneuten Anwenden eine pro Termin. Die ursprüngliche Änderung lässt sich als Wiederherstellungspaket exportieren.';
+      'Dieser ausstehende Journaleintrag enthält konkurrierende Versionen desselben Vorkommens. Wählen Sie vor dem Senden je eine Version pro Vorkommen aus. Sie können die ursprüngliche Anfrage als Wiederherstellungspaket exportieren.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'Die ursprüngliche Anfrage hat den Server möglicherweise erreicht. Die Reparatur ist möglich, sobald der Server bestätigt, dass die Anfrage sicher ersetzt werden kann. Das Wiederherstellungspaket kann weiterhin exportiert werden.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'Server vor der Reparatur prüfen';
 
   @override
   String get journalExportRecovery =>
       'Wiederherstellungspaket exportieren (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Geprüfte Änderung einreihen';
+  String get journalReapplyReviewedUpdate =>
+      'Geprüften Journaleintrag zur Warteschlange hinzufügen';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Einträge, die auf Wiederherstellung warten, wurden beim Kalenderexport ausgelassen. Öffnen Sie einen betroffenen Eintrag, um seine ausstehende Änderung zu prüfen oder zu exportieren.';
+      'Einträge, die auf Wiederherstellung warten, wurden beim Kalenderexport ausgelassen. Öffnen Sie einen betroffenen Eintrag in den Journalen, um seine ausstehende Anfrage zu prüfen oder zu exportieren.';
 
   @override
   String get journalDraftSaved => 'Entwurf auf diesem Gerät gespeichert';

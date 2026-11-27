@@ -4135,25 +4135,25 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'Esta actualización sin conexión contiene versiones en conflicto de la misma instancia del diario. Revisa las versiones y elige una por instancia antes de volver a aplicar la actualización. Puedes exportar la actualización original en un paquete de recuperación.';
+      'Esta entrada pendiente contiene versiones en conflicto de la misma ocurrencia. Elige una versión para cada ocurrencia antes de enviar. Puedes exportar la solicitud original como un paquete de recuperación.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'Es posible que la solicitud original haya llegado al servidor. Podrás reparar la entrada cuando el servidor confirme que se puede reemplazar la solicitud sin riesgo. Puedes seguir exportando el paquete de recuperación.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'Comprobar el servidor antes de reparar';
 
   @override
   String get journalExportRecovery => 'Exportar paquete de recuperación (JSON)';
 
   @override
   String get journalReapplyReviewedUpdate =>
-      'Poner en cola la actualización revisada';
+      'Poner en cola la entrada revisada';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Las entradas pendientes de recuperación quedaron fuera de la exportación del calendario. Abre una entrada afectada para revisar o exportar su actualización pendiente.';
+      'Las entradas pendientes de recuperación se omitieron en la exportación del calendario. Abre una entrada afectada en Diarios para revisar o exportar su solicitud pendiente.';
 
   @override
   String get journalDraftSaved => 'Borrador guardado en este dispositivo';

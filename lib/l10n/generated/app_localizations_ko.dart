@@ -4010,24 +4010,24 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      '이 오프라인 업데이트에는 같은 일지 반복 항목의 서로 다른 버전이 있습니다. 업데이트를 다시 적용하기 전에 버전을 검토하고 항목마다 하나를 선택하세요. 원래 업데이트는 복구 묶음으로 내보낼 수 있습니다.';
+      '대기 중인 이 저널 항목에 동일한 반복 회차의 충돌하는 버전이 있습니다. 보내기 전에 회차마다 한 버전을 선택하세요. 원래 요청을 복구 번들로 내보낼 수 있습니다.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      '원래 요청이 서버에 도착했을 수 있습니다. 서버에서 요청을 안전하게 교체할 수 있음을 확인하면 복구할 수 있습니다. 복구 번들은 계속 내보낼 수 있습니다.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => '복구 전에 서버 확인';
 
   @override
   String get journalExportRecovery => '복구 묶음 내보내기 (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => '검토한 업데이트 대기열에 추가';
+  String get journalReapplyReviewedUpdate => '검토한 저널 항목을 대기열에 추가';
 
   @override
   String get journalCollectionExportRecovery =>
-      '복구 대기 중인 항목은 캘린더 내보내기에서 제외되었습니다. 해당 항목을 열어 보류 중인 업데이트를 검토하거나 내보내세요.';
+      '복구 대기 중인 항목은 캘린더 내보내기에서 제외되었습니다. 저널에서 해당 항목을 열어 대기 중인 요청을 검토하거나 내보내세요.';
 
   @override
   String get journalDraftSaved => '이 기기에 초안을 저장했습니다';

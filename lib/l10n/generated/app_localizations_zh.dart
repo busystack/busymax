@@ -3927,24 +3927,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      '这项离线更新包含同一个日志重复实例的不同版本。重新应用前，请查看版本并为每个实例选择一个版本。你也可以将原始更新导出为恢复包。';
+      '这条待发送的日志含有同一次重复的冲突版本。发送前请为每次重复选择一个版本。你可以将原始请求导出为恢复包。';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      '原始请求可能已到达服务器。服务器确认可以安全替换请求后即可修复。你仍可导出恢复包。';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => '修复前检查服务器';
 
   @override
   String get journalExportRecovery => '导出恢复包 (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => '将已审核的更新加入队列';
+  String get journalReapplyReviewedUpdate => '将已审核的日志条目加入队列';
 
   @override
   String get journalCollectionExportRecovery =>
-      '等待恢复的条目未包含在日历导出中。请打开相关条目，查看或导出待处理的更新。';
+      '等待恢复的条目未包含在日历导出中。请在“日志”中打开受影响的条目，以检查或导出其待发送请求。';
 
   @override
   String get journalDraftSaved => '草稿已保存在此设备上';
@@ -7957,17 +7957,24 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get journalPendingRecovery =>
-      '这项离线更新包含同一个日志重复实例的不同版本。重新应用前，请查看版本并为每个实例选择一个版本。你也可以将原始更新导出为恢复包。';
+      '这条待发送的日志含有同一次重复的冲突版本。发送前请为每次重复选择一个版本。你可以将原始请求导出为恢复包。';
+
+  @override
+  String get journalRecoveryUncertain =>
+      '原始请求可能已到达服务器。服务器确认可以安全替换请求后即可修复。你仍可导出恢复包。';
+
+  @override
+  String get journalCheckRecovery => '修复前检查服务器';
 
   @override
   String get journalExportRecovery => '导出恢复包 (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => '将已审核的更新加入队列';
+  String get journalReapplyReviewedUpdate => '将已审核的日志条目加入队列';
 
   @override
   String get journalCollectionExportRecovery =>
-      '等待恢复的条目未包含在日历导出中。请打开相关条目，查看或导出待处理的更新。';
+      '等待恢复的条目未包含在日历导出中。请在“日志”中打开受影响的条目，以检查或导出其待发送请求。';
 
   @override
   String get journalDraftSaved => '草稿已保存在此设备上';
@@ -11981,17 +11988,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get journalPendingRecovery =>
-      '這項離線更新包含同一個日誌重複項目的不同版本。重新套用前，請檢閱各版本，並為每個項目選擇一個版本。你也可以將原始更新匯出為復原套件。';
+      '這筆待傳送的日誌含有同一次重複的衝突版本。傳送前，請為每次重複選擇一個版本。你可以將原始要求匯出為復原套件。';
+
+  @override
+  String get journalRecoveryUncertain =>
+      '原始要求可能已到達伺服器。伺服器確認可安全取代要求後，即可修復。你仍可匯出復原套件。';
+
+  @override
+  String get journalCheckRecovery => '修復前檢查伺服器';
 
   @override
   String get journalExportRecovery => '匯出復原套件 (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => '將已檢閱的更新加入佇列';
+  String get journalReapplyReviewedUpdate => '將已檢閱的日誌項目加入佇列';
 
   @override
   String get journalCollectionExportRecovery =>
-      '等待復原的項目未包含在行事曆匯出中。請開啟受影響的項目，檢閱或匯出待處理的更新。';
+      '等待復原的項目未包含在行事曆匯出中。請在「日誌」中開啟受影響的項目，以檢閱或匯出其待處理要求。';
 
   @override
   String get journalDraftSaved => '草稿已儲存在這部裝置上';

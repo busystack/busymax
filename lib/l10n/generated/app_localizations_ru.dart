@@ -4156,14 +4156,14 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'Это автономное обновление содержит разные версии одного и того же экземпляра записи журнала. Перед повторным применением просмотрите версии и выберите одну для каждого экземпляра. Исходное обновление можно экспортировать в пакете восстановления.';
+      'В ожидающей записи журнала есть конфликтующие версии одного повторения. Перед отправкой выберите по одной версии каждого повторения. Исходный запрос можно экспортировать в пакете восстановления.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'Исходный запрос мог дойти до сервера. Исправление станет доступно, когда сервер подтвердит, что запрос можно безопасно заменить. Пакет восстановления по-прежнему можно экспортировать.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'Проверить сервер перед исправлением';
 
   @override
   String get journalExportRecovery =>
@@ -4171,11 +4171,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get journalReapplyReviewedUpdate =>
-      'Поставить проверенное обновление в очередь';
+      'Поставить проверенную запись журнала в очередь';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Записи, ожидающие восстановления, исключены из экспорта календаря. Откройте такую запись, чтобы просмотреть или экспортировать ожидающее обновление.';
+      'Записи, ожидающие восстановления, исключены из экспорта календаря. Откройте соответствующую запись в разделе «Журналы», чтобы проверить или экспортировать ожидающий запрос.';
 
   @override
   String get journalDraftSaved => 'Черновик сохранён на этом устройстве';

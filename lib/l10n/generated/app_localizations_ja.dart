@@ -4004,24 +4004,24 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'このオフライン更新には、同じ日誌の繰り返し項目の異なる版が含まれています。更新を再適用する前に内容を確認し、各項目につき一つの版を選択してください。元の更新は復旧用ファイルに書き出せます。';
+      'この保留中のジャーナル項目には、同じ繰り返し回に対する競合した版があります。送信前に、各回について残す版を 1 つ選んでください。元のリクエストは復旧用ファイルとして書き出せます。';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      '元のリクエストがサーバーに届いた可能性があります。サーバーが安全に置き換えられると確認した後に修復できます。復旧用ファイルは引き続き書き出せます。';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => '修復の前にサーバーを確認';
 
   @override
   String get journalExportRecovery => '復旧用ファイルを書き出す (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => '確認した更新をキューに追加';
+  String get journalReapplyReviewedUpdate => '確認したジャーナル項目を送信待ちにする';
 
   @override
   String get journalCollectionExportRecovery =>
-      '復旧待ちの項目はカレンダーの書き出しから除外されました。対象の項目を開くと、保留中の更新を確認または書き出せます。';
+      '復旧待ちの項目はカレンダーの書き出しから除外されました。ジャーナルで該当する項目を開き、保留中のリクエストを確認するか書き出してください。';
 
   @override
   String get journalDraftSaved => '下書きをこの端末に保存しました';

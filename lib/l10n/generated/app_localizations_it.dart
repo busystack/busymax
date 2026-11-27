@@ -4145,24 +4145,26 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'Questo aggiornamento offline contiene più versioni della stessa occorrenza del diario. Controllale e scegline una per ogni occorrenza prima di riapplicare l’aggiornamento. Puoi esportare l’aggiornamento originale in un pacchetto di recupero.';
+      'Questa voce di diario in attesa contiene versioni in conflitto della stessa occorrenza. Scegli una versione per ogni occorrenza prima dell’invio. Puoi esportare la richiesta originale come pacchetto di recupero.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'La richiesta originale potrebbe essere arrivata al server. La correzione sarà disponibile quando il server confermerà che la richiesta può essere sostituita in sicurezza. Puoi comunque esportare il pacchetto di recupero.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery =>
+      'Controlla il server prima della correzione';
 
   @override
   String get journalExportRecovery => 'Esporta pacchetto di recupero (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'Accoda aggiornamento verificato';
+  String get journalReapplyReviewedUpdate =>
+      'Metti in coda la voce di diario verificata';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Le voci in attesa di recupero sono state escluse dall’esportazione del calendario. Apri una voce interessata per controllare o esportare il suo aggiornamento in sospeso.';
+      'Le voci in attesa di recupero sono state escluse dall’esportazione del calendario. Apri una voce interessata in Diari per controllare o esportare la sua richiesta in attesa.';
 
   @override
   String get journalDraftSaved => 'Bozza salvata su questo dispositivo';

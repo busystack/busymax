@@ -8391,18 +8391,25 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get journalPendingRecovery =>
-      'Esta atualização offline contém versões em conflito da mesma ocorrência do diário. Reveja as versões e escolha uma para cada ocorrência antes de voltar a aplicar a atualização. Pode exportar a atualização original num pacote de recuperação.';
+      'Esta entrada de diário pendente contém versões em conflito da mesma ocorrência. Escolha uma versão por ocorrência antes de enviar. Pode exportar o pedido original como pacote de recuperação.';
+
+  @override
+  String get journalRecoveryUncertain =>
+      'O pedido original pode ter chegado ao servidor. A reparação estará disponível quando o servidor confirmar que o pedido pode ser substituído em segurança. Pode continuar a exportar o pacote de recuperação.';
+
+  @override
+  String get journalCheckRecovery => 'Verificar o servidor antes de reparar';
 
   @override
   String get journalExportRecovery => 'Exportar pacote de recuperação (JSON)';
 
   @override
   String get journalReapplyReviewedUpdate =>
-      'Colocar a atualização revista em fila';
+      'Colocar a entrada de diário revista na fila';
 
   @override
   String get journalCollectionExportRecovery =>
-      'As entradas a aguardar recuperação foram excluídas da exportação do calendário. Abra uma entrada afetada para rever ou exportar a respetiva atualização pendente.';
+      'As entradas a aguardar recuperação foram excluídas da exportação do calendário. Abra uma entrada afetada em Diários para rever ou exportar o respetivo pedido pendente.';
 
   @override
   String get journalDraftSaved => 'Rascunho guardado neste dispositivo';

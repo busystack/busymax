@@ -4107,24 +4107,25 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'इस ऑफ़लाइन बदलाव में जर्नल की एक ही आवृत्ति के अलग-अलग संस्करण हैं। बदलाव फिर से लागू करने से पहले हर आवृत्ति के संस्करणों की समीक्षा करके एक चुनें। मूल बदलाव को पुनर्प्राप्ति बंडल के रूप में निर्यात कर सकते हैं।';
+      'इस लंबित जर्नल प्रविष्टि में एक ही आवृत्ति के परस्पर विरोधी संस्करण हैं। भेजने से पहले हर आवृत्ति का एक संस्करण चुनें। आप मूल अनुरोध को पुनर्प्राप्ति बंडल के रूप में निर्यात कर सकते हैं।';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'मूल अनुरोध शायद सर्वर तक पहुँच गया हो। सर्वर से पुष्टि मिलने पर ही सुधार किया जा सकता है कि मूल अनुरोध को सुरक्षित रूप से बदलना संभव है। आप अब भी पुनर्प्राप्ति बंडल निर्यात कर सकते हैं।';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'सुधार से पहले सर्वर जाँचें';
 
   @override
   String get journalExportRecovery => 'पुनर्प्राप्ति बंडल निर्यात करें (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate => 'समीक्षित बदलाव कतार में डालें';
+  String get journalReapplyReviewedUpdate =>
+      'समीक्षित जर्नल प्रविष्टि को कतार में डालें';
 
   @override
   String get journalCollectionExportRecovery =>
-      'पुनर्प्राप्ति की प्रतीक्षा कर रही प्रविष्टियाँ कैलेंडर निर्यात में शामिल नहीं हुईं। लंबित बदलाव की समीक्षा या निर्यात के लिए संबंधित प्रविष्टि खोलें।';
+      'पुनर्प्राप्ति की प्रतीक्षा कर रही प्रविष्टियाँ कैलेंडर निर्यात में शामिल नहीं हैं। किसी प्रभावित प्रविष्टि का लंबित अनुरोध देखने या निर्यात करने के लिए उसे जर्नल में खोलें।';
 
   @override
   String get journalDraftSaved => 'मसौदा इस डिवाइस पर सहेजा गया';

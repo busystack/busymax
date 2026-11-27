@@ -4141,14 +4141,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'Cette mise à jour hors ligne contient plusieurs versions de la même occurrence du journal. Vérifiez-les et choisissez-en une par occurrence avant de réappliquer la mise à jour. Vous pouvez exporter la mise à jour d’origine dans un fichier de récupération.';
+      'Cette entrée de journal en attente contient des versions concurrentes de la même occurrence. Choisissez une version pour chaque occurrence avant l’envoi. Vous pouvez exporter la demande d’origine sous forme de fichier de récupération.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'La demande d’origine a peut-être atteint le serveur. La réparation sera possible dès que le serveur aura confirmé qu’elle peut être remplacée sans risque. Vous pouvez toujours exporter le fichier de récupération.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery =>
+      'Vérifier auprès du serveur avant de réparer';
 
   @override
   String get journalExportRecovery =>
@@ -4156,11 +4157,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get journalReapplyReviewedUpdate =>
-      'Mettre en attente la mise à jour vérifiée';
+      'Mettre en file d’attente l’entrée révisée';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Les entrées en attente de récupération ont été exclues de l’exportation du calendrier. Ouvrez une entrée concernée pour vérifier ou exporter sa mise à jour en attente.';
+      'Les entrées en attente de récupération sont exclues de l’exportation du calendrier. Ouvrez une entrée concernée dans Journaux pour vérifier ou exporter sa demande en attente.';
 
   @override
   String get journalDraftSaved => 'Brouillon enregistré sur cet appareil';

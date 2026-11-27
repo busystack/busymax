@@ -4095,25 +4095,25 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'Võrguühenduseta salvestatud muudatus sisaldab päeviku sama korduse vastuolulisi versioone. Vaata need üle ja vali enne muudatuse uuesti rakendamist iga korduse jaoks üks versioon. Algse muudatuse saad eksportida taastepaketina.';
+      'See ootel päevikukanne sisaldab sama korduse vastuolulisi versioone. Vali enne saatmist iga korduse jaoks üks versioon. Algse päringu saad eksportida taastepaketina.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'Algne päring võis jõuda serverisse. Parandada saab siis, kui server kinnitab, et päringu asendamine on ohutu. Taastepaketi saad endiselt eksportida.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'Kontrolli enne parandamist serverit';
 
   @override
   String get journalExportRecovery => 'Ekspordi taastepakett (JSON)';
 
   @override
   String get journalReapplyReviewedUpdate =>
-      'Lisa ülevaadatud muudatus järjekorda';
+      'Lisa ülevaadatud päevikukanne järjekorda';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Taastamist ootavad kirjed jäid kalendri ekspordist välja. Ootel muudatuse ülevaatamiseks või eksportimiseks ava vastav kirje.';
+      'Taastamist ootavad kanded jäid kalendri ekspordist välja. Ootel päringu ülevaatamiseks või eksportimiseks ava asjaomane kanne päevikutes.';
 
   @override
   String get journalDraftSaved => 'Mustand salvestati sellesse seadmesse';

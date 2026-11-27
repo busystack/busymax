@@ -4148,25 +4148,24 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'این به‌روزرسانی آفلاین نسخه‌های متعارضی از یک رخداد یادداشت دارد. پیش از اعمال دوباره، نسخه‌ها را بررسی کنید و برای هر رخداد یکی را انتخاب کنید. می‌توانید به‌روزرسانی اصلی را به‌صورت بستهٔ بازیابی صادر کنید.';
+      'این یادداشتِ در انتظار، نسخه‌های متعارضی از یک رخداد دارد. پیش از ارسال، برای هر رخداد یک نسخه انتخاب کنید. می‌توانید درخواست اصلی را به‌صورت بستهٔ بازیابی صادر کنید.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'ممکن است درخواست اصلی به سرور رسیده باشد. پس از آنکه سرور تأیید کند می‌توان درخواست را با اطمینان جایگزین کرد، اصلاح امکان‌پذیر است. همچنان می‌توانید بستهٔ بازیابی را صادر کنید.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'بررسی سرور پیش از اصلاح';
 
   @override
   String get journalExportRecovery => 'صدور بستهٔ بازیابی (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate =>
-      'افزودن به‌روزرسانی بررسی‌شده به صف';
+  String get journalReapplyReviewedUpdate => 'افزودن یادداشت بازبینی‌شده به صف';
 
   @override
   String get journalCollectionExportRecovery =>
-      'یادداشت‌های در انتظار بازیابی در خروجی تقویم قرار نگرفتند. یادداشت مربوط را باز کنید تا به‌روزرسانی معلق آن را بررسی یا صادر کنید.';
+      'یادداشت‌های در انتظار بازیابی در خروجی تقویم نیامده‌اند. یادداشت مربوط را در بخش یادداشت‌های روزانه باز کنید تا درخواست در انتظار آن را بررسی یا صادر کنید.';
 
   @override
   String get journalDraftSaved => 'پیش‌نویس در این دستگاه ذخیره شد';

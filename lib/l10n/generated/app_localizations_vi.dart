@@ -4105,25 +4105,24 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get journalPendingRecovery =>
-      'Bản cập nhật ngoại tuyến này có nhiều phiên bản cho cùng một lần lặp của mục nhật ký. Hãy xem lại và chọn một phiên bản cho mỗi lần lặp trước khi áp dụng lại. Bạn có thể xuất bản cập nhật gốc dưới dạng gói khôi phục.';
+      'Mục nhật ký đang chờ này chứa các phiên bản xung đột của cùng một lần lặp. Hãy chọn một phiên bản cho mỗi lần lặp trước khi gửi. Bạn có thể xuất yêu cầu ban đầu dưới dạng gói khôi phục.';
 
   @override
   String get journalRecoveryUncertain =>
-      'The original request may have reached the server. Repair is available once the server confirms that the original request is safe to replace. You can still export the recovery bundle.';
+      'Yêu cầu ban đầu có thể đã đến máy chủ. Bạn có thể sửa sau khi máy chủ xác nhận rằng yêu cầu có thể được thay thế an toàn. Bạn vẫn có thể xuất gói khôi phục.';
 
   @override
-  String get journalCheckRecovery => 'Check server before repair';
+  String get journalCheckRecovery => 'Kiểm tra máy chủ trước khi sửa';
 
   @override
   String get journalExportRecovery => 'Xuất gói khôi phục (JSON)';
 
   @override
-  String get journalReapplyReviewedUpdate =>
-      'Đưa bản cập nhật đã xem lại vào hàng đợi';
+  String get journalReapplyReviewedUpdate => 'Xếp hàng mục nhật ký đã xem xét';
 
   @override
   String get journalCollectionExportRecovery =>
-      'Các mục đang chờ khôi phục đã được loại khỏi bản xuất lịch. Mở mục bị ảnh hưởng để xem lại hoặc xuất bản cập nhật đang chờ.';
+      'Các mục đang chờ khôi phục không có trong bản xuất lịch. Hãy mở mục bị ảnh hưởng trong Nhật ký để xem xét hoặc xuất yêu cầu đang chờ.';
 
   @override
   String get journalDraftSaved => 'Đã lưu bản nháp trên thiết bị này';
