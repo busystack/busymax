@@ -10,8 +10,8 @@ import threading
 RUNTIME = pathlib.Path('/fixtures/.runtime')
 
 
-def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None, *,
-          listen='0.0.0.0', upstream_tls=None):
+def create_server(port, upstream, prefix='', untrusted=False, well_known_caldav=None, *,
+                  listen='0.0.0.0', upstream_tls=None):
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
 
@@ -108,7 +108,12 @@ def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None, *,
     kind = 'untrusted' if untrusted else 'server'
     context.load_cert_chain(RUNTIME / f'{kind}.pem', RUNTIME / f'{kind}.key')
     server.socket = context.wrap_socket(server.socket, server_side=True)
-    server.serve_forever()
+    return server
+
+
+def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None):
+    with create_server(port, upstream, prefix, untrusted, well_known_caldav) as server:
+        server.serve_forever()
 
 
 if __name__ == '__main__':

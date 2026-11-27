@@ -7,9 +7,10 @@ import json
 import os
 from pathlib import Path
 import runpy
+import signal
 import ssl
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
+import threading
 from urllib.parse import urlsplit
 
 import https_proxy
@@ -18,6 +19,7 @@ import https_proxy
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('fixture', type=Path)
+    parser.add_argument('candidate', type=Path)
     parser.add_argument('nextcloud', type=Path)
     parser.add_argument('runtime', type=Path, help='New private directory')
     parser.add_argument('--address', type=ipaddress.IPv4Address, required=True)
@@ -40,6 +42,11 @@ def main():
            for uri in authorities):
         parser.error('Use the dedicated localhost BusyStack and Nextcloud fixtures.')
     nextcloud = args.nextcloud.resolve()
+    candidate = runpy.run_path(str(Path(__file__).with_name('vjournal-candidate.py')))
+    state = candidate['candidate_state'](args.candidate.resolve())
+    if (state['endpoint'] != profiles['caldav']['authority'] + 'dav/'
+            or candidate['verify_running_identity'](state) != state['schema']):
+        parser.error('The CalDAV profile must identify the verified disposable candidate.')
     identity = json.loads((nextcloud / 'identity.json').read_text())
     official = runpy.run_path(str(Path(__file__).with_name('vjournal-nextcloud.py')))
     if (identity['directory'] != str(nextcloud) or identity['project'] != nextcloud.name
@@ -72,23 +79,70 @@ def main():
         'openssl', 'x509', '-req', '-days', '7', '-in', 'server.csr', '-CA', 'ca.pem',
         '-CAkey', 'ca.key', '-CAcreateserial', '-extfile', 'server.ext', '-out', 'server.pem',
     ], cwd=runtime, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    official['occ'](nextcloud.name, 'config:system:set', 'trusted_domains', '2',
-                    f'--value={address}:{args.nextcloud_port}')
+    trusted_domain = f'{address}:{args.nextcloud_port}'
+    trusted_domains = json.loads(official['occ'](
+        nextcloud.name, 'config:list', 'system', '--output=json'))['system']['trusted_domains']
+    domains = (dict(enumerate(trusted_domains)) if isinstance(trusted_domains, list)
+               else {int(key): value for key, value in trusted_domains.items()})
+    if trusted_domain in domains.values():
+        trust_key = None
+    else:
+        trust_key = str(max(domains, default=-1) + 1)
+    settings_file = args.candidate / '.runtime/busystack-qa.env'
+    ordinary_settings = settings_file.read_text()
+    lan_origin = f'https://{address}:{args.caldav_port}'
+    lan_settings = ''.join(
+        f'{line.split("=", 1)[0]}={lan_origin}\n'
+        if line.startswith(('BUSYSTACK_PUBLIC_BASE_URL=', 'BUSYSTACK_ISSUER='))
+        else line
+        for line in ordinary_settings.splitlines(keepends=True)
+    )
+    stop = threading.Event()
+    for event in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(event, lambda _signum, _frame: stop.set())
     relay_profile = {}
-    with ThreadPoolExecutor(max_workers=2) as group:
-        running = []
+    servers = []
+    threads = []
+    trust_added = False
+    try:
+        if trust_key is not None:
+            official['occ'](nextcloud.name, 'config:system:set', 'trusted_domains', trust_key,
+                            f'--value={trusted_domain}')
+            trust_added = True
         for provider, origin, port, dav in zip(
                 ('caldav', 'nextcloud'), authorities, ports, ('/dav/', '/remote.php/dav/')):
             profile = profiles[provider]
             upstream_ca = ssl.create_default_context(cafile=profile['caFile'])
             relay_profile[provider] = dict(profile, authority=f'https://{address}:{port}/',
                                            caFile=str(runtime / 'ca.pem'))
-            running.append(group.submit(https_proxy.serve, port, origin.netloc,
-                                        well_known_caldav=dav, listen=str(address),
-                                        upstream_tls=upstream_ca))
+            servers.append(https_proxy.create_server(
+                port, origin.netloc, well_known_caldav=dav, listen=str(address),
+                upstream_tls=upstream_ca))
+        settings_file.write_text(lan_settings)
+        candidate['compose'](state, 'up', '-d', '--no-build', '--wait',
+                             '--wait-timeout', '240', 'application')
+        candidate['verify_running_identity'](state)
+        for server in servers:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            threads.append(thread)
         (runtime / 'busymax-live.json').write_text(json.dumps(relay_profile) + '\n')
-        for relay in running:
-            relay.result()
+        stop.wait()
+    finally:
+        for server in servers[:len(threads)]:
+            server.shutdown()
+        for server in servers:
+            server.server_close()
+        try:
+            if settings_file.read_text() == lan_settings:
+                settings_file.write_text(ordinary_settings)
+                candidate['compose'](state, 'up', '-d', '--no-build', '--wait',
+                                     '--wait-timeout', '240', 'application')
+                candidate['verify_running_identity'](state)
+        finally:
+            if (trust_added and official['occ'](
+                    nextcloud.name, 'config:system:get', 'trusted_domains', trust_key) == trusted_domain):
+                official['occ'](nextcloud.name, 'config:system:delete', 'trusted_domains', trust_key)
 
 
 if __name__ == '__main__':

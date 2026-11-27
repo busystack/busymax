@@ -316,13 +316,15 @@ keyring, reconciles those operations and checks the result with HTTPS GETs.
 ### Routed Android API 37 smoke
 
 Use a private routed IPv4 address belonging to the QA host and a disposable
-API 37 device profile. Start the relay in a separate shell after the two
-providers are ready. It uses a fresh CA for the LAN address and verifies
+API 37 device profile. Run this stage after the loopback tests. The relay
+temporarily configures the verified, disposable BusyStack candidate to
+advertise its LAN origin. Stop the relay with SIGINT or SIGTERM to restore
+the loopback origin. It uses a fresh CA for the LAN address and verifies
 both upstream endpoints with their original fixture CAs.
 
 ```sh
 python3 test/interop/caldav/vjournal-lan.py \
-  "$nextcloud/busymax-live.json" "$nextcloud" "$VJOURNAL_LAN_RUNTIME" \
+  "$nextcloud/busymax-live.json" "$candidate" "$nextcloud" "$VJOURNAL_LAN_RUNTIME" \
   --address "$VJOURNAL_LAN_ADDRESS" --caldav-port "$VJOURNAL_CALDAV_LAN_PORT" \
   --nextcloud-port "$VJOURNAL_NEXTCLOUD_LAN_PORT"
 ```
