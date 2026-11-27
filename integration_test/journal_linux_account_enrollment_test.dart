@@ -182,7 +182,7 @@ void main() {
           await _pickFixtureCa(ca);
         });
         await tap(find.text('Approve this certificate policy'));
-        final discovered = await _awaitResult(tester, () async {
+        final discovered = await _awaitResult(tester, 'connect', () async {
           final accounts = await database.select(database.accounts).get();
           if (accounts.isEmpty) return null;
           final account = accounts.single;
@@ -246,7 +246,7 @@ void main() {
         );
         await tap(find.byKey(ValueKey('reconnect-account-${account.id}')));
         await submit(reconnect: true);
-        await _awaitResult(tester, () async {
+        await _awaitResult(tester, 'reconnect', () async {
           final generation = await persistence.generation(account.id);
           final credential = await persistence.readCurrentCredential(
             account.id,
@@ -319,15 +319,22 @@ Future<void> _pickFixtureCa(String path) async {
 
 Future<T> _awaitResult<T extends Object>(
   WidgetTester tester,
+  String operation,
   Future<T?> Function() getResult,
 ) async {
   for (var attempt = 0; attempt < 240; attempt++) {
     await tester.pump(const Duration(milliseconds: 100));
+    final feedback = find.byType(SnackBar).evaluate().lastOrNull?.widget;
+    if (feedback is SnackBar && feedback.content is Text) {
+      throw TestFailure(
+        'CalDAV $operation reported: ${(feedback.content as Text).data}',
+      );
+    }
     final result = await tester.runAsync(getResult);
     if (result != null) return result;
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
   }
-  throw TestFailure('Linux journal enrollment did not converge.');
+  throw TestFailure('Linux journal enrollment $operation did not converge.');
 }
