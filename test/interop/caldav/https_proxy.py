@@ -10,7 +10,8 @@ import threading
 RUNTIME = pathlib.Path('/fixtures/.runtime')
 
 
-def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None):
+def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None, *,
+          listen='0.0.0.0', upstream_tls=None):
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
 
@@ -73,7 +74,9 @@ def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None):
             if prefix and path.startswith(prefix + '/'):
                 path = path[len(prefix):]
                 headers['X-Script-Name'] = prefix
-            connection = http.client.HTTPConnection(upstream, timeout=30)
+            connection = (http.client.HTTPConnection(upstream, timeout=30)
+                          if upstream_tls is None else
+                          http.client.HTTPSConnection(upstream, context=upstream_tls, timeout=30))
             try:
                 connection.request(self.command, path, payload, headers)
                 response = connection.getresponse()
@@ -100,7 +103,7 @@ def serve(port, upstream, prefix='', untrusted=False, well_known_caldav=None):
             # No headers, request bodies, URLs or credentials in diagnostics.
             pass
 
-    server = http.server.ThreadingHTTPServer(('0.0.0.0', port), Handler)
+    server = http.server.ThreadingHTTPServer((listen, port), Handler)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     kind = 'untrusted' if untrusted else 'server'
     context.load_cert_chain(RUNTIME / f'{kind}.pem', RUNTIME / f'{kind}.key')
