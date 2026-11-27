@@ -24,6 +24,7 @@ import '../../ui/common/schedule/schedule_year_view.dart';
 import '../../ui/common/schedule/schedule_agenda_view.dart';
 import '../../ui/common/schedule/mini_calendar.dart';
 import '../../schedule/schedule_navigation_intent.dart';
+import '../../schedule/schedule_commands.dart';
 import '../../schedule/schedule_creation_destinations.dart';
 import '../../features/calendar/domain/event_move_policy.dart';
 import '../../features/calendar/domain/event_timing_policy.dart';
@@ -583,10 +584,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                         MaterialPageRoute(
                           builder: (context) => Scaffold(
                             appBar: AppBar(title: Text(context.l10n.journals)),
-                            body: const SafeArea(
+                            body: SafeArea(
                               child: JournalWorkspace(
-                                controls: MaterialJournalControls(),
-                                files: JournalFileActions(
+                                controls: const MaterialJournalControls(),
+                                openScheduleItem: _openJournalScheduleReference,
+                                files: const JournalFileActions(
                                   read: _readJournalFile,
                                   export: _exportJournalFile,
                                   exportDraft: _exportJournalDraft,
@@ -1517,6 +1519,33 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     );
     if (result == null) {
       return;
+    }
+  }
+
+  Future<void> _openJournalScheduleReference(
+    BuildContext context,
+    ScheduleWorkspaceCommand command,
+  ) async {
+    final repository = ref.read(scheduleRepositoryProvider);
+    final filters = ScheduleFilters(
+      accountIds: {if (command.accountId case final account?) account},
+      taskCompletion: ScheduleTaskCompletion.all,
+      showNoDateTasks: true,
+    );
+    final items = command.kind == ScheduleWorkspaceCommandKind.openTask
+        ? await repository.listAllTasks(filters: filters)
+        : await repository.listItems(
+            range: ScheduleRange.day(command.date ?? DateTime.now()),
+            filters: filters,
+          );
+    if (!context.mounted) return;
+    final item = items.where(command.matchesItem).singleOrNull;
+    if (item != null) {
+      await _showItem(context, item);
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.scheduleUnavailable)));
     }
   }
 

@@ -456,6 +456,101 @@ void main() {
           final persisted = await request('GET', nestedHref);
           expect(persisted.body, effective);
         }
+        final rangeHref = collectionUri.resolve('single-at-range.ics');
+        const rangeBaseline =
+            'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
+            'BEGIN:VJOURNAL\r\nUID:single-at-range\r\nDTSTAMP:20261125T000000Z\r\n'
+            'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:0\r\n'
+            'DTSTART:20261126T090000Z\r\nRRULE:FREQ=DAILY;COUNT=5\r\n'
+            'DESCRIPTION:Master\r\nEND:VJOURNAL\r\n'
+            'BEGIN:VJOURNAL\r\nUID:single-at-range\r\nDTSTAMP:20261126T000000Z\r\n'
+            'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:1\r\n'
+            'RECURRENCE-ID;RANGE=THISANDFUTURE:20261127T090000Z\r\n'
+            'DTSTART:20261127T110000Z\r\nDESCRIPTION:Future body\r\n'
+            'X-QA:range metadata\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+        const cancellation =
+            'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
+            'METHOD:CANCEL\r\nBEGIN:VJOURNAL\r\nUID:single-at-range\r\n'
+            'DTSTAMP:20261127T120000Z\r\nORGANIZER:mailto:range@example.invalid\r\n'
+            'SEQUENCE:2\r\nRECURRENCE-ID:20261127T090000Z\r\n'
+            'STATUS:CANCELLED\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+        final seededRange = await request(
+          'PUT',
+          rangeHref,
+          body: rangeBaseline,
+          headers: {'If-None-Match': '*', 'Content-Type': 'text/calendar'},
+        );
+        expect(seededRange.statusCode, 201);
+        await pull();
+        final preview = NextcloudNativeImportPreview.parse(
+          IcalDocument.parse(cancellation),
+        );
+        Future<NativeImportItemResult> importCancellation() async =>
+            (await DavNativeImportService(database).import(
+              accountId: accountId,
+              collectionId: collection.id,
+              preview: preview,
+            )).single;
+        expect(
+          (await importCancellation()).status,
+          NativeImportItemStatus.queued,
+        );
+        Future<String> exportRange() async =>
+            (await DavNativeExportService(database).collection(
+              accountId,
+              collection.id,
+            )).singleWhere((item) => item.uid == 'single-at-range').rawIcs;
+        final cancelledRange = await exportRange();
+        expect(cancelledRange, isNot(contains('METHOD:')));
+        await database.close();
+        database = AppDatabase(NativeDatabase(file));
+        journals = JournalRepository(database);
+        expect(await exportRange(), cancelledRange);
+        expect(
+          (await importCancellation()).status,
+          NativeImportItemStatus.duplicate,
+        );
+        expect((await replay()).appliedCount, 1);
+        final rangeReadback = await request('GET', rangeHref);
+        expect(rangeReadback.statusCode, 200);
+        final series = rangeReadback.body
+            .replaceAll(RegExp(r'\r?\n[ \t]'), '')
+            .split('BEGIN:VJOURNAL')
+            .skip(1)
+            .map(
+              (part) => part
+                  .split('END:VJOURNAL')
+                  .first
+                  .split(RegExp(r'\r?\n'))
+                  .toSet(),
+            )
+            .toList();
+        expect(series, hasLength(3));
+        expect(
+          series.singleWhere(
+            (part) => part.contains('RECURRENCE-ID:20261127T090000Z'),
+          ),
+          containsAll([
+            'STATUS:CANCELLED',
+            'DTSTART:20261127T110000Z',
+            'SEQUENCE:2',
+          ]),
+        );
+        expect(
+          series.singleWhere(
+            (part) => part.contains(
+              'RECURRENCE-ID;RANGE=THISANDFUTURE:20261128T090000Z',
+            ),
+          ),
+          containsAll([
+            'DTSTART:20261128T110000Z',
+            'DESCRIPTION:Future body',
+            'X-QA:range metadata',
+            'SEQUENCE:1',
+          ]),
+        );
+        expect(rangeReadback.body, isNot(contains('METHOD:')));
+
         if (provider == BusyProvider.nextcloud) {
           final corpusPath =
               Platform.environment['BUSYMAX_JOURNAL_CORPUS'] ??

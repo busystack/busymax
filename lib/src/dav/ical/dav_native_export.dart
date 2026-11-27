@@ -3,11 +3,20 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../db/app_database.dart';
+import '../../journal/journal_component.dart';
+import '../dav_errors.dart';
 import '../ical/ical_semantics.dart';
 import '../mutation/dav_pending_operation_selection.dart';
 import '../mutation/dav_pending_operations.dart';
 import '../storage/dav_collection_capabilities.dart';
 import 'dav_native_import.dart';
+
+final class DavCollectionExport {
+  const DavCollectionExport(this.resources, this.pendingJournalRecoveries);
+
+  final List<NativeImportResource> resources;
+  final List<DavJournalPendingRecovery> pendingJournalRecoveries;
+}
 
 /// A consistent, account-scoped snapshot of effective local resources. Each
 /// resource is exported separately, so different embedded definitions using the
@@ -17,6 +26,11 @@ final class DavNativeExportService {
   final AppDatabase database;
 
   Future<List<NativeImportResource>> collection(
+    String accountId,
+    String collectionId,
+  ) async => (await collectionForReview(accountId, collectionId)).resources;
+
+  Future<DavCollectionExport> collectionForReview(
     String accountId,
     String collectionId,
   ) => database.transaction(() async {
@@ -71,6 +85,7 @@ final class DavNativeExportService {
             .get();
     final queue = DavPendingOperationQueue(database: database);
     final resources = <NativeImportResource>[];
+    final recoveries = <DavJournalPendingRecovery>[];
     for (final object in objects) {
       final operation = effectiveByObject[object.id];
       if (operation?.operationType == 'dav.delete' ||
@@ -78,11 +93,23 @@ final class DavNativeExportService {
               operation?.destinationCollectionId != collectionId)) {
         continue;
       }
-      final raw = await queue.exportRawIcsForObject(
-        accountId: accountId,
-        collectionId: object.collectionId,
-        objectId: object.id,
-      );
+      final String raw;
+      try {
+        raw = await queue.exportRawIcsForObject(
+          accountId: accountId,
+          collectionId: object.collectionId,
+          objectId: object.id,
+        );
+      } on DavException catch (error) {
+        if (error.code != duplicateJournalPositionCode) rethrow;
+        final recovery = await queue.journalRecoveryForObject(
+          accountId: accountId,
+          collectionId: object.collectionId,
+          objectId: object.id,
+        );
+        if (recovery != null) recoveries.add(recovery);
+        continue;
+      }
       resources.add(
         NativeImportResource(
           object.primaryUid ?? object.id,
@@ -96,7 +123,10 @@ final class DavNativeExportService {
     for (final op in unanchoredCreations) {
       resources.add(_pendingCreationResource(op));
     }
-    return List.unmodifiable(resources);
+    return DavCollectionExport(
+      List.unmodifiable(resources),
+      List.unmodifiable(recoveries),
+    );
   });
 }
 

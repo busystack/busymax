@@ -3,6 +3,8 @@ import '../dav/ical/ical_attachments.dart';
 import '../dav/ical/ical_document.dart';
 import '../dav/ical/ical_semantics.dart';
 
+const duplicateJournalPositionCode = 'IcalDuplicateJournalRecurrencePosition';
+
 bool isDerivedJournalProperty(IcalProperty? property) =>
     property?.parameterValue('DERIVED')?.toUpperCase() == 'TRUE';
 
@@ -102,8 +104,14 @@ final class JournalComponent {
         .firstOrNull;
     for (final semantic in document.components) {
       final journal = semantic.documentComponent;
-      if (!identities.add(journalRecurrencePosition(semantic.recurrenceId)) ||
-          journal.propertiesNamed('UID').length != 1 ||
+      if (!identities.add(journalRecurrencePosition(semantic.recurrenceId))) {
+        throw const DavException(
+          kind: DavErrorKind.invalidCalendarData,
+          code: duplicateJournalPositionCode,
+          safeMessage: 'Multiple journal components use the same original recurrence position.',
+        );
+      }
+      if (journal.propertiesNamed('UID').length != 1 ||
           journal.propertiesNamed('DTSTAMP').length != 1 ||
           semantic.dtstamp?.kind != IcalTemporalKind.utcDateTime ||
           (semantic.status != null && !statuses.contains(semantic.status)) ||

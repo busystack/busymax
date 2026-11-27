@@ -4009,6 +4009,20 @@ class AppLocalizationsKo extends AppLocalizations {
   String get journalOperationFailed => '일지 작업에 실패했습니다.';
 
   @override
+  String get journalPendingRecovery =>
+      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+
+  @override
+  String get journalExportRecovery => 'Export recovery bundle (JSON)';
+
+  @override
+  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+
+  @override
+  String get journalCollectionExportRecovery =>
+      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+
+  @override
   String get journalDraftSaved => '이 기기에 초안을 저장했습니다';
 
   @override

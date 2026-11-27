@@ -17,6 +17,7 @@ import '../dav/storage/dav_object_repository.dart';
 import '../db/app_database.dart';
 import '../providers/busy_provider.dart';
 import 'journal_component.dart';
+import 'journal_itip.dart';
 
 enum JournalDateFilter { all, dated, undated }
 
@@ -28,12 +29,14 @@ final class JournalSnapshot {
     required this.collection,
     required this.component,
     required this.effectiveRawIcs,
+    this.pendingRecovery,
   });
 
   final DavJournalEntry entry;
   final DavCollection collection;
   final JournalComponent component;
   final String effectiveRawIcs;
+  final DavJournalPendingRecovery? pendingRecovery;
 
   IcalComponentKey get key => IcalComponentKey(
     componentType: 'VJOURNAL',
@@ -54,6 +57,30 @@ final class JournalOccurrenceDraft {
   final JournalSnapshot component;
   final bool thisAndFuture;
   final IcalComponentKey? originalException;
+}
+
+sealed class JournalLinkTarget {
+  const JournalLinkTarget();
+}
+
+final class LinkedJournal extends JournalLinkTarget {
+  const LinkedJournal(this.entry);
+  final DavJournalEntry entry;
+}
+
+final class LinkedEvent extends JournalLinkTarget {
+  const LinkedEvent(this.event);
+  final CalendarEvent event;
+}
+
+final class LinkedTask extends JournalLinkTarget {
+  const LinkedTask(this.task);
+  final Task task;
+}
+
+final class LinkedXml extends JournalLinkTarget {
+  const LinkedXml(this.uri);
+  final Uri uri;
 }
 
 final class JournalRepository {
@@ -224,11 +251,19 @@ final class JournalRepository {
             ..limit(1))
           .watchSingleOrNull();
 
-  /// Looks up journal references only in the originating account. UID links
+  Future<List<DavJournalEntry>> relatedJournals(JournalSnapshot origin) async =>
+      (await relatedEntries(origin))
+          .whereType<LinkedJournal>()
+          .map((match) => match.entry)
+          .toList();
+
+  /// Looks up references only in the originating account. UID links
   /// are collection-local. External and ambiguous references remain intact.
-  Future<List<DavJournalEntry>> relatedJournals(JournalSnapshot origin) async {
+  Future<List<JournalLinkTarget>> relatedEntries(JournalSnapshot origin) async {
+    await _source(origin.entry.accountId, origin.entry.collectionId);
     final uids = <String>{};
     final uris = <String>{};
+    final xml = <Uri>{};
     for (final property in origin.component.component.properties) {
       if (property.name != 'LINK' && property.name != 'RELATED-TO') continue;
       final relation = property.parameterValue('RELTYPE')?.toUpperCase();
@@ -237,19 +272,22 @@ final class JournalRepository {
       if (type == 'UID' ||
           (property.name == 'RELATED-TO' && (type == null || type == 'TEXT'))) {
         uids.add(property.decodedTextValue);
-      } else if (type == 'URI') {
+      } else if (type == 'URI' || type == 'XML-REFERENCE') {
         final uri = Uri.tryParse(property.rawValue);
         if (uri != null &&
             uri.hasAuthority &&
             const {'https', 'http'}.contains(uri.scheme) &&
-            !uri.hasFragment &&
-            !uri.hasQuery &&
             uri.userInfo.isEmpty) {
-          uris.add(uri.toString());
+          if (type == 'XML-REFERENCE' && uri.hasFragment) {
+            xml.add(uri);
+          } else if (type == 'URI' && !uri.hasFragment && !uri.hasQuery) {
+            uris.add(uri.toString());
+          }
         }
       }
     }
-    if (uids.isEmpty && uris.isEmpty) return const [];
+    final targets = <JournalLinkTarget>[for (final uri in xml) LinkedXml(uri)];
+    if (uids.isEmpty && uris.isEmpty) return targets;
     final objects = database.davObjects;
     final collections = database.davCollections;
     final query =
@@ -261,13 +299,13 @@ final class JournalRepository {
         ])..where(
           objects.accountId.equals(origin.entry.accountId) &
               objects.serverDeleted.not() &
-              objects.dominantComponentType.equals('VJOURNAL') &
               collections.deleted.not() &
               collections.serverMissing.not() &
               ((objects.collectionId.equals(origin.entry.collectionId) &
                       objects.primaryUid.isIn(uids)) |
                   objects.requestUri.isIn(uris)),
         );
+    final candidates = <String, DavObject>{};
     final uidMatches = <String, List<String>>{};
     final uriMatches = <String, List<String>>{};
     for (final row in await query.get()) {
@@ -276,6 +314,7 @@ final class JournalRepository {
         continue;
       }
       final object = row.readTable(objects);
+      candidates[object.id] = object;
       if (object.collectionId == origin.entry.collectionId) {
         uidMatches
             .putIfAbsent(object.primaryUid ?? '', () => [])
@@ -289,22 +328,114 @@ final class JournalRepository {
       for (final uri in uris)
         if (uriMatches[uri] case [final id]) id,
     }..remove(origin.entry.davObjectId);
-    if (ids.isEmpty) return const [];
-    final components = await (database.select(
-      database.davJournalEntries,
-    )..where((row) => row.davObjectId.isIn(ids))).get();
+    if (ids.isEmpty) return targets;
+    final removed =
+        await (database.select(database.pendingOps)..where(
+              (row) =>
+                  row.davObjectId.isIn(ids) &
+                  row.operationType.equals('dav.delete') &
+                  row.state.isIn(davUnresolvedPendingStates) &
+                  row.state.isNotIn(const ['conflict', 'permission_blocked']),
+            ))
+            .get();
+    ids.removeAll(removed.map((row) => row.davObjectId));
+    if (ids.isEmpty) return targets;
+    final account = await (database.select(
+      database.accounts,
+    )..where((row) => row.id.equals(origin.entry.accountId))).getSingle();
+    final journalRows = database.davJournalEntries;
+    final components =
+        await (database.select(journalRows).join([
+              innerJoin(
+                collections,
+                collections.id.equalsExp(journalRows.collectionId),
+              ),
+            ])..where(
+              journalRows.davObjectId.isIn(ids) &
+                  collections.journalsSelected &
+                  collections.journalProjectionEnabled,
+            ))
+            .map((row) => row.readTable(journalRows))
+            .get();
+    final eventRows = database.calendarEvents;
+    final sources = database.calendarSources;
+    final events = account.calendarsEnabled
+        ? await (database.select(eventRows).join([
+                innerJoin(
+                  sources,
+                  sources.id.equalsExp(eventRows.calendarSourceId),
+                ),
+              ])..where(
+                eventRows.davObjectId.isIn(ids) &
+                    eventRows.isDeleted.not() &
+                    eventRows.isCancelled.not() &
+                    sources.selected &
+                    sources.hidden.not() &
+                    sources.isDeleted.not(),
+              ))
+              .map((row) => row.readTable(eventRows))
+              .get()
+        : const <CalendarEvent>[];
+    final taskRows = database.tasks;
+    final lists = database.taskLists;
+    final tasks = account.tasksEnabled
+        ? await (database.select(taskRows).join([
+                innerJoin(
+                  lists,
+                  lists.id.equalsExp(taskRows.taskListId) &
+                      lists.accountId.equalsExp(taskRows.accountId),
+                ),
+                innerJoin(
+                  collections,
+                  collections.id.equalsExp(taskRows.davCollectionId),
+                ),
+              ])..where(
+                taskRows.davObjectId.isIn(ids) &
+                    taskRows.pendingDelete.not() &
+                    lists.serverMissing.not() &
+                    lists.pendingDelete.not() &
+                    collections.tasksSelected,
+              ))
+              .map((row) => row.readTable(taskRows))
+              .get()
+        : const <Task>[];
     return [
+      ...targets,
       for (final id in ids)
-        if (components.where((row) => row.davObjectId == id).toList()
-            case final matches when matches.isNotEmpty)
-          if ((matches
-                      .where((row) => row.recurrenceIdKey == null)
-                      .firstOrNull ??
-                  (matches.length == 1 ? matches.single : null))
-              case final row?)
-            row,
-    ];
+        switch (candidates[id]?.dominantComponentType) {
+          'VJOURNAL' => [
+            if (_uniqueLink(
+                  components.where((row) => row.davObjectId == id).toList(),
+                  (row) => row.recurrenceIdKey == null,
+                )
+                case final journal?)
+              LinkedJournal(journal),
+          ],
+          'VEVENT' => [
+            if (_uniqueLink(
+                  events.where((row) => row.davObjectId == id).toList(),
+                  (row) =>
+                      row.providerRecurringEventId == null &&
+                      row.recurrenceIdKey == null,
+                )
+                case final event?)
+              LinkedEvent(event),
+          ],
+          'VTODO' => [
+            if (_uniqueLink(
+                  tasks.where((row) => row.davObjectId == id).toList(),
+                  (row) => row.recurrenceIdKey == null,
+                )
+                case final task?)
+              LinkedTask(task),
+          ],
+          _ => <JournalLinkTarget>[],
+        }.singleOrNull,
+    ].nonNulls.toList(growable: false);
   }
+
+  T? _uniqueLink<T>(List<T> candidates, bool Function(T) master) =>
+      candidates.where(master).singleOrNull ?? candidates.singleOrNull;
 
   Stream<DavConflictSnapshot?> watchConflict(String id) =>
       (database.select(database.davConflictSnapshots)
@@ -314,26 +445,81 @@ final class JournalRepository {
   Future<JournalSnapshot> read(DavJournalEntry entry) =>
       database.transaction(() async {
         final collection = await _source(entry.accountId, entry.collectionId);
-        final raw = await _queue.exportRawIcsForObject(
-          accountId: entry.accountId,
-          collectionId: entry.collectionId,
-          objectId: entry.davObjectId,
-        );
-        final component = IcalDocumentPatcher(IcalDocument.parse(raw))
-            .requireComponent(
-              IcalComponentKey(
-                componentType: 'VJOURNAL',
-                uid: entry.uid,
-                recurrenceIdKey: entry.recurrenceIdKey,
-              ),
-            );
+        String raw;
+        DavJournalPendingRecovery? recovery;
+        try {
+          raw = await _queue.exportRawIcsForObject(
+            accountId: entry.accountId,
+            collectionId: entry.collectionId,
+            objectId: entry.davObjectId,
+          );
+        } on DavException catch (error) {
+          if (error.code != duplicateJournalPositionCode) rethrow;
+          recovery = await _queue.journalRecoveryForObject(
+            accountId: entry.accountId,
+            collectionId: entry.collectionId,
+            objectId: entry.davObjectId,
+          );
+          if (recovery == null) rethrow;
+          final object = await (database.select(
+            database.davObjects,
+          )..where((row) => row.id.equals(entry.davObjectId))).getSingle();
+          raw = object.rawIcsBody;
+        }
+        final components = IcalSemanticDocument.parse(raw).components;
+        final component = components
+            .where(
+              (item) =>
+                  item.recurrenceIdKey == entry.recurrenceIdKey &&
+                  item.uid == entry.uid,
+            )
+            .firstOrNull
+            ?.documentComponent;
+        if (component == null && recovery == null) {
+          throw const DavException(
+            kind: DavErrorKind.invalidCalendarData,
+            code: 'DavJournalComponentMissing',
+            safeMessage: 'The journal occurrence is no longer available.',
+          );
+        }
         return JournalSnapshot(
           entry: entry,
           collection: collection,
-          component: JournalComponent(component),
+          component: JournalComponent(
+            component ?? components.first.documentComponent,
+          ),
           effectiveRawIcs: raw,
+          pendingRecovery: recovery,
         );
       });
+
+  Future<void> repairPendingUpdate(
+    DavJournalPendingRecovery recovery,
+    Map<String?, int> selectedComponents,
+  ) async {
+    final document = IcalSemanticDocument.parse(recovery.invalidCandidate);
+    final positions = DavJournalPendingRecovery.competingComponents(document);
+    for (final group in positions.entries) {
+      final selected = selectedComponents[group.key];
+      if (selected == null || selected < 0 || selected >= group.value.length) {
+        throw const DavException(
+          kind: DavErrorKind.invalidCalendarData,
+          code: 'DavJournalRecoveryChoiceRequired',
+          safeMessage: 'Choose one journal component for each original position before reapplying.',
+        );
+      }
+      for (final (index, component) in group.value.indexed) {
+        if (index != selected) {
+          document.document.root.children.remove(component.documentComponent);
+        }
+      }
+    }
+    document.document.root.structurallyDirty = true;
+    await _queue.replaceRecoveredJournal(
+      reviewed: recovery,
+      rawIcs: document.document.serialize(),
+    );
+  }
 
   Future<void> create(
     DavCollection source, {
@@ -396,14 +582,6 @@ final class JournalRepository {
     IcalOccurrence occurrence, {
     required bool thisAndFuture,
   }) {
-    if (!thisAndFuture &&
-        occurrence.override?.recurrenceRange == 'THISANDFUTURE') {
-      throw const DavException(
-        kind: DavErrorKind.unsupportedComponent,
-        code: 'IcalJournalOccurrenceRangeRequired',
-        safeMessage: 'This entry starts a range of changes. Choose this and future occurrences.',
-      );
-    }
     final component = occurrence.effectiveComponent.documentComponent
         .deepCopy();
     final original = occurrence.override?.documentComponent;
@@ -474,19 +652,17 @@ final class JournalRepository {
       scope: DavMutationScope.occurrence,
       operations: changes,
     ).applyTo(draft.entry.effectiveRawIcs, nowUtc: stamp);
-    final updated = IcalDocumentPatcher(IcalDocument.parse(candidate))
-        .requireComponent(target);
+    final document = IcalDocument.parse(candidate);
+    final updated = IcalDocumentPatcher(document).requireComponent(target);
     if (semanticComponentHash(component) == semanticComponentHash(updated)) {
       return;
     }
-    final master = IcalDocument.parse(draft.entry.effectiveRawIcs)
-        .calendarComponents
-        .where(
-          (item) =>
-              item.name == 'VJOURNAL' &&
-              item.firstProperty('RECURRENCE-ID') == null,
-        )
-        .firstOrNull;
+    final original = IcalSemanticDocument.parse(draft.entry.effectiveRawIcs);
+    final master = original.components
+        .where((item) => item.recurrenceId == null)
+        .firstOrNull
+        ?.documentComponent;
+    final continuation = _continueDisplacedRange(draft, original, document);
     final revision = await _revisionOperations(
       draft.entry.entry.accountId,
       component,
@@ -501,7 +677,12 @@ final class JournalRepository {
       DavMutationPatch(
         target: target,
         scope: DavMutationScope.occurrence,
-        operations: [...changes, ...revision],
+        operations: [
+          ...changes,
+          if (continuation != null)
+            DavPatchOperation.addComponent(continuation),
+          ...revision,
+        ],
       ),
     );
   });
@@ -525,12 +706,8 @@ final class JournalRepository {
           await deleteResource(draft.entry);
           return;
         }
-        if (entries.any(
-          (entry) =>
-              icalRecurrenceIdKey(entry.firstProperty('RECURRENCE-ID')) ==
-              selection.recurrenceIdKey,
-        )) {
-          patcher.removeComponent(selection);
+        if (draft.originalException case final original?) {
+          patcher.removeComponent(original);
         }
         final previousMaster = master?.deepCopy();
         if (master != null) {
@@ -548,6 +725,11 @@ final class JournalRepository {
           );
           master.structurallyDirty = true;
         }
+        _continueDisplacedRange(
+          draft,
+          IcalSemanticDocument.parse(draft.entry.effectiveRawIcs),
+          document,
+        );
         final base = master == null
             ? draft.entry.key
             : IcalComponentKey(componentType: 'VJOURNAL', uid: selection.uid);
@@ -569,6 +751,24 @@ final class JournalRepository {
           ),
         );
       });
+
+  IcalComponent? _continueDisplacedRange(
+    JournalOccurrenceDraft draft,
+    IcalSemanticDocument original,
+    IcalDocument result,
+  ) {
+    if (draft.thisAndFuture || draft.originalException == null) return null;
+    final range = original.components
+        .where(
+          (entry) =>
+              entry.recurrenceRange == 'THISANDFUTURE' &&
+              entry.recurrenceIdKey == draft.originalException!.recurrenceIdKey,
+        )
+        .firstOrNull;
+    return range == null
+        ? null
+        : continueJournalRange(result, range, original.components);
+  }
 
   Future<void> cancelOccurrenceRange(JournalOccurrenceDraft draft) =>
       database.transaction(() async {
@@ -1071,7 +1271,8 @@ final class JournalRepository {
 
   Future<void> _checkForLocalChange(JournalSnapshot editing) async {
     final current = await read(editing.entry);
-    if (current.effectiveRawIcs != editing.effectiveRawIcs) {
+    if (current.pendingRecovery != null ||
+        current.effectiveRawIcs != editing.effectiveRawIcs) {
       throw const DavException(
         kind: DavErrorKind.conflict,
         code: 'DavJournalChangedWhileEditing',

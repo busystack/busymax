@@ -420,7 +420,21 @@ final class DavMutationPatch {
     'operations': [for (final operation in operations) operation.toJson()],
   });
 
-  String applyTo(String rawIcs, {required DateTime nowUtc}) {
+  String applyTo(String rawIcs, {required DateTime nowUtc}) =>
+      _applyTo(rawIcs, nowUtc: nowUtc, validateJournal: true);
+
+  /// Renders historical journal intent for review. The resulting bytes may
+  /// be invalid and must never be dispatched or exported as a calendar.
+  String renderJournalRecovery(String rawIcs, {required DateTime nowUtc}) {
+    if (target.componentType != 'VJOURNAL') throw _invalidPatch();
+    return _applyTo(rawIcs, nowUtc: nowUtc, validateJournal: false);
+  }
+
+  String _applyTo(
+    String rawIcs, {
+    required DateTime nowUtc,
+    required bool validateJournal,
+  }) {
     var document = IcalDocument.parse(rawIcs);
     var patcher = IcalDocumentPatcher(document);
     final isJournal = target.componentType.toUpperCase() == 'VJOURNAL';
@@ -536,7 +550,7 @@ final class DavMutationPatch {
     final serialized = document.serialize();
     final semantic = IcalSemanticDocument.parse(serialized);
     final complete = completeIcalTimeZones(serialized);
-    if (semantic.dominantComponentType == 'VJOURNAL') {
+    if (validateJournal && semantic.dominantComponentType == 'VJOURNAL') {
       JournalComponent.validateAuthored(
         complete == serialized
             ? semantic

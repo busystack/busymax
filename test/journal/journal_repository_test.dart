@@ -5,10 +5,12 @@ import 'package:busymax/src/dav/ical/ical_attachments.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_conflict_analyzer.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
+import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/journal/presentation/journal_component_editor.dart';
 import 'package:busymax/src/journal/presentation/journal_property_editor.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -63,13 +65,63 @@ void main() {
               hrefKey: '/$id/',
               requestUri: 'https://example.invalid/$id/',
               displayName: id,
-              supportedComponentMask: const Value(8),
+              supportedComponentMask: Value(id == 'home' ? 11 : 8),
+              eventProjectionEnabled: Value(id == 'home'),
+              taskProjectionEnabled: Value(id == 'home'),
               journalProjectionEnabled: const Value(true),
               currentUserPrivilegesJson: const Value('["{DAV:}all"]'),
               createdAtUtc: 'now',
               updatedAtUtc: 'now',
             ),
           );
+    }
+
+    await db
+        .into(db.calendarSources)
+        .insert(
+          CalendarSourcesCompanion.insert(
+            id: 'dav-calendar-home',
+            accountId: 'first',
+            provider: 'caldav',
+            providerCalendarId: '/home/',
+            davCollectionId: const Value('home'),
+            summary: 'Mixed',
+            createdAtLocal: 0,
+            updatedAtLocal: 0,
+          ),
+        );
+    await db
+        .into(db.taskLists)
+        .insert(
+          TaskListsCompanion.insert(
+            id: 'dav-task-list-home',
+            accountId: 'first',
+            davCollectionId: const Value('home'),
+            title: 'Mixed',
+            rawJson: '{}',
+            createdLocalAtUtc: 'now',
+            updatedLocalAtUtc: 'now',
+          ),
+        );
+    for (final (type, uid) in [
+      ('VEVENT', 'linked-event'),
+      ('VTODO', 'linked-task'),
+    ]) {
+      await DavObjectRepository(database: db).commitConfirmedMutation(
+        accountId: 'first',
+        collectionId: 'home',
+        provider: BusyProvider.caldav,
+        canonicalObject: DavPreparedObject.parse(
+          hrefKey: '/home/$uid.ics',
+          requestUri: Uri.parse('https://example.invalid/home/$uid.ics'),
+          etag: '"$uid"',
+          contentType: 'text/calendar',
+          rawIcsBody: journal(['DTSTART:20261126T090000Z', 'SUMMARY:$uid'])
+              .replaceAll('VJOURNAL', type)
+              .replaceFirst('UID:journal-fixture', 'UID:$uid'),
+        ),
+        completedAtUtc: DateTime.utc(2026, 11, 26),
+      );
     }
     Future<void> add(
       String account,
@@ -106,6 +158,8 @@ void main() {
       'LINK;VALUE=UID:uri-target',
       'LINK;VALUE=URI:$uri',
       'LINK;VALUE=URI:$unrelated',
+      'LINK;VALUE=UID:linked-event',
+      'RELATED-TO:linked-task',
       'LINK;VALUE=XML-REFERENCE:https://example.invalid/linked.xml#xpointer(id(\'item\'))',
     ]);
     final repository = JournalRepository(db);
@@ -124,6 +178,21 @@ void main() {
       storedLinks.map((p) => p.parameterValue('VALUE')),
       contains('XML-REFERENCE'),
     );
+    final targets = await repository.relatedEntries(origin);
+    expect(targets.whereType<LinkedEvent>().single.event.title, 'linked-event');
+    expect(targets.whereType<LinkedTask>().single.task.title, 'linked-task');
+    expect(
+      targets.whereType<LinkedXml>().single.uri.fragment,
+      "xpointer(id('item'))",
+    );
+    await (db.update(db.calendarSources)
+          ..where((row) => row.id.equals('dav-calendar-home')))
+        .write(const CalendarSourcesCompanion(hidden: Value(true)));
+    await (db.update(db.davCollections)..where((row) => row.id.equals('home')))
+        .write(const DavCollectionsCompanion(tasksSelected: Value(false)));
+    final hidden = await repository.relatedEntries(origin);
+    expect(hidden.whereType<LinkedEvent>(), isEmpty);
+    expect(hidden.whereType<LinkedTask>(), isEmpty);
   });
 
   test('nested journal authoring survives JSON drafts and durable patches', () {

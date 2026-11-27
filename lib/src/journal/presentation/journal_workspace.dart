@@ -5,10 +5,12 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../app/busymax_window_close.dart';
+import '../../core/time/stored_temporal_projection.dart';
 import '../../dav/dav_errors.dart';
 import '../../dav/ical/ical_attachments.dart';
 import '../../dav/ical/ical_document.dart';
@@ -18,13 +20,16 @@ import '../../dav/ical/dav_native_import.dart';
 import '../../dav/ical/dav_native_export.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
 import '../../dav/mutation/dav_mutation_patch.dart';
+import '../../dav/mutation/dav_pending_operations.dart';
 import '../../dav/storage/dav_collection_capabilities.dart';
 import '../../dav/xml/dav_xml.dart';
 import '../../db/app_database.dart';
 import '../../features/attachments/presentation/dav_attachment_file_name.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/sync/sync_request.dart';
+import '../../platform/common/desktop_services.dart';
 import '../../providers/busy_provider.dart';
+import '../../schedule/schedule_commands.dart';
 import '../journal_component.dart';
 import '../journal_import_review.dart';
 import '../journal_repository.dart';
@@ -53,10 +58,11 @@ final _journalRepository = Provider(
 final _journalSources = StreamProvider.autoDispose(
   (ref) => ref.watch(_journalRepository).watchSources(),
 );
-final _relatedJournals = FutureProvider.autoDispose
-    .family<List<DavJournalEntry>, JournalSnapshot>(
-      (ref, origin) => ref.watch(_journalRepository).relatedJournals(origin),
-    );
+final _relatedEntries = FutureProvider.autoDispose
+    .family<List<JournalLinkTarget>, JournalSnapshot>((ref, origin) {
+      ref.watch(scheduleDataRevisionProvider);
+      return ref.watch(_journalRepository).relatedEntries(origin);
+    });
 final _subscriptionJournals = StreamProvider.autoDispose(
   (ref) => watchJournalSubscriptions(ref.watch(databaseProvider)),
 );
@@ -79,17 +85,45 @@ final _journalConflict = StreamProvider.autoDispose
       (ref, id) => ref.watch(_journalRepository).watchConflict(id),
     );
 
+Object _linkIdentity(JournalLinkTarget target) => switch (target) {
+  LinkedJournal(:final entry) => (
+    'journal',
+    entry.accountId,
+    entry.collectionId,
+    entry.componentId,
+  ),
+  LinkedEvent(:final event) => (
+    'event',
+    event.accountId,
+    event.calendarSourceId,
+    event.id,
+  ),
+  LinkedTask(:final task) => ('task', task.accountId, task.taskListId, task.id),
+  LinkedXml(:final uri) => ('xml', uri),
+};
+
+String _linkLabel(JournalLinkTarget target, AppLocalizations l10n) =>
+    switch (target) {
+      LinkedJournal(:final entry) => entry.title ?? l10n.untitledJournal,
+      LinkedEvent(:final event) => event.title,
+      LinkedTask(:final task) => task.title,
+      LinkedXml(:final uri) => uri.toString(),
+    };
+
 class JournalWorkspace extends ConsumerStatefulWidget {
   const JournalWorkspace({
     required this.controls,
     this.files,
     this.navigationCoordinator,
+    this.openScheduleItem,
     super.key,
   });
 
   final JournalControls controls;
   final JournalFileActions? files;
   final BusyMaxWindowCloseCoordinator? navigationCoordinator;
+  final Future<void> Function(BuildContext, ScheduleWorkspaceCommand)?
+  openScheduleItem;
 
   @override
   ConsumerState<JournalWorkspace> createState() => _JournalWorkspaceState();
@@ -113,6 +147,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
   bool _showImportReview = false;
   String? _moveSource;
   String? _notice;
+  final _recoveryChoices = <String?, int>{};
   String _accountId = '';
   final _collectionName = TextEditingController();
   final _rename = TextEditingController();
@@ -181,6 +216,67 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
     _create = null;
     _occurrenceEdit = null;
     _moveSource = null;
+    _recoveryChoices.clear();
+  });
+
+  Future<void> _openReference(
+    JournalSnapshot origin,
+    JournalLinkTarget reference,
+  ) => _run(() async {
+    final repository = ref.read(_journalRepository);
+    final identity = _linkIdentity(reference);
+    final target = (await repository.relatedEntries(origin))
+        .where((item) => _linkIdentity(item) == identity)
+        .singleOrNull;
+    if (!mounted) return;
+    if (target == null) {
+      setState(() => _error = AppLocalizations.of(context).scheduleUnavailable);
+      return;
+    }
+    switch (target) {
+      case LinkedJournal(:final entry):
+        final next = await repository.read(entry);
+        if (!mounted) return;
+        setState(() {
+          _open = next;
+          _occurrenceEdit = null;
+        });
+      case LinkedXml(:final uri):
+        if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+            mounted) {
+          setState(
+            () => _error = AppLocalizations.of(context).scheduleUnavailable,
+          );
+        }
+      case LinkedEvent() || LinkedTask():
+        final sequence = DateTime.now().microsecondsSinceEpoch;
+        final command = switch (target) {
+          LinkedEvent(:final event) => ScheduleWorkspaceCommand(
+            ScheduleWorkspaceCommandKind.openCalendarEvent,
+            sequence,
+            date: calendarEventStartAsLocal(event),
+            accountId: event.accountId,
+            sourceId: event.calendarSourceId,
+            itemId: event.id,
+          ),
+          LinkedTask(:final task) => ScheduleWorkspaceCommand(
+            ScheduleWorkspaceCommandKind.openTask,
+            sequence,
+            accountId: task.accountId,
+            sourceId: task.taskListId,
+            itemId: task.id,
+          ),
+          _ => throw StateError('Expected a schedule reference.'),
+        };
+        if (widget.openScheduleItem case final open?) {
+          await open(context, command);
+        } else {
+          ref.read(scheduleWorkspaceCommandProvider.notifier).state = command;
+          ref
+              .read(desktopNavigationServiceProvider)
+              .open(DesktopNavigationDestination.schedule);
+        }
+    }
   });
 
   @override
@@ -284,6 +380,100 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
       );
     }
 
+    if (current?.pendingRecovery case final recovery?) {
+      if (editorSource == null || caps?.canRead != true) {
+        return Column(
+          children: [
+            Text(l10n.davPermissionChanged),
+            ui.button(l10n.close, _closeEntry),
+          ],
+        );
+      }
+      final competing = DavJournalPendingRecovery.competingComponents(
+        IcalSemanticDocument.parse(recovery.invalidCandidate),
+      ).entries;
+      final report = const JsonEncoder.withIndent('  ')
+          .convert(recovery.toJson());
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(l10n.journalPendingRecovery),
+          if (_error != null) Text(_error!),
+          for (final group in competing) ...[
+            Text(group.value.first.recurrenceId?.rawValue ?? l10n.noDate),
+            for (final component in group.value.indexed) ...[
+              ui.button(
+                '${_recoveryChoices[group.key] == component.$1 ? '✓ ' : ''}'
+                '${component.$1 + 1}. ${component.$2.summary ?? l10n.untitledJournal}',
+                !_busy && recovery.canReplace && writable
+                    ? () => setState(
+                        () => _recoveryChoices[group.key] = component.$1,
+                      )
+                    : null,
+              ),
+              for (final property in component.$2.documentComponent.properties)
+                Text(property.serializeLogicalLine()),
+              ...journalReadOnlyChildren(component.$2.documentComponent),
+            ],
+          ],
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ui.button(
+                l10n.registrationCopyAll,
+                _busy
+                    ? null
+                    : () => _run(
+                        () => Clipboard.setData(ClipboardData(text: report)),
+                      ),
+              ),
+              if (widget.files?.exportDraft != null)
+                ui.button(
+                  l10n.journalExportRecovery,
+                  _busy
+                      ? null
+                      : () => _run(() => widget.files!.exportDraft!(report)),
+                ),
+              ui.button(
+                l10n.journalReapplyReviewedUpdate,
+                !_busy &&
+                        recovery.canReplace &&
+                        writable &&
+                        competing.every(
+                          (group) => _recoveryChoices.containsKey(group.key),
+                        )
+                    ? () => _run(() async {
+                        final fresh = await repository.read(current!.entry);
+                        final reviewed = fresh.pendingRecovery;
+                        if (reviewed == null ||
+                            reviewed.invalidCandidate !=
+                                recovery.invalidCandidate ||
+                            reviewed.operation.mutationPatchJson !=
+                                recovery.operation.mutationPatchJson ||
+                            !reviewed.canReplace) {
+                          throw const DavException(
+                            kind: DavErrorKind.conflict,
+                            code: 'DavJournalRecoveryChanged',
+                            safeMessage: 'Reopen this journal to review the current pending update.',
+                          );
+                        }
+                        await repository.repairPendingUpdate(
+                          reviewed,
+                          _recoveryChoices,
+                        );
+                        if (mounted) _closeEntry();
+                      })
+                    : null,
+                primary: true,
+              ),
+              ui.button(l10n.close, _busy ? null : _closeEntry),
+            ],
+          ),
+        ],
+      );
+    }
+
     if (current != null || _create != null) {
       final occurrence = _occurrenceEdit;
       final editing = occurrence?.component ?? current;
@@ -316,17 +506,10 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         ui: ui,
         navigationCoordinator: widget.navigationCoordinator,
         snapshot: editing,
-        relatedJournals: editing == null
+        relatedEntries: editing == null
             ? const []
-            : ref.watch(_relatedJournals(editing)).valueOrNull ?? const [],
-        openRelatedJournal: (row) => _run(() async {
-          final target = await repository.read(row);
-          if (!mounted) return;
-          setState(() {
-            _open = target;
-            _occurrenceEdit = null;
-          });
-        }),
+            : ref.watch(_relatedEntries(editing)).valueOrNull ?? const [],
+        openReference: (target) => _openReference(editing!, target),
         source: editorSource,
         writable: writable,
         busy: _busy,
@@ -713,16 +896,16 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                         _busy
                             ? null
                             : () => _run(() async {
-                                final resources =
+                                final exported =
                                     await DavNativeExportService(
                                       repository.database,
-                                    ).collection(
+                                    ).collectionForReview(
                                       filteredSource.accountId,
                                       filteredSource.id,
                                     );
                                 final path =
                                     await widget.files!.exportCollection!(
-                                      resources
+                                      exported.resources
                                           .where(
                                             (item) =>
                                                 item.componentType ==
@@ -730,9 +913,19 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                                           )
                                           .toList(),
                                     );
-                                if (mounted && path != null) {
+                                if (mounted &&
+                                    (path != null ||
+                                        exported
+                                            .pendingJournalRecoveries
+                                            .isNotEmpty)) {
                                   setState(
-                                    () => _notice = l10n.exportedFile(path),
+                                    () => _notice = [
+                                      if (path != null) l10n.exportedFile(path),
+                                      if (exported
+                                          .pendingJournalRecoveries
+                                          .isNotEmpty)
+                                        l10n.journalCollectionExportRecovery,
+                                    ].join('\n'),
                                   );
                                 }
                               }),
@@ -1237,8 +1430,8 @@ class _JournalEditor extends StatefulWidget {
     this.export,
     this.move,
     this.recoverAsNew,
-    required this.relatedJournals,
-    required this.openRelatedJournal,
+    required this.relatedEntries,
+    required this.openReference,
   });
 
   final JournalControls ui;
@@ -1265,8 +1458,8 @@ class _JournalEditor extends StatefulWidget {
   final VoidCallback? export;
   final Widget? move;
   final Future<void> Function(String content)? recoverAsNew;
-  final List<DavJournalEntry> relatedJournals;
-  final Future<void> Function(DavJournalEntry) openRelatedJournal;
+  final List<JournalLinkTarget> relatedEntries;
+  final Future<void> Function(JournalLinkTarget) openReference;
 
   @override
   State<_JournalEditor> createState() => _JournalEditorState();
@@ -2182,16 +2375,16 @@ class _JournalEditorState extends State<_JournalEditor> {
                     ),
                 ],
                 ..._attachmentControls(l10n, canEdit),
-                for (final related in widget.relatedJournals)
+                for (final related in widget.relatedEntries)
                   Align(
                     alignment: AlignmentDirectional.centerStart,
                     child: ui.button(
-                      '${l10n.openLink} · ${related.title ?? l10n.untitledJournal}',
+                      '${l10n.openLink} · ${_linkLabel(related, l10n)}',
                       locked
                           ? null
                           : () async {
                               if (await _flushDraft() && mounted) {
-                                await widget.openRelatedJournal(related);
+                                await widget.openReference(related);
                               }
                             },
                     ),

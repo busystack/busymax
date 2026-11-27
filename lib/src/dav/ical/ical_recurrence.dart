@@ -102,6 +102,73 @@ final class IcalRecurrenceExpander {
 
   final IcalRecurrenceLimits limits;
 
+  /// The first original journal position that can carry a continuing range.
+  /// Exact overrides take precedence and exclusions do not create positions.
+  IcalTemporalValue? nextJournalPosition(
+    IcalSemanticDocument document, {
+    required IcalTemporalValue after,
+    IcalTemporalValue? before,
+  }) {
+    final master = document.components
+        .where((component) => component.recurrenceId == null)
+        .firstOrNull;
+    final anchor = master?.start;
+    if (master == null || anchor == null) return null;
+    if (master.recurrenceRules.length > 1) throw _invalidRule();
+    final resolver = IcalTimeZoneResolver.fromDocument(document);
+    final occupied = {
+      for (final component in document.components)
+        if (component.recurrenceId case final id?) _temporalIdentity(id),
+      for (final property in master.documentComponent.propertiesNamed('EXDATE'))
+        for (final id in _parseDateList(property, anchor))
+          _temporalIdentity(id),
+    };
+    bool available(IcalTemporalValue value) =>
+        value.localValue.isAfter(after.localValue) &&
+        !occupied.contains(_temporalIdentity(value));
+
+    var upper = before;
+    IcalTemporalValue? successor;
+    for (final value in [
+      anchor,
+      for (final property in master.documentComponent.propertiesNamed('RDATE'))
+        for (final date in _parseRecurrenceDates(property, anchor, resolver))
+          date.start,
+    ]) {
+      if (available(value) &&
+          (upper == null || value.localValue.isBefore(upper.localValue))) {
+        upper = successor = value;
+      }
+    }
+    final ruleText = master.recurrenceRules.firstOrNull;
+    if (ruleText == null) return successor;
+    final rule = _RecurrenceRule.parse(
+      ruleText,
+      anchor: anchor,
+      maximumValues: limits.maximumRuleValues,
+    );
+    for (final value in _ruleStarts(
+      rule,
+      anchor,
+      rule.firstPeriodAtWall(anchor, after.localValue),
+      resolver,
+      // The true cutoff is civil. Pad the iterator's early UTC cutoff so
+      // a transition can never stop it before the matching civil period.
+      endUtc: upper == null
+          ? null
+          : resolver.toUtc(upper).add(const Duration(days: 2)),
+    )) {
+      if (upper != null && !value.localValue.isBefore(upper.localValue)) break;
+      if (available(value)) return value;
+    }
+    return successor;
+  }
+
+  IcalTemporalValue? journalRangeStart(
+    IcalTemporalValue position,
+    IcalSemanticComponent range,
+  ) => _rangeAdjustedStart(position, range);
+
   /// Candidates in one rule period, before DTSTART/COUNT/UNTIL truncation.
   /// Series edits use this to map an existing recurrence position without
   /// confusing a detached occurrence's effective date with its identity.
@@ -364,15 +431,19 @@ final class IcalRecurrenceExpander {
         anchor: anchor,
         maximumValues: limits.maximumRuleValues,
       );
-      _addRuleStarts(
-        starts,
+      for (final value in _ruleStarts(
         rule,
         anchor,
-        candidateBounds.start,
-        candidateBounds.end,
+        rule.firstProjectionPeriod(
+          candidateBounds.start,
+          anchor,
+          timeZoneResolver,
+        ),
         timeZoneResolver,
-        retainIfRelevant,
-      );
+        endUtc: candidateBounds.end,
+      )) {
+        retainIfRelevant(value);
+      }
     }
     for (final date in recurrenceDates) {
       retainIfRelevant(date.start);
@@ -468,22 +539,22 @@ final class IcalRecurrenceExpander {
     return List.unmodifiable(result);
   }
 
-  void _addRuleStarts(
-    Map<String, IcalTemporalValue> starts,
+  Iterable<IcalTemporalValue> _ruleStarts(
     _RecurrenceRule rule,
     IcalTemporalValue anchor,
-    DateTime candidateRangeStartUtc,
-    DateTime candidateRangeEndUtc,
-    IcalTimeZoneResolver timeZoneResolver,
-    void Function(IcalTemporalValue value) retainIfRelevant,
-  ) {
+    int firstPeriod,
+    IcalTimeZoneResolver timeZoneResolver, {
+    DateTime? endUtc,
+  }) sync* {
     var generatedForCount = 0;
-    var reachedEnd = false;
-    final firstPeriod = rule.firstProjectionPeriod(
-      candidateRangeStartUtc,
-      anchor,
-      timeZoneResolver,
-    );
+    final until = rule.until;
+    final untilUtc = until == null
+        ? null
+        : timeZoneResolver.toUtc(until).add(const Duration(days: 2));
+    final limit =
+        endUtc == null || untilUtc != null && untilUtc.isBefore(endUtc)
+        ? untilUtc
+        : endUtc;
     for (var visited = 0; visited < limits.maximumPeriods; visited += 1) {
       final period = firstPeriod + visited;
       final candidates = rule.candidatesForPeriod(
@@ -491,48 +562,33 @@ final class IcalRecurrenceExpander {
         period,
         maximumCandidates: limits.maximumCandidatesPerPeriod,
       );
-      if (candidates.isEmpty &&
-          rule.periodStartsAfter(
-            period,
-            candidateRangeEndUtc,
-            anchor,
-            timeZoneResolver,
-          )) {
-        reachedEnd = true;
-        break;
+      if (limit != null &&
+          rule.periodStartsAfter(period, limit, anchor, timeZoneResolver)) {
+        return;
       }
       for (final wallValue in candidates) {
         if (wallValue.isBefore(anchor.localValue)) continue;
         final value = _withWallValue(anchor, wallValue);
-        if (rule.until != null &&
-            _afterUntil(value, rule.until!, timeZoneResolver)) {
-          reachedEnd = true;
-          break;
-        }
+        if (until != null && _afterUntil(value, until, timeZoneResolver))
+          return;
         generatedForCount += 1;
-        if (rule.count != null && generatedForCount > rule.count!) {
-          reachedEnd = true;
-          break;
-        }
-        retainIfRelevant(value);
-      }
-      if (reachedEnd) break;
-      if (rule.periodStartsAfter(
-        period + 1,
-        candidateRangeEndUtc,
-        anchor,
-        timeZoneResolver,
-      )) {
-        reachedEnd = true;
-        break;
+        yield value;
+        if (rule.count case final count? when generatedForCount == count)
+          return;
       }
     }
-    if (!reachedEnd) {
-      throw _limitError(
-        'IcalRecurrenceIterationLimitExceeded',
-        'A recurrence rule exceeded the safe expansion limit.',
-      );
-    }
+    if (limit != null &&
+        rule.periodStartsAfter(
+          firstPeriod + limits.maximumPeriods,
+          limit,
+          anchor,
+          timeZoneResolver,
+        ))
+      return;
+    throw _limitError(
+      'IcalRecurrenceIterationLimitExceeded',
+      'A recurrence rule exceeded the safe expansion limit.',
+    );
   }
 }
 
@@ -785,7 +841,6 @@ final class _RecurrenceRule {
     IcalTemporalValue anchor,
     IcalTimeZoneResolver timeZoneResolver,
   ) {
-    if (count != null) return 0;
     final localRangeStart = switch (anchor.kind) {
       IcalTemporalKind.tzidDateTime => timeZoneResolver.fromUtc(
         rangeStartUtc,
@@ -793,6 +848,11 @@ final class _RecurrenceRule {
       ),
       _ => rangeStartUtc,
     };
+    return firstPeriodAtWall(anchor, localRangeStart);
+  }
+
+  int firstPeriodAtWall(IcalTemporalValue anchor, DateTime localRangeStart) {
+    if (count != null) return 0;
     final wallStart = _wallDateTime(anchor.localValue);
     final wallEnd = _wallDateTime(localRangeStart);
     final difference = wallEnd.difference(wallStart);

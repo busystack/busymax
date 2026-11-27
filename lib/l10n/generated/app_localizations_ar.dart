@@ -4158,6 +4158,20 @@ class AppLocalizationsAr extends AppLocalizations {
   String get journalOperationFailed => 'تعذّر إتمام عملية اليوميات.';
 
   @override
+  String get journalPendingRecovery =>
+      'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.';
+
+  @override
+  String get journalExportRecovery => 'Export recovery bundle (JSON)';
+
+  @override
+  String get journalReapplyReviewedUpdate => 'Queue reviewed update';
+
+  @override
+  String get journalCollectionExportRecovery =>
+      'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.';
+
+  @override
   String get journalDraftSaved => 'حُفظت المسودة على هذا الجهاز';
 
   @override

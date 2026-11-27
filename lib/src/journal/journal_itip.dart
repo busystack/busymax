@@ -128,6 +128,7 @@ final class JournalMessage {
       if (old == null) document.root.children.add(zone.deepCopy());
     }
     var changed = false;
+    final displacedRanges = <IcalSemanticComponent>[];
     void put(IcalSemanticComponent? old, IcalComponent replacement) {
       final index = old == null
           ? -1
@@ -137,6 +138,16 @@ final class JournalMessage {
       } else {
         document.root.children[index] = replacement;
       }
+      if (old?.recurrenceRange == 'THISANDFUTURE' &&
+          replacement
+                  .firstProperty('RECURRENCE-ID')
+                  ?.parameterValue('RANGE')
+                  ?.toUpperCase() !=
+              'THISANDFUTURE') {
+        displacedRanges.add(old!);
+      }
+      final updated = IcalSemanticComponent.fromDocumentComponent(replacement);
+      indexed[journalRecurrencePosition(updated.recurrenceId)] = updated;
       changed = true;
     }
 
@@ -144,7 +155,24 @@ final class JournalMessage {
     for (final incoming in entries) {
       final identity = journalRecurrencePosition(incoming.recurrenceId);
       final old = indexed[identity];
-      final reference = old ?? master;
+      final id = incoming.recurrenceId;
+      IcalSemanticComponent? inherited;
+      if (method == JournalMethod.cancel && old == null && id != null) {
+        for (final component in [...baseline.components, ...indexed.values]) {
+          final position = component.recurrenceId;
+          if (component.recurrenceRange == 'THISANDFUTURE' &&
+              position != null &&
+              _sameForm(position, id) &&
+              position.localValue.isBefore(id.localValue) &&
+              (inherited == null ||
+                  !position.localValue.isBefore(
+                    inherited.recurrenceId!.localValue,
+                  ))) {
+            inherited = component;
+          }
+        }
+      }
+      final reference = old ?? inherited ?? master;
       if (reference == null ||
           _organizer(reference) != null &&
               _organizer(reference) != priorOrganizer) {
@@ -183,7 +211,7 @@ final class JournalMessage {
             throw _unresolvable();
           }
           if (identity == null) {
-            for (final instance in baseline.components) {
+            for (final instance in indexed.values.toList()) {
               if (_revisionOrder(incoming, instance) > 0) {
                 put(instance, _cancelled(instance.documentComponent, incoming));
               }
@@ -202,11 +230,19 @@ final class JournalMessage {
               throw _unresolvable();
             }
             final instance = _cancelled(reference.documentComponent, incoming);
+            final existingId = old?.documentComponent.firstProperty(
+              'RECURRENCE-ID',
+            );
             _replace(
               instance,
               'RECURRENCE-ID',
-              idProperty.rawValue,
-              parameters: idProperty.parameters,
+              existingId?.rawValue ?? idProperty.rawValue,
+              parameters: existingId == null
+                  ? idProperty.parameters
+                  : [
+                      ...existingId.parameters.where((p) => p.name != 'RANGE'),
+                      ...idProperty.parameters.where((p) => p.name == 'RANGE'),
+                    ],
             );
             if (old == null) {
               instance.children.removeWhere(
@@ -217,16 +253,25 @@ final class JournalMessage {
               _replace(
                 instance,
                 'DTSTART',
-                idProperty.rawValue,
-                parameters: idProperty.parameters
-                    .where((p) => p.name != 'RANGE')
-                    .toList(),
+                inherited == null
+                    ? idProperty.rawValue
+                    : IcalRecurrenceExpander()
+                              .journalRangeStart(id!, inherited)
+                              ?.rawValue ??
+                          idProperty.rawValue,
+                parameters:
+                    inherited?.documentComponent
+                        .firstProperty('DTSTART')
+                        ?.parameters ??
+                    idProperty.parameters
+                        .where((p) => p.name != 'RANGE')
+                        .toList(),
               );
             }
             put(old, instance);
             if (incoming.recurrenceRange == 'THISANDFUTURE') {
               final first = resolver.toUtc(incoming.recurrenceId!);
-              for (final sibling in baseline.components) {
+              for (final sibling in indexed.values.toList()) {
                 final id = sibling.recurrenceId;
                 if (id != null &&
                     resolver.toUtc(id).isAfter(first) &&
@@ -239,11 +284,50 @@ final class JournalMessage {
       }
     }
     if (!changed) return null;
+    for (final range in displacedRanges) {
+      continueJournalRange(document, range, baseline.components);
+    }
     document.root.structurallyDirty = true;
     final candidate = document.serialize();
     JournalComponent.validateAuthored(IcalSemanticDocument.parse(candidate));
     return candidate;
   }
+}
+
+/// Split a displaced range without changing what later positions inherit.
+/// Another range terminates the old one, even if that anchor was also edited
+/// individually in the same message and will itself receive a continuation.
+IcalComponent? continueJournalRange(
+  IcalDocument document,
+  IcalSemanticComponent range,
+  Iterable<IcalSemanticComponent> originalComponents,
+) {
+  final anchor = range.recurrenceId!;
+  final current = IcalSemanticDocument.fromDocument(document);
+  IcalTemporalValue? boundary;
+  for (final component in [...originalComponents, ...current.components]) {
+    final id = component.recurrenceId;
+    if (component.recurrenceRange == 'THISANDFUTURE' &&
+        id != null &&
+        id.localValue.isAfter(anchor.localValue) &&
+        (boundary == null || id.localValue.isBefore(boundary.localValue))) {
+      boundary = id;
+    }
+  }
+  final expander = IcalRecurrenceExpander();
+  final next = expander.nextJournalPosition(
+    current,
+    after: anchor,
+    before: boundary,
+  );
+  if (next == null) return null;
+  final continuation = range.documentComponent.deepCopy();
+  _replace(continuation, 'RECURRENCE-ID', next.rawValue);
+  final start = expander.journalRangeStart(next, range);
+  if (start != null) _replace(continuation, 'DTSTART', start.rawValue);
+  document.root.children.add(continuation);
+  document.root.structurallyDirty = true;
+  return continuation;
 }
 
 String? _organizer(IcalSemanticComponent entry) =>
@@ -281,7 +365,11 @@ bool _hasOccurrence(
         rangeStartUtc: start,
         rangeEndUtc: start.add(const Duration(seconds: 1)),
       )
-      .any((row) => resolver.toUtc(row.recurrenceId) == start);
+      .any(
+        (row) =>
+            journalRecurrencePosition(row.recurrenceId) ==
+            journalRecurrencePosition(id),
+      );
 }
 
 IcalProperty _asRecurrenceId(IcalProperty start) => IcalProperty(

@@ -6880,6 +6880,30 @@ abstract class AppLocalizations {
   /// **'The journal operation failed.'**
   String get journalOperationFailed;
 
+  /// No description provided for @journalPendingRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'This offline update contains competing versions of the same journal occurrence. Review the versions and choose one for each occurrence before reapplying. You can export the original update as a recovery bundle.'**
+  String get journalPendingRecovery;
+
+  /// No description provided for @journalExportRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Export recovery bundle (JSON)'**
+  String get journalExportRecovery;
+
+  /// No description provided for @journalReapplyReviewedUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue reviewed update'**
+  String get journalReapplyReviewedUpdate;
+
+  /// No description provided for @journalCollectionExportRecovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Entries awaiting recovery were left out of the calendar export. Open an affected entry to review or export its pending update.'**
+  String get journalCollectionExportRecovery;
+
   /// No description provided for @journalDraftSaved.
   ///
   /// In en, this message translates to:
