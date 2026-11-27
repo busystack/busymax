@@ -15,6 +15,8 @@ import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/dav/sync/dav_collection_remote_client.dart';
 import 'package:busymax/src/dav/sync/dav_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/dav/ical/ical_semantics.dart';
+import 'package:busymax/src/journal/journal_component.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -456,6 +458,100 @@ void main() {
           final persisted = await request('GET', nestedHref);
           expect(persisted.body, effective);
         }
+        final legacyFile = File('${directory.path}/legacy.db');
+        await legacyFile.writeAsBytes(
+          gzip.decode(
+            File('test/journal/fixtures/legacy-range-v28.sqlite.gz')
+                .readAsBytesSync(),
+          ),
+        );
+        final legacyDatabase = AppDatabase(NativeDatabase(legacyFile));
+        final PendingOp legacy;
+        try {
+          legacy = await legacyDatabase
+              .select(legacyDatabase.pendingOps)
+              .getSingle();
+        } finally {
+          await legacyDatabase.close();
+        }
+        final legacyHref = collectionUri.resolve('legacy-recovery.ics');
+        expect(
+          (await request(
+            'PUT',
+            legacyHref,
+            body: legacy.baselineRawIcs,
+            headers: {'Content-Type': 'text/calendar', 'If-None-Match': '*'},
+          )).statusCode,
+          201,
+        );
+        final beforeRecovery = await request('GET', legacyHref);
+        expect(beforeRecovery.statusCode, 200);
+        await pull();
+        final replayedObject =
+            await (database.select(
+                  database.davObjects,
+                )..where((row) => row.requestUri.equals(legacyHref.toString())))
+                .getSingle();
+        await database
+            .into(database.pendingOps)
+            .insert(
+              legacy.copyWith(
+                accountId: accountId,
+                provider: Value(provider.storageValue),
+                davObjectId: Value(replayedObject.id),
+                davCollectionId: Value(collection.id),
+                davCollectionHref: Value(collection.hrefKey),
+                davMemberHref: Value(replayedObject.hrefKey),
+                baselineRawIcs: Value(replayedObject.rawIcsBody),
+                baselineEtag: Value(replayedObject.etag),
+              ),
+            );
+        expect((await replay()).appliedCount, 0);
+        final afterBlocked = await request('GET', legacyHref);
+        expect(afterBlocked.bodyBytes, beforeRecovery.bodyBytes);
+        expect(afterBlocked.headers['etag'], beforeRecovery.headers['etag']);
+        await database.close();
+        database = AppDatabase(NativeDatabase(file));
+        journals = JournalRepository(database);
+        final legacyEntry = (await journals.watchEntries().first).singleWhere(
+          (row) => row.uid == 'legacy' && row.recurrenceIdKey == null,
+        );
+        final recovery = (await journals.read(legacyEntry)).pendingRecovery!;
+        expect(recovery.operation.state, 'failed');
+        expect(recovery.operation.mutationPatchJson, legacy.mutationPatchJson);
+        final groups = DavJournalPendingRecovery.competingComponents(
+          IcalSemanticDocument.parse(recovery.invalidCandidate),
+        );
+        final group = groups.entries.single;
+        expect(
+          group.value.map((item) => item.summary),
+          containsAll(['Original detached entry', 'Offline future edit']),
+        );
+        await journals.repairPendingUpdate(recovery, {
+          group.key: group.value.indexWhere(
+            (item) => item.recurrenceRange == 'THISANDFUTURE',
+          ),
+        });
+        expect((await replay()).appliedCount, 1);
+        final corrected = await request('GET', legacyHref);
+        expect(corrected.statusCode, 200);
+        expect(
+          corrected.headers['etag'],
+          isNot(beforeRecovery.headers['etag']),
+        );
+        expect(corrected.body, contains('SUMMARY:Offline future edit'));
+        expect(
+          corrected.body,
+          isNot(contains('SUMMARY:Original detached entry')),
+        );
+        expect(
+          RegExp(
+            r'^RECURRENCE-ID;',
+            multiLine: true,
+          ).allMatches(corrected.body),
+          hasLength(1),
+        );
+
         final rangeHref = collectionUri.resolve('single-at-range.ics');
         const rangeBaseline =
             'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
@@ -752,7 +848,7 @@ void main() {
       skip: fixture == null
           ? 'Set BUSYMAX_JOURNAL_LIVE_FIXTURE to private HTTPS fixture configuration.'
           : false,
-      timeout: const Timeout(Duration(minutes: 3)),
+      timeout: const Timeout(Duration(minutes: 5)),
     );
   }
 }
