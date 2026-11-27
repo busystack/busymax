@@ -39,6 +39,7 @@ void runJournalWorkflow({
   required Finder Function(String) input,
   required JournalTestButton button,
   required Finder Function() enabledRefresh,
+  List<Override> Function(AppDatabase)? runtimeOverrides,
   JournalRestartStage? restart,
   Directory? persistentProfile,
 }) {
@@ -140,6 +141,7 @@ void runJournalWorkflow({
 
     final container = ProviderContainer(
       overrides: [
+        ...?runtimeOverrides?.call(database),
         if (Platform.isAndroid)
           buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
         initialAppSettingsProvider.overrideWithValue(AppSettings.defaults()),
@@ -560,21 +562,45 @@ void runJournalWorkflow({
         renamed,
       );
       await tester.tap(button('Delete collection', false));
-      await waitJournalWidget(
-        tester,
-        find.text('Permanently delete this collection and all its contents?'),
+      final confirmation = find.text(
+        provider == 'nextcloud'
+            ? 'Delete "$renamed"?'
+            : 'Permanently delete this collection and all its contents?',
       );
+      await waitJournalWidget(tester, confirmation);
       await tester.tap(button('Delete', false));
-      await waitJournalWidget(
-        tester,
-        find.text('Permanently delete this collection and all its contents?'),
-        absent: true,
-      );
+      await waitJournalWidget(tester, confirmation, absent: true);
+      await waitJournalWidget(tester, enabledRefresh());
+      const nc = 'http://nextcloud.com/ns';
+      final removed = (await tester.runAsync(
+        () => request(
+          'PROPFIND',
+          target,
+          headers: const {'Depth': '0', 'Content-Type': 'application/xml'},
+          body:
+              '<d:propfind xmlns:d="$dav" xmlns:nc="$nc"><d:prop><nc:deleted-at/></d:prop></d:propfind>',
+        ),
+      ))!;
+      if (provider == 'nextcloud' && removed.statusCode == 207) {
+        final deletion = XmlDocument.parse(removed.body)
+            .findAllElements('deleted-at', namespaceUri: nc)
+            .single
+            .innerText;
+        expect(DateTime.tryParse(deletion), isNotNull);
+      } else {
+        expect(removed.statusCode, 404);
+      }
       expect(
-        (await tester.runAsync(
-          () => request('PROPFIND', target, headers: const {'Depth': '0'}),
-        ))!.statusCode,
-        404,
+        await tester.runAsync(() async {
+          final local = await (database.select(
+            database.davCollections,
+          )..where((row) => row.id.equals(collection!.id))).getSingleOrNull();
+          return local != null &&
+              local.journalProjectionEnabled &&
+              !local.deleted &&
+              !local.serverMissing;
+        }),
+        isFalse,
       );
       collection = null;
       debugPrint(

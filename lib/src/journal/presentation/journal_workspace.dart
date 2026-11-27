@@ -902,7 +902,11 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
           if (_confirmCollectionRemoval &&
               filteredSource != null &&
               settings != null) ...[
-            Text(l10n.journalDeleteCollectionConfirmation),
+            Text(
+              settings.provider == BusyProvider.nextcloud
+                  ? l10n.deleteCalendarConfirmation(filteredSource.displayName)
+                  : l10n.journalDeleteCollectionConfirmation,
+            ),
             ui.button(
               l10n.delete,
               _busy

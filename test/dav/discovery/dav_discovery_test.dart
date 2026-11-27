@@ -17,6 +17,56 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('Nextcloud preserves a trashed journal collection without projecting it as active', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'nextcloud',
+            authority: 'https://cloud.example.test/nextcloud',
+            providerAccountId: 'alex',
+            credentialKind: 'nextcloud_app_password',
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    final repository = DavDiscoveryRepository(database: db);
+    final inventory = _inventoryResponse.replaceFirst(
+      '<c:comp name="VEVENT"/><c:comp name="VTODO"/>',
+      '<c:comp name="VJOURNAL"/>',
+    );
+    final active = await _discoverFixture(inventory: inventory);
+    await repository.commitSuccessfulInventory(active);
+    final journal = (await db.select(db.davCollections).get()).singleWhere(
+      (source) => source.journalProjectionEnabled,
+    );
+    final afterDelete = await _discoverFixture(
+      inventory: inventory.replaceFirst(
+        '<d:displayname>Work &amp; Team</d:displayname>',
+        '<d:displayname>Work &amp; Team</d:displayname><nc:deleted-at>2026-11-27T08:03:06+00:00</nc:deleted-at>',
+      ),
+    );
+    final removed = afterDelete.collections.singleWhere(
+      (row) => row.hrefKey == journal.hrefKey,
+    );
+    expect(removed.kind, DavCollectionKind.deletedCalendar);
+    expect(removed.journalProjectionEnabled, isFalse);
+    await repository.commitSuccessfulInventory(afterDelete);
+    final stored = await (db.select(
+      db.davCollections,
+    )..where((row) => row.id.equals(journal.id))).getSingle();
+    expect(stored.supportedComponentMask, davComponentJournal);
+    expect(stored.requestUri, journal.requestUri);
+    expect(
+      collectionCapabilitiesFromStored(stored).canAttemptCreateJournal,
+      isFalse,
+    );
+    expect(stored.journalProjectionEnabled, isFalse);
+  });
+
   test('Nextcloud refreshes subtree features and persists matching outbox authority', () async {
     final db = AppDatabase.memoryForTests();
     addTearDown(db.close);

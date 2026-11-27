@@ -1057,9 +1057,19 @@ final class DavDiscoveryService {
       final isTrash = resourceTypes.contains(
         _name(nextcloudNamespace, 'trash-bin'),
       );
-      final isDeletedCalendar = resourceTypes.contains(
-        _name(nextcloudNamespace, 'deleted-calendar'),
-      );
+      final markedDeleted =
+          _profile.provider == BusyProvider.nextcloud &&
+          DateTime.tryParse(
+                response
+                        .successfulProperty(nextcloudNamespace, 'deleted-at')
+                        ?.text
+                        .trim() ??
+                    '',
+              ) !=
+              null;
+      final isDeletedCalendar =
+          markedDeleted ||
+          resourceTypes.contains(_name(nextcloudNamespace, 'deleted-calendar'));
       if (!isCalendar &&
           !isInbox &&
           !isOutbox &&
@@ -1227,6 +1237,7 @@ final class DavDiscoveryService {
           ),
           safeDisplayMetadata: {
             ..._safeDisplayMetadata(response),
+            if (markedDeleted) 'nextcloudSoftDeleted': 'true',
             'privilegesKnown': '$privilegesKnown',
             'readAccessConfirmed': '${capabilities.canRead}',
             'supportsMove': '${capabilities.supportsMove}',

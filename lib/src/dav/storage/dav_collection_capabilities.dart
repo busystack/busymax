@@ -32,6 +32,7 @@ CollectionCapabilities collectionCapabilitiesFromStored(
           '{urn:ietf:params:xml:ns:caldav}schedule-outbox',
         }.contains(type),
       ) &&
+      metadata['nextcloudSoftDeleted'] != 'true' &&
       !collection.deleted &&
       !collection.serverMissing;
   return CollectionCapabilities(

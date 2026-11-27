@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:busymax/src/android/android_app.dart';
+import 'package:busymax/src/android/android_notifications.dart';
+import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,6 +24,16 @@ void main() {
     fixture: () async => (jsonDecode(utf8.decode(base64Decode(encoded))) as Map)
         .cast<String, Object?>(),
     app: () => const AndroidBusyMaxApp(),
+    runtimeOverrides: (database) => [
+      androidNotificationServiceProvider.overrideWith((ref) {
+        final service = AndroidNotificationService(
+          database: database,
+          settings: AppSettings.defaults,
+        );
+        ref.onDispose(service.dispose);
+        return service;
+      }),
+    ],
     openJournals: (tester, _) async {
       final menu = find.byKey(const ValueKey('android-workspace-menu'));
       await waitJournalWidget(tester, menu);

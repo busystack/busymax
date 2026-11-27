@@ -134,9 +134,18 @@ final class NextcloudCollectionService {
     );
     final shared =
         owner != null && principal != null && !samePrincipal(owner, principal);
+    final markedDeleted =
+        DateTime.tryParse(
+          properties[const DavPropertyName(nextcloudNamespace, 'deleted-at')]
+                  ?.text
+                  .trim() ??
+              '',
+        ) !=
+        null;
     final role = types.contains('{http://calendarserver.org/ns/}subscribed')
         ? NextcloudCollectionRole.subscription
-        : types.contains('{http://nextcloud.com/ns}deleted-calendar')
+        : markedDeleted ||
+              types.contains('{http://nextcloud.com/ns}deleted-calendar')
         ? NextcloudCollectionRole.deleted
         : shared
         ? NextcloudCollectionRole.shared
@@ -272,10 +281,29 @@ final class NextcloudCollectionService {
         'PROPFIND',
         target,
         xml:
-            '<d:propfind $nextcloudXmlNamespaces><d:prop><d:resourcetype/></d:prop></d:propfind>',
+            '<d:propfind $nextcloudXmlNamespaces><d:prop><d:resourcetype/><nc:deleted-at/></d:prop></d:propfind>',
         headers: {'depth': '0'},
       );
-      if (probe.statusCode != 404 && probe.statusCode != 410) {
+      final matchingProperty = probe.statusCode == 207
+          ? const DavXmlParser()
+                .parseMultistatus(probe.bodyBytes)
+                .responses
+                .singleOrNull
+          : null;
+      final deletionConfirmed =
+          matchingProperty != null &&
+          context.resolve(matchingProperty.href, target).path == target.path &&
+          DateTime.tryParse(
+                matchingProperty
+                        .successfulProperty(nextcloudNamespace, 'deleted-at')
+                        ?.text
+                        .trim() ??
+                    '',
+              ) !=
+              null;
+      if (probe.statusCode != 404 &&
+          probe.statusCode != 410 &&
+          !deletionConfirmed) {
         throw nextcloudOperationError(409, 'DavCollectionOutcomeUnknown');
       }
     }
@@ -293,7 +321,7 @@ final class NextcloudCollectionService {
 }
 
 const nextcloudCollectionProperties =
-    '<d:resourcetype/><d:displayname/><d:owner/><d:current-user-privilege-set/><c:supported-calendar-component-set/><a:calendar-color/><a:calendar-order/><c:calendar-description/><c:calendar-timezone/><c:schedule-calendar-transp/><oc:calendar-enabled/><oc:invite/><cs:allowed-sharing-modes/><cs:publish-url/>';
+    '<d:resourcetype/><d:displayname/><d:owner/><d:current-user-privilege-set/><c:supported-calendar-component-set/><a:calendar-color/><a:calendar-order/><c:calendar-description/><c:calendar-timezone/><c:schedule-calendar-transp/><oc:calendar-enabled/><oc:invite/><cs:allowed-sharing-modes/><cs:publish-url/><nc:deleted-at/>';
 
 final nextcloudWritableProperties = <DavPropertyName>{
   DavPropertyName(davNamespace, 'displayname'),
