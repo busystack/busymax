@@ -3,18 +3,22 @@ import '../../journal/presentation/journal_desktop_files.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../app/busymax_window_close.dart';
 import '../../journal/presentation/journal_workspace.dart';
 import 'windows_time_picker.dart';
 
 class WindowsJournalPage extends StatelessWidget {
-  const WindowsJournalPage({super.key});
+  const WindowsJournalPage({super.key, this.navigationCoordinator});
+
+  final BusyMaxWindowCloseCoordinator? navigationCoordinator;
 
   @override
   Widget build(BuildContext context) => ScaffoldPage(
     header: PageHeader(title: Text(AppLocalizations.of(context).journals)),
-    content: const JournalWorkspace(
-      controls: _WindowsJournalControls(),
+    content: JournalWorkspace(
+      controls: const _WindowsJournalControls(),
       files: journalDesktopFiles,
+      navigationCoordinator: navigationCoordinator,
     ),
   );
 }

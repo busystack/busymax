@@ -13,10 +13,12 @@ final class JournalFileActions {
     required this.pickAttachment,
     required this.saveAttachment,
     this.exportCollection,
+    this.exportDraft,
   });
 
   final Future<List<int>?> Function() read;
   final Future<void> Function(String raw) export;
+  final Future<void> Function(String json)? exportDraft;
   final Future<String?> Function(List<NativeImportResource>)? exportCollection;
   final Future<JournalAttachmentFile?> Function() pickAttachment;
   final Future<String?> Function(IcalAttachment) saveAttachment;

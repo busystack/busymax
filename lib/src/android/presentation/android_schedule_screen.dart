@@ -589,6 +589,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                                 files: JournalFileActions(
                                   read: _readJournalFile,
                                   export: _exportJournalFile,
+                                  exportDraft: _exportJournalDraft,
                                   pickAttachment: _pickJournalAttachment,
                                   saveAttachment: _saveJournalAttachment,
                                   exportCollection: _exportJournalCollection,
@@ -6614,6 +6615,14 @@ Future<void> _exportJournalFile(String raw) async {
     suggestedName: 'busymax-journal.ics',
     mimeType: 'text/calendar',
     bytes: Uint8List.fromList(utf8.encode(raw)),
+  );
+}
+
+Future<void> _exportJournalDraft(String json) async {
+  await BusyMaxAndroidPlatform.instance.createDocument(
+    suggestedName: 'busymax-journal-draft.json',
+    mimeType: 'application/json',
+    bytes: Uint8List.fromList(utf8.encode(json)),
   );
 }
 

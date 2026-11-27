@@ -1,5 +1,6 @@
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/dav_native_export.dart';
+import 'package:busymax/src/dav/ical/dav_native_import.dart';
 import 'package:busymax/src/dav/ical/ical_attachments.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_conflict_analyzer.dart';
@@ -7,6 +8,7 @@ import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/journal/presentation/journal_component_editor.dart';
+import 'package:busymax/src/journal/presentation/journal_property_editor.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,6 +31,101 @@ String journal(List<String> descriptions) => [
 ].join('\r\n');
 
 void main() {
+  test('journal references use the original collection for UIDs and exact hrefs for URIs', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    for (final account in ['first', 'second']) {
+      await db
+          .into(db.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: account,
+              provider: 'caldav',
+              authority: 'https://example.invalid/',
+              providerAccountId: account,
+              credentialKind: 'caldav_password',
+              createdAtUtc: 'now',
+              updatedAtUtc: 'now',
+            ),
+          );
+    }
+    for (final (id, account) in [
+      ('home', 'first'),
+      ('nearby', 'first'),
+      ('outside', 'second'),
+    ]) {
+      await db
+          .into(db.davCollections)
+          .insert(
+            DavCollectionsCompanion.insert(
+              id: id,
+              accountId: account,
+              hrefKey: '/$id/',
+              requestUri: 'https://example.invalid/$id/',
+              displayName: id,
+              supportedComponentMask: const Value(8),
+              journalProjectionEnabled: const Value(true),
+              currentUserPrivilegesJson: const Value('["{DAV:}all"]'),
+              createdAtUtc: 'now',
+              updatedAtUtc: 'now',
+            ),
+          );
+    }
+    Future<void> add(
+      String account,
+      String collection,
+      String uid,
+      List<String> lines,
+    ) async {
+      final raw = journal(lines)
+          .replaceFirst('UID:journal-fixture', 'UID:$uid');
+      expect(
+        (await DavNativeImportService(db).import(
+          accountId: account,
+          collectionId: collection,
+          preview: NextcloudNativeImportPreview.parse(IcalDocument.parse(raw)),
+        )).single.status,
+        NativeImportItemStatus.queued,
+      );
+    }
+
+    await add('first', 'home', 'shared-uid', ['SUMMARY:Local target']);
+    await add('first', 'nearby', 'shared-uid', ['SUMMARY:Other collection']);
+    await add('first', 'nearby', 'uri-target', ['SUMMARY:URI target']);
+    await add('second', 'outside', 'shared-uid', ['SUMMARY:Other account']);
+    final objects = await db.select(db.davObjects).get();
+    final uri = objects
+        .singleWhere((row) => row.primaryUid == 'uri-target')
+        .requestUri;
+    final unrelated = objects
+        .singleWhere((row) => row.collectionId == 'outside')
+        .requestUri;
+    await add('first', 'home', 'origin', [
+      'SUMMARY:Origin',
+      'LINK;VALUE=UID:shared-uid',
+      'LINK;VALUE=UID:uri-target',
+      'LINK;VALUE=URI:$uri',
+      'LINK;VALUE=URI:$unrelated',
+      'LINK;VALUE=XML-REFERENCE:https://example.invalid/linked.xml#xpointer(id(\'item\'))',
+    ]);
+    final repository = JournalRepository(db);
+    final origin = await repository.read(
+      (await repository.watchEntries().first).singleWhere(
+        (entry) => entry.uid == 'origin',
+      ),
+    );
+    expect(
+      (await repository.relatedJournals(origin)).map((entry) => entry.title),
+      unorderedEquals(['Local target', 'URI target']),
+    );
+    final storedLinks = origin.component.component.propertiesNamed('LINK');
+    expect(storedLinks.map((p) => p.rawValue), contains(unrelated));
+    expect(
+      storedLinks.map((p) => p.parameterValue('VALUE')),
+      contains('XML-REFERENCE'),
+    );
+  });
+
   test('nested journal authoring survives JSON drafts and durable patches', () {
     final raw = journal([
       'STATUS:FINAL',
@@ -55,13 +152,30 @@ void main() {
         'Second';
     final location = JournalChildDraft.create('VLOCATION', () {});
     participant.children.add(location);
-    final reopened = JournalChildDraft(
-      journalChildDraftFromJson(
-        journalChildDraftToJson(participant.toComponent()),
-      ),
+    final summary = participant.fields.singleWhere(
+      (field) => field.name == 'SUMMARY',
+    );
+    final unfinished = JournalParameterDraft.fromText(
+      () {},
+      '  ',
+      'a\nb',
+      true,
+    );
+    summary.parameters.add(unfinished);
+    final reopened = JournalChildDraft.fromDraftJson(
+      participant.toDraftJson(),
       () {},
     );
     addTearDown(reopened.dispose);
+    final reopenedParameter = reopened.fields
+        .singleWhere((field) => field.name == 'SUMMARY')
+        .parameters
+        .last;
+    expect(reopenedParameter.name.text, '  ');
+    expect(reopenedParameter.value.text, 'a\nb');
+    expect(reopenedParameter.quoted, isTrue);
+    expect(() => reopened.toComponent(validate: true), throwsFormatException);
+    reopenedParameter.name.text = 'X-CUSTOM';
     final patch = DavMutationPatch(
       target: const IcalComponentKey(
         componentType: 'VJOURNAL',
@@ -76,7 +190,7 @@ void main() {
     );
     final effective = DavMutationPatch.fromJsonString(patch.toJsonString())
         .applyTo(raw, nowUtc: DateTime.utc(2026, 11, 26));
-    expect(effective, contains('SUMMARY;LANGUAGE=fr:Second'));
+    expect(effective, contains('SUMMARY;LANGUAGE=fr;X-CUSTOM="a","b":Second'));
     expect(
       effective,
       contains('X-EXTENSION;X-PARAM="a,b":original\r\n folded tail'),
@@ -93,6 +207,74 @@ void main() {
       children.last.firstProperty('UID')?.rawValue,
       endsWith('@busymax.local'),
     );
+  });
+
+  test('unrelated nested siblings can shift without changing derived status properties', () {
+    const removable = [
+      'BEGIN:VSTATUS',
+      'STATUS:FINAL',
+      'COMMENT:Removable',
+      'END:VSTATUS',
+    ];
+    const protected = [
+      'BEGIN:VSTATUS',
+      'STATUS:FINAL',
+      'COMMENT;DERIVED=TRUE:Retain this',
+      'END:VSTATUS',
+    ];
+    for (final nested in [false, true]) {
+      final raw = journal([
+        'STATUS:FINAL',
+        if (nested) ...[
+          'BEGIN:PARTICIPANT',
+          'UID:participant',
+          'PARTICIPANT-TYPE:CONTACT',
+          'STATUS:FINAL',
+        ],
+        ...removable,
+        ...protected,
+        if (nested) 'END:PARTICIPANT',
+      ]);
+      final component = IcalDocument.parse(raw).calendarComponents.single;
+      final parent = nested ? component.components.single : component;
+      final ordinary = parent.components.first;
+      final derived = parent.components.last;
+      String apply() {
+        final patch = DavMutationPatch(
+          target: const IcalComponentKey(
+            componentType: 'VJOURNAL',
+            uid: 'journal-fixture',
+          ),
+          scope: DavMutationScope.object,
+          operations: [
+            DavPatchOperation.replaceJournalChildren(component.components),
+          ],
+        );
+        return DavMutationPatch.fromJsonString(patch.toJsonString())
+            .applyTo(raw, nowUtc: DateTime.utc(2026, 11, 26));
+      }
+
+      parent.children.remove(ordinary);
+      expect(apply(), isNot(contains('COMMENT:Removable')));
+      parent.children.add(ordinary);
+      expect(
+        apply().indexOf('COMMENT:Removable'),
+        greaterThan(apply().indexOf('Retain this')),
+      );
+      derived.firstProperty('COMMENT')!
+        ..rawValue = 'Changed'
+        ..isDirty = true;
+      expect(
+        apply,
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'IcalDerivedJournalProperty',
+          ),
+        ),
+      );
+    }
   });
 
   test('offline create, edit, search, effective export and delete use one resource', () async {

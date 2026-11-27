@@ -556,22 +556,27 @@ Map<String, int> _derivedJournalProperties(IcalDocument document) {
       final key = '$path\u0000${property.serializeLogicalLine()}';
       lines.update(key, (count) => count + 1, ifAbsent: () => 1);
     }
-    final positions = <String, int>{};
     for (final child in component.components) {
-      final index = positions.update(
-        child.name,
-        (n) => n + 1,
-        ifAbsent: () => 0,
-      );
       final uid = child.firstProperty('UID')?.rawValue;
-      collect(child, '$path\u0000${child.name}\u0000${uid ?? index}');
+      // UID-less status records can shift when unrelated siblings change.
+      // Preserve the protected property groups and their multiplicities.
+      final derived =
+          child.properties
+              .where(isDerivedJournalProperty)
+              .map((property) => property.serializeLogicalLine())
+              .toList()
+            ..sort();
+      final identity = jsonEncode(uid == null ? derived : uid);
+      collect(child, '$path\u0000${child.name}\u0000$identity');
     }
   }
 
   for (final component in document.calendarComponents) {
     if (component.name != 'VJOURNAL') continue;
     final uid = component.firstProperty('UID')?.rawValue;
-    final id = icalRecurrenceIdKey(component.firstProperty('RECURRENCE-ID'));
+    final id = journalRecurrencePosition(
+      parseIcalTemporal(component.firstProperty('RECURRENCE-ID')),
+    );
     collect(component, '$uid\u0000$id');
   }
   return lines;

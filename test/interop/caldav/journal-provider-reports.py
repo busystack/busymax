@@ -2,6 +2,7 @@
 """Probe journal query, expansion, and validation separately from storage."""
 
 import argparse
+from datetime import datetime
 import json
 from pathlib import Path
 import re
@@ -112,11 +113,36 @@ def main():
                and read_headers.get('ETag') == baseline_etag, True)
         malformed_new = support['representation']('repair', {'journal': []}).replace(
             b'DTSTAMP:20261125T080000Z\r\n', b'')
+        fields = '<d:getetag/><d:sync-token/>'
+
+        def inventory():
+            return {href: {key: prop.text for key, prop in props.items()}
+                    for href, props in dav.properties(collection, fields, 1).items()}
+
+        before = inventory()
         status, _, _ = dav.request('PUT', collection + 'repair.ics', malformed_new,
                                    {**ICAL, 'If-None-Match': '*'})
-        read_status, _, read = dav.request('GET', collection + 'repair.ics')
-        print(json.dumps(dict(case='default-missing-dtstamp-create', status=status,
-                              get=read_status, returned_dtstamp=b'DTSTAMP:' in read)), flush=True)
+        read_status, headers, read = dav.request('GET', collection + 'repair.ics')
+        if args.provider == 'nextcloud':
+            stamps = re.findall(rb'^DTSTAMP:(\d{8}T\d{6}Z)\r?$', read, re.M)
+            valid_stamp = False
+            if len(stamps) == 1:
+                try:
+                    datetime.strptime(stamps[0].decode('ascii'), '%Y%m%dT%H%M%SZ')
+                    valid_stamp = True
+                except ValueError:
+                    pass
+            repaired = re.sub(rb'^DTSTAMP:[^\r\n]*\r?\n', b'', read, flags=re.M)
+            record('default-missing-dtstamp-create', status, {
+                'put': status,
+                'get': read_status,
+                'authoritativeRepair': bool(headers.get('ETag')) and valid_stamp
+                and support['semantic_lines'](repaired) == support['semantic_lines'](malformed_new),
+            }, {'put': 201, 'get': 200, 'authoritativeRepair': True})
+        else:
+            record('default-missing-dtstamp-create', status, {
+                'put': status, 'get': read_status, 'inventoryUnchanged': inventory() == before,
+            }, {'put': 403, 'get': 404, 'inventoryUnchanged': True})
         corpus = json.loads((args.server_checkout / 'qualification/fixtures/vjournal/admission-v1.json').read_text())
         periods = [case for case in corpus['cases'] if case['id'].startswith('J15-')]
         for case in periods:

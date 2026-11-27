@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,6 +26,7 @@ import '../../features/schedule/presentation/schedule_event_details_format.dart'
 import '../../features/sync/sync_request.dart';
 import '../../providers/busy_provider.dart';
 import '../journal_component.dart';
+import '../journal_import_review.dart';
 import '../journal_repository.dart';
 import '../journal_subscription_repository.dart';
 
@@ -34,12 +36,27 @@ import 'journal_property_editor.dart';
 
 export 'journal_controls.dart';
 
+final _importReview = StateProvider<JournalImportReview?>((ref) => null);
+final _importOperation = StreamProvider.autoDispose.family<PendingOp?, String>((
+  ref,
+  id,
+) {
+  final database = ref.watch(databaseProvider);
+  return (database.select(
+    database.pendingOps,
+  )..where((row) => row.id.equals(id))).watchSingleOrNull();
+});
+
 final _journalRepository = Provider(
   (ref) => JournalRepository(ref.watch(databaseProvider)),
 );
 final _journalSources = StreamProvider.autoDispose(
   (ref) => ref.watch(_journalRepository).watchSources(),
 );
+final _relatedJournals = FutureProvider.autoDispose
+    .family<List<DavJournalEntry>, JournalSnapshot>(
+      (ref, origin) => ref.watch(_journalRepository).relatedJournals(origin),
+    );
 final _subscriptionJournals = StreamProvider.autoDispose(
   (ref) => watchJournalSubscriptions(ref.watch(databaseProvider)),
 );
@@ -63,10 +80,16 @@ final _journalConflict = StreamProvider.autoDispose
     );
 
 class JournalWorkspace extends ConsumerStatefulWidget {
-  const JournalWorkspace({required this.controls, this.files, super.key});
+  const JournalWorkspace({
+    required this.controls,
+    this.files,
+    this.navigationCoordinator,
+    super.key,
+  });
 
   final JournalControls controls;
   final JournalFileActions? files;
+  final BusyMaxWindowCloseCoordinator? navigationCoordinator;
 
   @override
   ConsumerState<JournalWorkspace> createState() => _JournalWorkspaceState();
@@ -87,8 +110,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
   bool _createCollection = false;
   bool _renameCollection = false;
   bool _confirmCollectionRemoval = false;
-  NextcloudNativeImportPreview? _import;
-  String? _importSource;
+  bool _showImportReview = false;
   String? _moveSource;
   String? _notice;
   String _accountId = '';
@@ -122,6 +144,36 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  String _importOutcomeLabel(
+    AppLocalizations l10n,
+    NativeImportItemResult result,
+  ) {
+    if (result.status == NativeImportItemStatus.queued) {
+      final operationId = result.operationId;
+      final operation = operationId == null
+          ? null
+          : ref.watch(_importOperation(operationId)).valueOrNull;
+      if (operation?.lastErrorCode case final code?) {
+        return l10n.syncFailed(operation?.lastErrorMessage ?? code);
+      }
+      return operation == null ? l10n.importQueued(1) : l10n.pendingSync;
+    }
+    final explanation = result.safeMessage ?? result.code;
+    return switch (result.status) {
+      NativeImportItemStatus.queued => l10n.pendingSync,
+      NativeImportItemStatus.duplicate => l10n.importDuplicatesSkipped(1),
+      NativeImportItemStatus.unsupported =>
+        explanation == null
+            ? l10n.importUnsupportedSets(1)
+            : explanation == 'DavImportDestinationDenied'
+            ? l10n.davPermissionChanged
+            : l10n.importIcsFailed(explanation),
+      NativeImportItemStatus.failed => l10n.importIcsFailed(
+        explanation ?? l10n.journalOperationFailed,
+      ),
+    };
   }
 
   void _closeEntry() => setState(() {
@@ -262,7 +314,19 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         repository: repository,
         draftId: draftId,
         ui: ui,
+        navigationCoordinator: widget.navigationCoordinator,
         snapshot: editing,
+        relatedJournals: editing == null
+            ? const []
+            : ref.watch(_relatedJournals(editing)).valueOrNull ?? const [],
+        openRelatedJournal: (row) => _run(() async {
+          final target = await repository.read(row);
+          if (!mounted) return;
+          setState(() {
+            _open = target;
+            _occurrenceEdit = null;
+          });
+        }),
         source: editorSource,
         writable: writable,
         busy: _busy,
@@ -353,6 +417,31 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         export: current == null || widget.files == null
             ? null
             : () => _run(() => widget.files!.export(current.effectiveRawIcs)),
+        recoverAsNew: current == null || caps?.canAttemptCreateJournal != true
+            ? null
+            : (content) => _run(() async {
+                final source = editorSource!;
+                final refresh = await ref.read(manualSyncRunnerProvider)(
+                  davCollectionSyncScope(source.accountId, source.id),
+                );
+                if (refresh.needsAttention) {
+                  throw const DavException(
+                    kind: DavErrorKind.authorization,
+                    code: 'DavJournalRecoveryRefreshRequired',
+                    safeMessage: 'Refresh the journal collection to check its permissions before recovering this draft.',
+                  );
+                }
+                final live = await repository.prepareDraftRecovery(
+                  source,
+                  content,
+                );
+                if (!mounted) return;
+                setState(() {
+                  _open = null;
+                  _occurrenceEdit = null;
+                  _create = live;
+                });
+              }),
         save:
             (
               title,
@@ -468,42 +557,53 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                   collectionCapabilitiesFromStored(src).canAttemptCreateJournal,
             )
             .firstOrNull;
-    final pendingImport = _import;
-    if (pendingImport != null) {
+    final review = ref.watch(_importReview);
+    if (_showImportReview && review != null) {
+      final pendingImport = review.preview;
       final destinations = sources.where((source) {
         final caps = collectionCapabilitiesFromStored(source);
         return caps.canAttemptCreateJournal ||
             (pendingImport.isJournalMessage && caps.canAttemptUpdateJournal);
       }).toList();
-      final destination =
-          destinations
-              .where(
-                (source) => source.id == (_importSource ?? filteredSource?.id),
-              )
-              .firstOrNull ??
-          destinations.firstOrNull;
+      final reviewedId = review.destinationId;
+      final destination = reviewedId == null
+          ? destinations
+                    .where((source) => source.id == filteredSource?.id)
+                    .firstOrNull ??
+                destinations.firstOrNull
+          : destinations.where((source) => source.id == reviewedId).firstOrNull;
+      final remaining = destination == null
+          ? null
+          : review.remaining(destination.id);
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Text(l10n.importIcsFile),
-          if (destination != null)
-            ui.choose(l10n.journalCollection, destination.id, [
-              for (final source in destinations)
-                (id: source.id, label: source.displayName),
-            ], (value) => setState(() => _importSource = value)),
+          ui.choose(l10n.journalCollection, destination?.id ?? '', [
+            (id: '', label: l10n.journalCollection),
+            for (final source in destinations)
+              (id: source.id, label: source.displayName),
+          ], (value) => setState(() => review.destinationId = value)),
           if (pendingImport.isJournalMessage)
             Text(pendingImport.schedulingMethod!),
+          if (reviewedId != null && destination == null)
+            Text(l10n.davPermissionChanged),
           if (_error != null) Text(_error!),
-          for (final entry in pendingImport.resources.take(100))
+          for (final entry
+              in remaining?.resources.take(100) ??
+                  const <NativeImportResource>[])
             Text(
               IcalDocument.parse(entry.rawIcs).calendarComponents.first
                       .firstProperty('SUMMARY')
                       ?.decodedTextValue ??
-                  l10n.untitledJournal,
+                  entry.uid,
             ),
-          if (pendingImport.rejected.isNotEmpty ||
-              (pendingImport.schedulingMethod != null &&
-                  !pendingImport.isJournalMessage))
+          for (final result in review.results) ...[
+            Text(result.uid),
+            Text(_importOutcomeLabel(l10n, result)),
+          ],
+          if (pendingImport.schedulingMethod != null &&
+              !pendingImport.isJournalMessage)
             Text(l10n.journalOperationFailed),
           Wrap(
             spacing: 8,
@@ -512,7 +612,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                 l10n.save,
                 _busy ||
                         destination == null ||
-                        pendingImport.resources.isEmpty ||
+                        remaining == null ||
+                        remaining.resources.isEmpty ||
                         (pendingImport.schedulingMethod != null &&
                             !pendingImport.isJournalMessage)
                     ? null
@@ -523,28 +624,25 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                             ).import(
                               accountId: destination.accountId,
                               collectionId: destination.id,
-                              preview: pendingImport,
+                              preview: remaining,
                             );
-                        if (mounted) {
-                          setState(() {
-                            _import = null;
-                            _notice = l10n.importQueued(
-                              results
-                                  .where(
-                                    (result) =>
-                                        result.status ==
-                                        NativeImportItemStatus.queued,
-                                  )
-                                  .length,
-                            );
-                          });
-                        }
+                        review.remember(destination.id, results);
+                        if (mounted) setState(() {});
                       }),
                 primary: true,
               ),
               ui.button(
-                l10n.cancel,
-                _busy ? null : () => setState(() => _import = null),
+                l10n.close,
+                _busy ? null : () => setState(() => _showImportReview = false),
+              ),
+              ui.button(
+                l10n.discardChangesAction,
+                _busy
+                    ? null
+                    : () {
+                        ref.read(_importReview.notifier).state = null;
+                        setState(() => _showImportReview = false);
+                      },
               ),
             ],
           ),
@@ -656,9 +754,13 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
               if (widget.files != null)
                 ui.button(
                   l10n.importIcsFile,
-                  _busy || newSource == null
+                  _busy || (newSource == null && review == null)
                       ? null
                       : () => _run(() async {
+                          if (review != null) {
+                            setState(() => _showImportReview = true);
+                            return;
+                          }
                           final bytes = await widget.files!.read();
                           if (bytes == null || !mounted) return;
                           final preview = ref
@@ -667,16 +769,21 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                               .nativePreview;
                           setState(() {
                             _notice = null;
-                            _import = NextcloudNativeImportPreview(
-                              preview.resources
-                                  .where(
-                                    (resource) =>
-                                        resource.componentType == 'VJOURNAL',
-                                  )
-                                  .toList(),
-                              preview.rejected,
-                              preview.schedulingMethod,
+                            ref
+                                .read(_importReview.notifier)
+                                .state = JournalImportReview(
+                              NextcloudNativeImportPreview(
+                                preview.resources
+                                    .where(
+                                      (resource) =>
+                                          resource.componentType == 'VJOURNAL',
+                                    )
+                                    .toList(),
+                                preview.rejected,
+                                preview.schedulingMethod,
+                              ),
                             );
+                            _showImportReview = true;
                           });
                         }),
                 ),
@@ -1072,6 +1179,7 @@ class _JournalEditor extends StatefulWidget {
     required this.repository,
     required this.draftId,
     required this.ui,
+    this.navigationCoordinator,
     required this.snapshot,
     required this.source,
     required this.writable,
@@ -1091,9 +1199,13 @@ class _JournalEditor extends StatefulWidget {
     this.duplicate,
     this.export,
     this.move,
+    this.recoverAsNew,
+    required this.relatedJournals,
+    required this.openRelatedJournal,
   });
 
   final JournalControls ui;
+  final BusyMaxWindowCloseCoordinator? navigationCoordinator;
   final JournalRepository repository;
   final String draftId;
   final JournalSnapshot? snapshot;
@@ -1115,6 +1227,9 @@ class _JournalEditor extends StatefulWidget {
   final VoidCallback? duplicate;
   final VoidCallback? export;
   final Widget? move;
+  final Future<void> Function(String content)? recoverAsNew;
+  final List<DavJournalEntry> relatedJournals;
+  final Future<void> Function(DavJournalEntry) openRelatedJournal;
 
   @override
   State<_JournalEditor> createState() => _JournalEditorState();
@@ -1215,6 +1330,11 @@ class _JournalEditorState extends State<_JournalEditor> {
   bool _draftDurable = false;
   bool _staleDraft = false;
   bool _draftFailed = false;
+  bool _draftLoadFailed = false;
+  bool _draftListenersAttached = false;
+  bool _draftLeaving = false;
+  String? _unreadableDraft;
+  late String? _draftBaselineRawIcs = widget.snapshot?.effectiveRawIcs;
   bool _saving = false;
   Future<void> _draftWrite = Future.value();
   String? _lastDraftContent;
@@ -1232,103 +1352,148 @@ class _JournalEditorState extends State<_JournalEditor> {
   }
 
   Future<void> _loadDraft() async {
+    if (mounted && !_loadingDraft) setState(() => _loadingDraft = true);
     try {
       final draft = await widget.repository.readDraft(widget.draftId);
       if (!mounted) return;
       if (draft != null) {
-        final data = (jsonDecode(draft.contentJson) as Map)
-            .cast<String, Object?>();
-        _title.text = data['title'] as String;
-        _date.text = data['date'] as String;
-        _zone.text = data['zone'] as String;
-        _mode = data['mode'] as String;
-        _status = data['status'] as String;
-        _frequency = data['frequency'] as String;
-        for (final description in _descriptions) {
-          description.dispose();
-        }
-        _descriptions
-          ..clear()
-          ..addAll(
-            _draftProperties(data, 'DESCRIPTION').map(_DescriptionDraft.new),
-          );
-        _attachments
-          ..clear()
-          ..addAll(_draftProperties(data, 'ATTACH'));
-        if (data['details'] case final List details) {
-          for (final detail in _details) {
-            detail.dispose();
-          }
-          _details.clear();
-          for (final item in details.cast<Map>()) {
-            final name = item['name'] as String;
-            if (!journalDetailsFields.contains(name)) continue;
-            final property = _draftProperties({
-              'details': [item],
-            }, 'details').single;
-            _details.add(
-              JournalPropertyDraft(
-                name,
-                _persistDraft,
-                IcalProperty(
-                  group: property.group,
-                  name: name,
-                  parameters: property.parameters,
-                  rawValue: property.rawValue,
-                  originalPhysicalLines: const [],
-                ),
-              ),
-            );
-          }
-        }
-        if (data['children'] case final List children) {
-          for (final child in _children) {
-            child.dispose();
-          }
-          _children
-            ..clear()
-            ..addAll(
-              children.cast<Map>().map(
-                (child) => JournalChildDraft(
-                  journalChildDraftFromJson(child.cast<String, Object?>()),
-                  _persistDraft,
-                ),
-              ),
-            );
-        }
         _hasDraft = true;
         _draftDurable = true;
         _staleDraft = draft.baselineDigest != _baselineDigest;
+        try {
+          _restoreDraft(draft.contentJson);
+        } on Object {
+          _unreadableDraft = draft.contentJson;
+        }
       }
+      _draftLoadFailed = false;
     } on Object {
-      _draftFailed = true;
+      _draftLoadFailed = true;
     }
     if (!mounted) return;
-    for (final controller in [_title, _date, _zone]) {
-      controller.addListener(_persistDraft);
-    }
-    for (final description in _descriptions) {
-      _listenDescription(description);
+    if (!_draftListenersAttached) {
+      for (final controller in [_title, _date, _zone]) {
+        controller.addListener(_persistDraft);
+      }
+      for (final description in _descriptions) {
+        _listenDescription(description);
+      }
+      _draftListenersAttached = true;
     }
     _lastDraftContent = _draftContent();
     setState(() => _loadingDraft = false);
   }
 
+  void _restoreDraft(String saved) {
+    final data = (jsonDecode(saved) as Map).cast<String, Object?>();
+    final version = data['version'];
+    if (version != null && version != 2) {
+      throw const FormatException('Unrecognized journal draft version.');
+    }
+    final title = data['title'] as String;
+    final date = data['date'] as String;
+    final zone = data['zone'] as String;
+    final mode = data['mode'] as String;
+    final status = data['status'] as String;
+    final frequency = data['frequency'] as String;
+    final baseline = data['baselineRawIcs'] as String?;
+    final descriptions = <_DescriptionDraft>[];
+    final attachments = <IcalProperty>[];
+    final details = <JournalPropertyDraft>[];
+    final children = <JournalChildDraft>[];
+    try {
+      for (final property in _draftProperties(data, 'DESCRIPTION')) {
+        descriptions.add(_DescriptionDraft(property));
+      }
+      attachments.addAll(_draftProperties(data, 'ATTACH'));
+      if (data['details'] case final List entries) {
+        for (final item in entries.cast<Map>()) {
+          final name = item['name'] as String;
+          if (!journalDetailsFields.contains(name)) {
+            throw const FormatException('Unrecognized journal draft field.');
+          }
+          final field = item.cast<String, Object?>();
+          details.add(
+            version == 2
+                ? JournalPropertyDraft.fromDraftJson(field, _persistDraft)
+                : JournalPropertyDraft(
+                    name,
+                    _persistDraft,
+                    journalDraftPropertyFromJson(name, field),
+                  ),
+          );
+        }
+      }
+      if (data['children'] case final List entries) {
+        for (final item in entries.cast<Map>()) {
+          final child = item.cast<String, Object?>();
+          children.add(
+            version == 2
+                ? JournalChildDraft.fromDraftJson(child, _persistDraft)
+                : JournalChildDraft(
+                    journalChildDraftFromJson(child),
+                    _persistDraft,
+                  ),
+          );
+        }
+      }
+    } on Object {
+      for (final description in descriptions) {
+        description.dispose();
+      }
+      for (final detail in details) {
+        detail.dispose();
+      }
+      for (final child in children) {
+        child.dispose();
+      }
+      rethrow;
+    }
+    _title.text = title;
+    _date.text = date;
+    _zone.text = zone;
+    _mode = mode;
+    _status = status;
+    _frequency = frequency;
+    _draftBaselineRawIcs =
+        baseline ?? (_staleDraft ? null : widget.snapshot?.effectiveRawIcs);
+    for (final description in _descriptions) {
+      description.dispose();
+    }
+    for (final detail in _details) {
+      detail.dispose();
+    }
+    for (final child in _children) {
+      child.dispose();
+    }
+    _descriptions
+      ..clear()
+      ..addAll(descriptions);
+    if (_draftListenersAttached) {
+      for (final description in _descriptions) {
+        _listenDescription(description);
+      }
+    }
+    _attachments
+      ..clear()
+      ..addAll(attachments);
+    _details
+      ..clear()
+      ..addAll(details);
+    _children
+      ..clear()
+      ..addAll(children);
+  }
+
   Iterable<IcalProperty> _draftProperties(
     Map<String, Object?> data,
     String name,
-  ) => (data[name] as List).map((item) {
-    final value = DavRawPropertyValue.fromJson(
+  ) => (data[name] as List).map(
+    (item) => journalDraftPropertyFromJson(
+      name,
       (item as Map).cast<String, Object?>(),
-    );
-    return IcalProperty(
-      group: value.group,
-      name: name,
-      parameters: value.parameters,
-      rawValue: value.value,
-      originalPhysicalLines: const [],
-    );
-  });
+    ),
+  );
 
   void _listenDescription(_DescriptionDraft draft) {
     for (final controller in [draft.text, draft.language, draft.alternate]) {
@@ -1337,20 +1502,16 @@ class _JournalEditorState extends State<_JournalEditor> {
   }
 
   String _draftContent() => jsonEncode({
+    'version': 2,
+    'baselineRawIcs': _draftBaselineRawIcs,
     'title': _title.text,
     'date': _date.text,
     'zone': _zone.text,
     'mode': _mode,
     'status': _status,
     'frequency': _frequency,
-    'details': [
-      for (final field in _details)
-        {'name': field.name, ..._rawProperty(field.toProperty()).toJson()},
-    ],
-    'children': [
-      for (final child in _children)
-        journalChildDraftToJson(child.toComponent()),
-    ],
+    'details': [for (final field in _details) field.toDraftJson()],
+    'children': [for (final child in _children) child.toDraftJson()],
     'DESCRIPTION': [for (final draft in _descriptions) draft.toRaw().toJson()],
     'ATTACH': [
       for (final property in _attachments)
@@ -1362,12 +1523,18 @@ class _JournalEditorState extends State<_JournalEditor> {
     ],
   });
 
-  void _persistDraft() {
-    if (_loadingDraft || _saving || _staleDraft) return;
+  void _persistDraft({bool retry = false}) {
+    if (_loadingDraft ||
+        _saving ||
+        _staleDraft ||
+        _draftLoadFailed ||
+        _unreadableDraft != null) {
+      return;
+    }
     final collectionId = widget.source?.id ?? widget.snapshot?.collection.id;
     if (collectionId == null) return;
     final content = _draftContent();
-    if (content == _lastDraftContent) return;
+    if (!retry && content == _lastDraftContent) return;
     _lastDraftContent = content;
     if (!_hasDraft || _draftDurable) {
       setState(() {
@@ -1399,19 +1566,45 @@ class _JournalEditorState extends State<_JournalEditor> {
   }
 
   Future<bool> _flushDraft() async {
-    if (_saving || widget.busy) return false;
-    await _draftWrite;
-    return !_draftFailed;
+    if (_saving ||
+        widget.busy ||
+        _draftLeaving ||
+        _loadingDraft ||
+        _draftLoadFailed) {
+      return false;
+    }
+    setState(() => _draftLeaving = true);
+    try {
+      Future<void> pending;
+      do {
+        pending = _draftWrite;
+        await pending;
+      } while (!identical(pending, _draftWrite));
+      return !_draftFailed;
+    } finally {
+      if (mounted) setState(() => _draftLeaving = false);
+    }
+  }
+
+  Future<void> _requestClose() async {
+    if (await _flushDraft() && mounted) widget.close();
   }
 
   void _changeDraft(VoidCallback change) {
-    if (_saving || widget.busy) return;
+    if (_saving || widget.busy || _draftLeaving) return;
     setState(change);
     _persistDraft();
   }
 
   Future<void> _save() async {
-    if (_saving || widget.busy || _staleDraft || !widget.writable) return;
+    if (_saving ||
+        widget.busy ||
+        _staleDraft ||
+        !widget.writable ||
+        _draftLoadFailed ||
+        _unreadableDraft != null) {
+      return;
+    }
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _saving = true);
     try {
@@ -1453,12 +1646,21 @@ class _JournalEditorState extends State<_JournalEditor> {
   }
 
   Future<void> _discardDraft() async {
-    if (!await _flushDraft() || !mounted) return;
+    if (_saving || widget.busy || _draftLeaving || _draftLoadFailed) return;
     await widget.run(() async {
+      await _draftWrite;
       await widget.repository.discardDraft(widget.draftId);
       if (mounted) widget.close();
     });
   }
+
+  String _recoveryJson() => const JsonEncoder.withIndent('  ').convert({
+    'format': 'busymax-journal-draft',
+    'version': 1,
+    'draftId': widget.draftId,
+    'savedIcalendar': widget.snapshot?.effectiveRawIcs,
+    'editorStateJson': _unreadableDraft ?? _draftContent(),
+  });
 
   @override
   void dispose() {
@@ -1727,14 +1929,16 @@ class _JournalEditorState extends State<_JournalEditor> {
                       ].nonNulls.join(' · '),
                     ),
                     if (widget.openOccurrence case final open?) ...[
-                      ui.button(
-                        l10n.journalEditOccurrence,
-                        () => open(occurrence, false),
-                      ),
-                      ui.button(
-                        l10n.journalEditFuture,
-                        () => open(occurrence, true),
-                      ),
+                      ui.button(l10n.journalEditOccurrence, () async {
+                        if (await _flushDraft() && mounted) {
+                          open(occurrence, false);
+                        }
+                      }),
+                      ui.button(l10n.journalEditFuture, () async {
+                        if (await _flushDraft() && mounted) {
+                          open(occurrence, true);
+                        }
+                      }),
                     ],
                   ],
                 ),
@@ -1749,7 +1953,14 @@ class _JournalEditorState extends State<_JournalEditor> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final ui = widget.ui;
-    final canEdit = widget.writable && !_staleDraft;
+    final recovering =
+        _hasDraft &&
+        (_staleDraft || _unreadableDraft != null || !widget.writable);
+    final canEdit =
+        widget.writable &&
+        !_staleDraft &&
+        !_draftLoadFailed &&
+        _unreadableDraft == null;
     final snapshot = widget.snapshot;
     final component = snapshot?.component.component;
     final title = component?.firstProperty('SUMMARY');
@@ -1757,11 +1968,15 @@ class _JournalEditorState extends State<_JournalEditor> {
     final derivedDate = isDerivedJournalProperty(_original);
     final knownStatuses = ['', 'DRAFT', 'FINAL', 'CANCELLED'];
     if (_loadingDraft) return const SizedBox.shrink();
-    final locked = _saving || widget.busy;
+    final locked = _saving || widget.busy || _draftLeaving;
     return BusyMaxWindowCloseGuard(
       onCloseRequested: _flushDraft,
+      navigationCoordinator: widget.navigationCoordinator,
       child: PopScope(
-        canPop: !locked,
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) unawaited(_requestClose());
+        },
         child: AbsorbPointer(
           absorbing: locked,
           child: ExcludeFocus(
@@ -1782,7 +1997,23 @@ class _JournalEditorState extends State<_JournalEditor> {
                   ),
                 if (widget.error != null)
                   Semantics(liveRegion: true, child: Text(widget.error!)),
-                if (_draftFailed) Text(l10n.journalDraftWriteFailed),
+                if (_draftFailed ||
+                    _draftLoadFailed ||
+                    _unreadableDraft != null)
+                  Text(l10n.journalDraftWriteFailed),
+                if (_draftFailed || _draftLoadFailed)
+                  ui.button(
+                    l10n.retry,
+                    locked
+                        ? null
+                        : () {
+                            if (_draftLoadFailed) {
+                              unawaited(_loadDraft());
+                            } else {
+                              _persistDraft(retry: true);
+                            }
+                          },
+                  ),
                 if (_hasDraft && (_draftDurable || _staleDraft))
                   Text(
                     _staleDraft
@@ -1905,6 +2136,34 @@ class _JournalEditorState extends State<_JournalEditor> {
                     ),
                 ],
                 ..._attachmentControls(l10n, canEdit),
+                for (final related in widget.relatedJournals)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: ui.button(
+                      '${l10n.openLink} · ${related.title ?? l10n.untitledJournal}',
+                      locked
+                          ? null
+                          : () async {
+                              if (await _flushDraft() && mounted) {
+                                await widget.openRelatedJournal(related);
+                              }
+                            },
+                    ),
+                  ),
+                if (recovering && _unreadableDraft == null) ...[
+                  for (final field in _details)
+                    Text(field.toProperty().serializeLogicalLine()),
+                  ...journalReadOnlyChildren(
+                    IcalComponent(
+                      name: 'VJOURNAL',
+                      originalBeginLine: 'BEGIN:VJOURNAL',
+                      originalEndLine: 'END:VJOURNAL',
+                      children: [
+                        for (final child in _children) child.toComponent(),
+                      ],
+                    ),
+                  ),
+                ],
                 ..._occurrenceControls(l10n),
                 if (canEdit) ...[
                   Align(
@@ -1961,6 +2220,41 @@ class _JournalEditorState extends State<_JournalEditor> {
                         l10n.export,
                         widget.busy ? null : widget.export,
                       ),
+                    if (recovering || _draftFailed)
+                      ui.button(
+                        l10n.registrationCopyAll,
+                        locked
+                            ? null
+                            : () => widget.run(
+                                () => Clipboard.setData(
+                                  ClipboardData(text: _recoveryJson()),
+                                ),
+                              ),
+                      ),
+                    if ((recovering || _draftFailed) &&
+                        widget.files?.exportDraft != null)
+                      ui.button(
+                        '${l10n.export} JSON',
+                        locked
+                            ? null
+                            : () => widget.run(
+                                () =>
+                                    widget.files!.exportDraft!(_recoveryJson()),
+                              ),
+                      ),
+                    if (recovering &&
+                        _unreadableDraft == null &&
+                        widget.recoverAsNew != null)
+                      ui.button(
+                        l10n.duplicateLocalItem,
+                        locked
+                            ? null
+                            : () async {
+                                if (await _flushDraft() && mounted) {
+                                  await widget.recoverAsNew!(_draftContent());
+                                }
+                              },
+                      ),
                     if (widget.duplicate != null)
                       ui.button(
                         l10n.journalDuplicate,
@@ -1995,7 +2289,7 @@ class _JournalEditorState extends State<_JournalEditor> {
                             ? widget.cancelRange
                             : () => setState(() => _confirmCancelRange = true),
                       ),
-                    ui.button(l10n.close, widget.busy ? null : widget.close),
+                    ui.button(l10n.close, locked ? null : _requestClose),
                     if (_hasDraft)
                       ui.button(
                         l10n.discardChangesAction,
@@ -2011,12 +2305,6 @@ class _JournalEditorState extends State<_JournalEditor> {
     );
   }
 }
-
-DavRawPropertyValue _rawProperty(IcalProperty property) => DavRawPropertyValue(
-  value: property.rawValue,
-  parameters: property.parameters,
-  group: property.group,
-);
 
 bool _sameProperties(
   List<IcalProperty> current,

@@ -59,6 +59,62 @@ final class JournalPropertyDraft {
   final TextEditingController value;
   final List<JournalParameterDraft> parameters;
 
+  Map<String, Object?> toDraftJson() => {
+    'name': name,
+    'value': value.text,
+    if (original case final property?)
+      'original': journalDraftPropertyToJson(property),
+    'parameters': [
+      for (final parameter in parameters)
+        {
+          'name': parameter.name.text,
+          'value': parameter.value.text,
+          'quoted': parameter.quoted,
+        },
+    ],
+  };
+
+  static JournalPropertyDraft fromDraftJson(
+    Map<String, Object?> json,
+    VoidCallback changed, {
+    IcalProperty? original,
+  }) {
+    final name = json['name'] as String;
+    final value = json['value'] as String;
+    final parameters = [
+      for (final item in (json['parameters'] as List).cast<Map>())
+        (
+          name: item['name'] as String,
+          value: item['value'] as String,
+          quoted: item['quoted'] as bool,
+        ),
+    ];
+    if (json['original'] case final Map saved) {
+      original ??= journalDraftPropertyFromJson(
+        name,
+        saved.cast<String, Object?>(),
+      );
+    }
+    final result = JournalPropertyDraft(name, () {}, original);
+    result.value.text = value;
+    result.value.addListener(changed);
+    for (final parameter in result.parameters) {
+      parameter.dispose();
+    }
+    result.parameters
+      ..clear()
+      ..addAll([
+        for (final parameter in parameters)
+          JournalParameterDraft.fromText(
+            changed,
+            parameter.name,
+            parameter.value,
+            parameter.quoted,
+          ),
+      ]);
+    return result;
+  }
+
   IcalProperty toProperty({bool validate = false}) {
     final fields = parameters
         .map((p) => p.parameter(validate: validate))
@@ -120,9 +176,20 @@ bool _textValue(String name, List<IcalParameter> parameters) {
 
 final class JournalParameterDraft {
   JournalParameterDraft(VoidCallback changed, [IcalParameter? original])
-    : name = TextEditingController(text: original?.name),
-      value = TextEditingController(text: original?.values.join('\n')),
-      quoted = original?.wasQuoted ?? false {
+    : this.fromText(
+        changed,
+        original?.name ?? '',
+        original?.values.join('\n') ?? '',
+        original?.wasQuoted ?? false,
+      );
+
+  JournalParameterDraft.fromText(
+    VoidCallback changed,
+    String rawName,
+    String rawValue,
+    this.quoted,
+  ) : name = TextEditingController(text: rawName),
+      value = TextEditingController(text: rawValue) {
     name.addListener(changed);
     value.addListener(changed);
   }
@@ -147,6 +214,39 @@ final class JournalParameterDraft {
     name.dispose();
     value.dispose();
   }
+}
+
+Map<String, Object?> journalDraftPropertyToJson(IcalProperty property) => {
+  ...DavRawPropertyValue(
+    value: property.rawValue,
+    group: property.group,
+    parameters: property.parameters,
+  ).toJson(),
+  if (!property.isDirty && property.originalPhysicalLines.isNotEmpty)
+    'lines': property.originalPhysicalLines,
+};
+
+/// Draft input may be incomplete. Mutation patches use the validated decoder.
+IcalProperty journalDraftPropertyFromJson(
+  String name,
+  Map<String, Object?> json,
+) {
+  final lines = (json['lines'] as List?)?.cast<String>() ?? const <String>[];
+  return IcalProperty(
+    name: name,
+    group: json['group'] as String?,
+    rawValue: json['value'] as String,
+    parameters: [
+      for (final parameter in (json['parameters'] as List).cast<Map>())
+        IcalParameter(
+          name: parameter['name'] as String,
+          values: (parameter['values'] as List).cast<String>(),
+          wasQuoted: parameter['wasQuoted'] as bool,
+        ),
+    ],
+    originalPhysicalLines: lines,
+    isDirty: lines.isEmpty,
+  );
 }
 
 List<DavPatchOperation> journalDetailsOperations(

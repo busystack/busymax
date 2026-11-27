@@ -309,7 +309,7 @@ void runJournalWorkflow({
       );
       final peerChange = created.body.replaceFirst(
         'SUMMARY:Journal café',
-        'SUMMARY:Peer edit',
+        'SUMMARY:Peer edit${restart == null ? '\r\nCOMMENT:Peer comment\r\nCONTACT:Peer contact' : ''}',
       );
       expect(peerChange, isNot(created.body));
       final changed = (await tester.runAsync(
@@ -331,6 +331,21 @@ void runJournalWorkflow({
       await tester.tap(find.textContaining('Peer edit'));
       await waitJournalWidget(tester, input('Title'));
       await tester.enterText(input('Title'), 'Local edit');
+      if (restart == null) {
+        await _editorAction(tester, button('Journal details', false));
+        await tester.pump();
+        await tester.ensureVisible(input('COMMENT'));
+        await tester.enterText(input('COMMENT'), 'Edited comment');
+        await _editorAction(tester, button('Add parameter', false).first);
+        await tester.pump();
+        await tester.ensureVisible(input('Parameter values, one per line'));
+        await tester.enterText(
+          input('Parameter values, one per line'),
+          'preserved',
+        );
+        await tester.ensureVisible(input('CONTACT'));
+        await tester.enterText(input('CONTACT'), 'Later unfinished contact');
+      }
       await _editorAction(tester, button('Close', false));
       await waitJournalWidget(tester, input('Search'));
       expect(inputValue(tester, input('Search')), 'second body');
@@ -338,6 +353,22 @@ void runJournalWorkflow({
       await tester.tap(find.textContaining('Peer edit'));
       await waitJournalWidget(tester, input('Title'));
       expect(inputValue(tester, input('Title')), 'Local edit');
+      if (restart == null) {
+        await _editorAction(tester, button('Journal details', false));
+        await tester.pump();
+        expect(inputValue(tester, input('COMMENT')), 'Edited comment');
+        expect(
+          inputValue(tester, input('CONTACT')),
+          'Later unfinished contact',
+        );
+        expect(inputValue(tester, input('Parameter name')), '');
+        expect(
+          inputValue(tester, input('Parameter values, one per line')),
+          'preserved',
+        );
+        await tester.ensureVisible(input('Parameter name'));
+        await tester.enterText(input('Parameter name'), 'X-DRAFT-TEST');
+      }
       debugPrint(
         'JOURNAL_WORKFLOW_CASE $provider editor-draft-close-and-reopen PASS',
       );
@@ -360,6 +391,16 @@ void runJournalWorkflow({
       expect(edited.body, contains('SUMMARY:Local edit'));
       expect(edited.body, contains('DESCRIPTION:First body'));
       expect(edited.body, contains('DESCRIPTION:Second body'));
+      if (restart == null) {
+        expect(
+          edited.body,
+          contains('COMMENT;X-DRAFT-TEST=preserved:Edited comment'),
+        );
+        expect(edited.body, contains('CONTACT:Later unfinished contact'));
+        debugPrint(
+          'JOURNAL_WORKFLOW_CASE $provider draft-incomplete-parameter-readback PASS',
+        );
+      }
       debugPrint('JOURNAL_WORKFLOW_CASE $provider peer-refresh-search PASS');
 
       if (restart == JournalRestartStage.queue) {

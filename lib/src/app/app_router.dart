@@ -16,6 +16,7 @@ import '../journal/presentation/linux_journal_controls.dart';
 import '../platform/gtk_header_icon_service.dart';
 import 'app_bootstrap.dart';
 import 'busymax_design.dart';
+import 'busymax_window_close.dart';
 import 'busymax_layout.dart';
 import 'busymax_surface_colors.dart';
 import 'linux/linux_page_frame.dart';
@@ -30,6 +31,7 @@ class _RouterRefreshNotifier extends ChangeNotifier {
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = _RouterRefreshNotifier();
+  final journalNavigation = BusyMaxWindowCloseCoordinator();
   ref.listen(authSessionControllerProvider, (_, _) {
     refreshNotifier.refresh();
   });
@@ -81,6 +83,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/journals',
+        onExit: (_, _) => journalNavigation.requestClose(),
         builder: (context, state) => LinuxPageFrame(
           header: BusyMaxLinuxHeaderLayout(
             leading: BusyMaxLinuxHeaderControlGroup(
@@ -97,11 +100,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             title: BusyMaxLinuxHeaderTitle(context.l10n.journals),
             trailing: const SizedBox.shrink(),
           ),
-          body: const Material(
+          body: Material(
             type: MaterialType.transparency,
             child: JournalWorkspace(
-              controls: LinuxJournalControls(),
+              controls: const LinuxJournalControls(),
               files: journalDesktopFiles,
+              navigationCoordinator: journalNavigation,
             ),
           ),
         ),

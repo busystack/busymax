@@ -73,7 +73,14 @@ final class JournalMessage {
   }
 
   String initialResource() {
-    if (method != JournalMethod.publish) throw _unresolvable();
+    if (method != JournalMethod.publish) {
+      throw const DavException(
+        kind: DavErrorKind.conflict,
+        code: 'IcalJournalMessageTargetMissing',
+        safeMessage:
+            'Choose the collection containing the original journal series.',
+      );
+    }
     return stored.serialize();
   }
 
@@ -88,10 +95,18 @@ final class JournalMessage {
     final master = baseline.components
         .where((c) => c.recurrenceId == null)
         .firstOrNull;
-    final indexed = {for (final c in baseline.components) c.recurrenceIdKey: c};
+    final indexed = {
+      for (final c in baseline.components)
+        journalRecurrencePosition(c.recurrenceId): c,
+    };
+    if (indexed.length != baseline.components.length) throw _unresolvable();
     final priorOrganizer = _organizer(master ?? baseline.components.first);
     if (priorOrganizer == null || priorOrganizer != _organizer(entries.first)) {
-      throw _unresolvable();
+      throw const DavException(
+        kind: DavErrorKind.conflict,
+        code: 'IcalJournalMessageOrganizerMismatch',
+        safeMessage: 'The organizer differs from the saved journal. Verify the file and select the collection containing the intended journal.',
+      );
     }
     // Keep the existing calendar envelope and unrelated siblings. A new
     // definition can be appended, but replacing a shared zone could change
@@ -127,7 +142,7 @@ final class JournalMessage {
 
     final resolver = IcalTimeZoneResolver.fromDocument(baseline);
     for (final incoming in entries) {
-      final identity = incoming.recurrenceIdKey;
+      final identity = journalRecurrencePosition(incoming.recurrenceId);
       final old = indexed[identity];
       final reference = old ?? master;
       if (reference == null ||
@@ -151,7 +166,7 @@ final class JournalMessage {
           )!;
           final added = incoming.documentComponent.deepCopy();
           final rid = _asRecurrenceId(startProperty);
-          final key = icalRecurrenceIdKey(rid);
+          final key = journalRecurrencePosition(start);
           if (_hasOccurrence(baseline, start, resolver) ||
               indexed.containsKey(key)) {
             throw _unresolvable();

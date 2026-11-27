@@ -6,6 +6,14 @@ import '../dav/ical/ical_semantics.dart';
 bool isDerivedJournalProperty(IcalProperty? property) =>
     property?.parameterValue('DERIVED')?.toUpperCase() == 'TRUE';
 
+/// Identifies the original position independently of its storage key or RANGE.
+String? journalRecurrencePosition(IcalTemporalValue? value) => switch (value) {
+  null => null,
+  IcalTemporalValue(kind: IcalTemporalKind.utcDateTime) =>
+    value.localValue.toUtc().toIso8601String(),
+  _ => value.recurrenceKey,
+};
+
 /// A journal's user-facing data, derived from its authoritative component.
 final class JournalComponent {
   JournalComponent(this.component) {
@@ -94,7 +102,7 @@ final class JournalComponent {
         .firstOrNull;
     for (final semantic in document.components) {
       final journal = semantic.documentComponent;
-      if (!identities.add(semantic.recurrenceIdKey) ||
+      if (!identities.add(journalRecurrencePosition(semantic.recurrenceId)) ||
           journal.propertiesNamed('UID').length != 1 ||
           journal.propertiesNamed('DTSTAMP').length != 1 ||
           semantic.dtstamp?.kind != IcalTemporalKind.utcDateTime ||
@@ -236,9 +244,7 @@ void _validateRecurrence(
 }
 
 bool _sameRecurrenceForm(IcalTemporalValue first, IcalTemporalValue second) =>
-    first.isDate == second.isDate &&
-    (first.kind == IcalTemporalKind.utcDateTime) ==
-        (second.kind == IcalTemporalKind.utcDateTime);
+    first.kind == second.kind;
 
 DavException _inconsistentRecurrence() => const DavException(
   kind: DavErrorKind.invalidCalendarData,

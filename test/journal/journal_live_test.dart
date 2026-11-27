@@ -276,6 +276,128 @@ void main() {
         expect((await request('GET', href)).statusCode, 404);
         await pull();
         expect(await journals.watchEntries().first, isEmpty);
+        for (final (parameters, start, id, moved, zone) in [
+          (';VALUE=DATE', '20261126', '20261127', '20261128', ''),
+          ('', '20261126T090000Z', '20261127T090000Z', '20261128T090000Z', ''),
+          (
+            ';TZID=Europe/Berlin',
+            '20261126T090000',
+            '20261127T090000',
+            '20261128T090000',
+            'BEGIN:VTIMEZONE\r\nTZID:Europe/Berlin\r\nBEGIN:STANDARD\r\n'
+                'DTSTART:19700101T000000\r\nTZOFFSETFROM:+0100\r\nTZOFFSETTO:+0100\r\n'
+                'END:STANDARD\r\nEND:VTIMEZONE\r\n',
+          ),
+        ]) {
+          for (final unsent in [false, true]) {
+            for (final cancel in [false, true]) {
+              final uid = const Uuid().v4();
+              final remote = collectionUri.resolve('range-$uid.ics');
+              final raw =
+                  'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//QA//EN\r\n$zone'
+                  'BEGIN:VJOURNAL\r\nUID:$uid\r\nDTSTAMP:20261126T000000Z\r\n'
+                  'DTSTART$parameters:$start\r\nRRULE:FREQ=DAILY;COUNT=5\r\n'
+                  'SUMMARY:Series\r\nEND:VJOURNAL\r\n'
+                  'BEGIN:VJOURNAL\r\nUID:$uid\r\nDTSTAMP:20261126T000000Z\r\n'
+                  'RECURRENCE-ID$parameters:$id\r\nDTSTART$parameters:$moved\r\n'
+                  'SUMMARY:Moved\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+              if (unsent) {
+                final result = await DavNativeImportService(database).import(
+                  accountId: accountId,
+                  collectionId: collection.id,
+                  preview: NextcloudNativeImportPreview.parse(
+                    IcalDocument.parse(raw),
+                  ),
+                );
+                expect(result.single.status, NativeImportItemStatus.queued);
+              } else {
+                expect(
+                  (await request(
+                    'PUT',
+                    remote,
+                    body: raw,
+                    headers: {
+                      'Content-Type': 'text/calendar; charset=utf-8',
+                      'If-None-Match': '*',
+                    },
+                  )).statusCode,
+                  201,
+                );
+                await pull();
+              }
+              final master =
+                  (await journals
+                          .watchEntries(collectionId: collection.id)
+                          .first)
+                      .singleWhere(
+                        (row) => row.uid == uid && row.recurrenceIdKey == null,
+                      );
+              final snapshot = await journals.read(master);
+              final occurrence = journals
+                  .occurrences(snapshot, DateTime.utc(2026, 11))
+                  .singleWhere((item) => item.recurrenceId.rawValue == id);
+              final promotion = journals.inspectOccurrence(
+                snapshot,
+                occurrence,
+                thisAndFuture: true,
+              );
+              if (cancel) {
+                await journals.cancelOccurrenceRange(promotion);
+              } else {
+                await journals.editOccurrence(promotion, [
+                  DavPatchOperation.setText('SUMMARY', 'Promoted range'),
+                ]);
+              }
+              void verify(String raw) {
+                final lines = raw
+                    .replaceAll(RegExp(r'\r?\n[ \t]'), '')
+                    .split(RegExp(r'\r?\n'));
+                final identity = lines
+                    .where(
+                      (line) =>
+                          line.startsWith('RECURRENCE-ID') &&
+                          line.endsWith(':$id'),
+                    )
+                    .single;
+                expect(identity, contains('RANGE=THISANDFUTURE'));
+                expect(lines, contains('DTSTART$parameters:$moved'));
+                expect(
+                  lines,
+                  contains(
+                    cancel ? 'STATUS:CANCELLED' : 'SUMMARY:Promoted range',
+                  ),
+                );
+              }
+
+              verify((await journals.read(master)).effectiveRawIcs);
+              await database.close();
+              database = AppDatabase(NativeDatabase(file));
+              journals = JournalRepository(database);
+              final reopened = await journals.read(master);
+              verify(reopened.effectiveRawIcs);
+              expect(
+                journals
+                    .occurrences(reopened, DateTime.utc(2026, 11))
+                    .where((item) => item.recurrenceId.rawValue == id),
+                hasLength(1),
+              );
+              expect((await replay()).appliedCount, 1);
+              final persisted = await request(
+                'GET',
+                Uri.parse(
+                  (await (database.select(database.davObjects)
+                            ..where((row) => row.id.equals(master.davObjectId)))
+                          .getSingle())
+                      .requestUri,
+                ),
+              );
+              expect(persisted.statusCode, 200);
+              verify(persisted.body);
+              await journals.deleteResource(await journals.read(master));
+              expect((await replay()).appliedCount, 1);
+            }
+          }
+        }
         if (provider == BusyProvider.caldav) {
           final nestedHref = collectionUri.resolve('nested-status.ics');
           const status =

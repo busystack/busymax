@@ -123,10 +123,16 @@ void main() {
       ('20261130T090000Z', false),
     ]);
     final future = message('CANCEL', 4, [
-      'RECURRENCE-ID;RANGE=THISANDFUTURE:20261128T090000Z',
+      'RECURRENCE-ID;RANGE=THISANDFUTURE:20261127T090000Z',
     ]);
     expect(await apply(future), NativeImportItemStatus.queued);
     expect(await apply(future), NativeImportItemStatus.duplicate);
+    final atOriginalPosition = IcalDocument.parse(await exported())
+        .calendarComponents
+        .map((component) => component.firstProperty('RECURRENCE-ID'))
+        .where((id) => id?.rawValue == '20261127T090000Z')
+        .single;
+    expect(atOriginalPosition!.parameterValue('RANGE'), 'THISANDFUTURE');
     final ranged = await repository.read(master.entry);
     expect(
       repository

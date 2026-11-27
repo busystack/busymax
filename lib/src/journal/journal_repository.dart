@@ -43,11 +43,17 @@ final class JournalSnapshot {
 }
 
 final class JournalOccurrenceDraft {
-  const JournalOccurrenceDraft(this.entry, this.component, this.thisAndFuture);
+  const JournalOccurrenceDraft(
+    this.entry,
+    this.component,
+    this.thisAndFuture,
+    this.originalException,
+  );
 
   final JournalSnapshot entry;
   final JournalSnapshot component;
   final bool thisAndFuture;
+  final IcalComponentKey? originalException;
 }
 
 final class JournalRepository {
@@ -84,6 +90,38 @@ final class JournalRepository {
   Future<void> discardDraft(String id) => (database.delete(
     database.davJournalDrafts,
   )..where((draft) => draft.id.equals(id))).go();
+
+  /// Copies editor state to the new-entry editor, leaving the original draft
+  /// independently recoverable. The user reviews the copy before saving.
+  Future<DavCollection> prepareDraftRecovery(
+    DavCollection source,
+    String content,
+  ) => database.transaction(() async {
+    final live = await _source(source.accountId, source.id);
+    if (!live.journalInventoryComplete ||
+        !collectionCapabilitiesFromStored(live).canAttemptCreateJournal) {
+      throw const DavException(
+        kind: DavErrorKind.authorization,
+        code: 'DavJournalRecoveryDestinationUnavailable',
+        safeMessage: 'Refresh a writable journal collection before recovering the draft.',
+      );
+    }
+    final id = 'new:${source.id}';
+    if (await readDraft(id) != null) {
+      throw const DavException(
+        kind: DavErrorKind.conflict,
+        code: 'DavExistingNewJournalDraft',
+        safeMessage: 'Save or discard the existing new-entry draft before recovering this one.',
+      );
+    }
+    await saveDraft(
+      id: id,
+      collectionId: live.id,
+      baselineDigest: null,
+      contentJson: content,
+    );
+    return live;
+  });
 
   Future<bool> hasDrafts(String collectionId) async =>
       (await (database.select(database.davJournalDrafts)
@@ -185,6 +223,88 @@ final class JournalRepository {
             ..orderBy([(r) => OrderingTerm.desc(r.createdAtUtc)])
             ..limit(1))
           .watchSingleOrNull();
+
+  /// Looks up journal references only in the originating account. UID links
+  /// are collection-local. External and ambiguous references remain intact.
+  Future<List<DavJournalEntry>> relatedJournals(JournalSnapshot origin) async {
+    final uids = <String>{};
+    final uris = <String>{};
+    for (final property in origin.component.component.properties) {
+      if (property.name != 'LINK' && property.name != 'RELATED-TO') continue;
+      final relation = property.parameterValue('RELTYPE')?.toUpperCase();
+      if (const {'REFID', 'CONCEPT'}.contains(relation)) continue;
+      final type = property.parameterValue('VALUE')?.toUpperCase();
+      if (type == 'UID' ||
+          (property.name == 'RELATED-TO' && (type == null || type == 'TEXT'))) {
+        uids.add(property.decodedTextValue);
+      } else if (type == 'URI') {
+        final uri = Uri.tryParse(property.rawValue);
+        if (uri != null &&
+            uri.hasAuthority &&
+            const {'https', 'http'}.contains(uri.scheme) &&
+            !uri.hasFragment &&
+            !uri.hasQuery &&
+            uri.userInfo.isEmpty) {
+          uris.add(uri.toString());
+        }
+      }
+    }
+    if (uids.isEmpty && uris.isEmpty) return const [];
+    final objects = database.davObjects;
+    final collections = database.davCollections;
+    final query =
+        database.select(objects).join([
+          innerJoin(
+            collections,
+            collections.id.equalsExp(objects.collectionId),
+          ),
+        ])..where(
+          objects.accountId.equals(origin.entry.accountId) &
+              objects.serverDeleted.not() &
+              objects.dominantComponentType.equals('VJOURNAL') &
+              collections.deleted.not() &
+              collections.serverMissing.not() &
+              ((objects.collectionId.equals(origin.entry.collectionId) &
+                      objects.primaryUid.isIn(uids)) |
+                  objects.requestUri.isIn(uris)),
+        );
+    final uidMatches = <String, List<String>>{};
+    final uriMatches = <String, List<String>>{};
+    for (final row in await query.get()) {
+      if (!collectionCapabilitiesFromStored(row.readTable(collections))
+          .canRead) {
+        continue;
+      }
+      final object = row.readTable(objects);
+      if (object.collectionId == origin.entry.collectionId) {
+        uidMatches
+            .putIfAbsent(object.primaryUid ?? '', () => [])
+            .add(object.id);
+      }
+      uriMatches.putIfAbsent(object.requestUri, () => []).add(object.id);
+    }
+    final ids = {
+      for (final uid in uids)
+        if (uidMatches[uid] case [final id]) id,
+      for (final uri in uris)
+        if (uriMatches[uri] case [final id]) id,
+    }..remove(origin.entry.davObjectId);
+    if (ids.isEmpty) return const [];
+    final components = await (database.select(
+      database.davJournalEntries,
+    )..where((row) => row.davObjectId.isIn(ids))).get();
+    return [
+      for (final id in ids)
+        if (components.where((row) => row.davObjectId == id).toList()
+            case final matches when matches.isNotEmpty)
+          if ((matches
+                      .where((row) => row.recurrenceIdKey == null)
+                      .firstOrNull ??
+                  (matches.length == 1 ? matches.single : null))
+              case final row?)
+            row,
+    ];
+  }
 
   Stream<DavConflictSnapshot?> watchConflict(String id) =>
       (database.select(database.davConflictSnapshots)
@@ -324,6 +444,13 @@ final class JournalRepository {
         effectiveRawIcs: source.effectiveRawIcs,
       ),
       thisAndFuture,
+      occurrence.override == null
+          ? null
+          : IcalComponentKey(
+              componentType: 'VJOURNAL',
+              uid: source.entry.uid,
+              recurrenceIdKey: occurrence.override!.recurrenceIdKey,
+            ),
     );
   }
 
@@ -334,24 +461,49 @@ final class JournalRepository {
     if (operations.isEmpty) return;
     await _checkForLocalChange(draft.entry);
     final target = draft.component.key;
-    final document = IcalDocument.parse(draft.entry.effectiveRawIcs);
-    final existing = document.calendarComponents.any(
-      (c) =>
-          c.name == 'VJOURNAL' &&
-          icalRecurrenceIdKey(c.firstProperty('RECURRENCE-ID')) ==
-              target.recurrenceIdKey,
-    );
-    final patch = DavMutationPatch(
+    final component = draft.component.component.component;
+    final changes = [
+      if (draft.originalException case final original?)
+        DavPatchOperation.removeComponent(componentKey: original),
+      DavPatchOperation.addComponent(component),
+      ...operations,
+    ];
+    final stamp = _nowUtc();
+    final candidate = DavMutationPatch(
       target: target,
       scope: DavMutationScope.occurrence,
-      operations: [
-        if (existing) DavPatchOperation.removeComponent(),
-        DavPatchOperation.addComponent(draft.component.component.component),
-        ...operations,
-        DavPatchOperation.reviseJournal(_nowUtc()),
-      ],
+      operations: changes,
+    ).applyTo(draft.entry.effectiveRawIcs, nowUtc: stamp);
+    final updated = IcalDocumentPatcher(IcalDocument.parse(candidate))
+        .requireComponent(target);
+    if (semanticComponentHash(component) == semanticComponentHash(updated)) {
+      return;
+    }
+    final master = IcalDocument.parse(draft.entry.effectiveRawIcs)
+        .calendarComponents
+        .where(
+          (item) =>
+              item.name == 'VJOURNAL' &&
+              item.firstProperty('RECURRENCE-ID') == null,
+        )
+        .firstOrNull;
+    final revision = await _revisionOperations(
+      draft.entry.entry.accountId,
+      component,
+      updated,
+      stamp,
+      master: master,
+      recurrenceChanged:
+          draft.originalException?.recurrenceIdKey != target.recurrenceIdKey,
     );
-    await _queueEdit(draft.entry.entry, patch);
+    await _queueEdit(
+      draft.entry.entry,
+      DavMutationPatch(
+        target: target,
+        scope: DavMutationScope.occurrence,
+        operations: [...changes, ...revision],
+      ),
+    );
   });
 
   Future<void> deleteOccurrence(JournalOccurrenceDraft draft) =>
@@ -380,6 +532,7 @@ final class JournalRepository {
         )) {
           patcher.removeComponent(selection);
         }
+        final previousMaster = master?.deepCopy();
         if (master != null) {
           final identity = draft.component.component.component.firstProperty(
             'RECURRENCE-ID',
@@ -405,7 +558,13 @@ final class JournalRepository {
             scope: DavMutationScope.occurrence,
             operations: [
               DavPatchOperation.replaceJournalResource(document.serialize()),
-              if (master != null) DavPatchOperation.reviseJournal(_nowUtc()),
+              if (previousMaster != null && master != null)
+                ...await _revisionOperations(
+                  draft.entry.entry.accountId,
+                  previousMaster,
+                  master,
+                  _nowUtc(),
+                ),
             ],
           ),
         );
@@ -424,25 +583,39 @@ final class JournalRepository {
         final first = resolver.toUtc(
           parseIcalTemporal(component.firstProperty('RECURRENCE-ID'))!,
         );
-        final existing = base.components.any(
-          (c) => c.recurrenceIdKey == selection.recurrenceIdKey,
-        );
         final stamp = _nowUtc();
-        DavPatchOperation cancel() => DavPatchOperation.setRaw(
-          'STATUS',
-          'CANCELLED',
-          preserveParameters: true,
-        );
-        final candidate = DavMutationPatch(
-          target: selection,
-          scope: DavMutationScope.occurrence,
-          operations: [
-            if (existing) DavPatchOperation.removeComponent(),
-            DavPatchOperation.addComponent(component),
-            cancel(),
-            DavPatchOperation.reviseJournal(stamp),
-          ],
-        ).applyTo(draft.entry.effectiveRawIcs, nowUtc: stamp);
+        final master = base.components
+            .where((entry) => entry.recurrenceId == null)
+            .firstOrNull
+            ?.documentComponent;
+        final selectedChanges =
+            draft.originalException?.recurrenceIdKey !=
+                selection.recurrenceIdKey ||
+            component.firstProperty('STATUS')?.rawValue != 'CANCELLED';
+        final candidate = selectedChanges
+            ? DavMutationPatch(
+                target: selection,
+                scope: DavMutationScope.occurrence,
+                operations: [
+                  if (draft.originalException case final original?)
+                    DavPatchOperation.removeComponent(componentKey: original),
+                  DavPatchOperation.addComponent(component),
+                  DavPatchOperation.setRaw(
+                    'STATUS',
+                    'CANCELLED',
+                    preserveParameters: true,
+                  ),
+                  ...await _revisionOperations(
+                    draft.entry.entry.accountId,
+                    component,
+                    component,
+                    stamp,
+                    recurrenceChanged: true,
+                    master: master,
+                  ),
+                ],
+              ).applyTo(draft.entry.effectiveRawIcs, nowUtc: stamp)
+            : draft.entry.effectiveRawIcs;
         final result = IcalDocument.parse(candidate);
         for (final sibling in result.calendarComponents.where(
           (c) => c.name == 'VJOURNAL',
@@ -450,32 +623,48 @@ final class JournalRepository {
           final identity = parseIcalTemporal(
             sibling.firstProperty('RECURRENCE-ID'),
           );
-          if (identity == null || !resolver.toUtc(identity).isAfter(first)) {
+          if (identity == null ||
+              !resolver.toUtc(identity).isAfter(first) ||
+              sibling.firstProperty('STATUS')?.rawValue == 'CANCELLED') {
             continue;
           }
-          for (final name in const ['STATUS', 'DTSTAMP', 'LAST-MODIFIED']) {
-            final property = sibling.firstProperty(name);
-            if (name == 'STATUS' && property == null) {
-              sibling.children.add(_property('STATUS', 'CANCELLED'));
+          final revision = await _revisionOperations(
+            draft.entry.entry.accountId,
+            sibling,
+            sibling,
+            stamp,
+            recurrenceChanged: true,
+            master: master,
+          );
+          final changes = {
+            'STATUS': 'CANCELLED',
+            'DTSTAMP': _revisionTime(stamp),
+            if (sibling.firstProperty('LAST-MODIFIED') != null)
+              'LAST-MODIFIED': _revisionTime(stamp),
+            for (final op in revision)
+              if (op.propertyName == 'SEQUENCE') 'SEQUENCE': op.value!,
+          };
+          for (final change in changes.entries) {
+            final property = sibling.firstProperty(change.key);
+            if (property == null) {
+              sibling.children.add(_property(change.key, change.value));
               sibling.structurallyDirty = true;
-            } else if (property != null &&
-                (name == 'STATUS' || !isDerivedJournalProperty(property))) {
+            } else if (change.key == 'STATUS' ||
+                !isDerivedJournalProperty(property)) {
               property
-                ..rawValue = name == 'STATUS'
-                    ? 'CANCELLED'
-                    : _revisionTime(stamp)
+                ..rawValue = change.value
                 ..isDirty = true;
             }
           }
         }
+        final cancelled = result.serialize();
+        if (cancelled == draft.entry.effectiveRawIcs) return;
         await _queueEdit(
           draft.entry.entry,
           DavMutationPatch(
             target: draft.entry.key,
             scope: DavMutationScope.object,
-            operations: [
-              DavPatchOperation.replaceJournalResource(result.serialize()),
-            ],
+            operations: [DavPatchOperation.replaceJournalResource(cancelled)],
           ),
         );
       });
@@ -505,6 +694,7 @@ final class JournalRepository {
     final master = semantic.components
         .where((item) => item.recurrenceId == null)
         .firstOrNull;
+    final previousMaster = master?.documentComponent.deepCopy();
     document.root.children.removeWhere((node) {
       if (node is! IcalComponent || node.name != 'VJOURNAL') return false;
       final date = parseIcalTemporal(node.firstProperty('RECURRENCE-ID'));
@@ -634,7 +824,14 @@ final class JournalRepository {
         scope: DavMutationScope.occurrence,
         operations: [
           DavPatchOperation.replaceJournalResource(document.serialize()),
-          if (master != null) DavPatchOperation.reviseJournal(_nowUtc()),
+          if (previousMaster != null && master != null)
+            ...await _revisionOperations(
+              draft.entry.entry.accountId,
+              previousMaster,
+              master.documentComponent,
+              _nowUtc(),
+              recurrenceChanged: true,
+            ),
         ],
       ),
     );
@@ -726,46 +923,16 @@ final class JournalRepository {
     final previous = editing.component.component;
     final updated = IcalDocumentPatcher(IcalDocument.parse(edited))
         .requireComponent(editing.key);
-    final organizer =
-        previous.firstProperty('ORGANIZER')?.rawValue ??
-        updated.firstProperty('ORGANIZER')?.rawValue;
-    final sequence = previous.firstProperty('SEQUENCE');
-    final significant = changedIcalProperties(previous, updated).any(
-      const {
-        'DTSTART',
-        'RRULE',
-        'RDATE',
-        'EXDATE',
-        'STATUS',
-        'ORGANIZER',
-        'ATTENDEE',
-      }.contains,
+    final revision = await _revisionOperations(
+      entry.accountId,
+      previous,
+      updated,
+      now,
     );
-    var advanceSequence = false;
-    if (significant &&
-        organizer != null &&
-        !isDerivedJournalProperty(sequence)) {
-      final service =
-          await (database.select(database.davAccountServices)
-                ..where((row) => row.accountId.equals(entry.accountId)))
-              .getSingleOrNull();
-      final addresses =
-          jsonDecode(service?.calendarUserAddressesJson ?? '[]') as List;
-      advanceSequence = addresses.contains(organizer);
-    }
     final patch = DavMutationPatch(
       target: editing.key,
       scope: scope,
-      operations: [
-        ...operations,
-        if (advanceSequence)
-          DavPatchOperation.setRaw(
-            'SEQUENCE',
-            '${(int.tryParse(sequence?.rawValue ?? '') ?? 0) + 1}',
-            preserveParameters: true,
-          ),
-        DavPatchOperation.reviseJournal(now),
-      ],
+      operations: [...operations, ...revision],
     );
     await _queueEdit(
       entry,
@@ -773,6 +940,62 @@ final class JournalRepository {
       provider: BusyProviderCodec.requireStorageValue(account.provider),
     );
   });
+
+  Future<List<DavPatchOperation>> _revisionOperations(
+    String accountId,
+    IcalComponent previous,
+    IcalComponent updated,
+    DateTime stamp, {
+    bool recurrenceChanged = false,
+    IcalComponent? master,
+  }) async {
+    final organizer =
+        previous.firstProperty('ORGANIZER')?.rawValue ??
+        updated.firstProperty('ORGANIZER')?.rawValue ??
+        master?.firstProperty('ORGANIZER')?.rawValue;
+    final sequence = previous.firstProperty('SEQUENCE');
+    final significant =
+        recurrenceChanged ||
+        changedIcalProperties(previous, updated).any(
+          const {
+            'DTSTART',
+            'RRULE',
+            'RDATE',
+            'EXDATE',
+            'RECURRENCE-ID',
+            'STATUS',
+            'ORGANIZER',
+            'ATTENDEE',
+          }.contains,
+        );
+    var ownsOrganizer = false;
+    if (significant &&
+        organizer != null &&
+        !isDerivedJournalProperty(sequence)) {
+      final service = await (database.select(
+        database.davAccountServices,
+      )..where((row) => row.accountId.equals(accountId))).getSingleOrNull();
+      final addresses =
+          jsonDecode(service?.calendarUserAddressesJson ?? '[]') as List;
+      ownsOrganizer = addresses.contains(organizer);
+    }
+    final previousSequence =
+        int.tryParse(
+          sequence?.rawValue ??
+              master?.firstProperty('SEQUENCE')?.rawValue ??
+              '',
+        ) ??
+        0;
+    return [
+      if (ownsOrganizer)
+        DavPatchOperation.setRaw(
+          'SEQUENCE',
+          '${previousSequence + 1}',
+          preserveParameters: true,
+        ),
+      DavPatchOperation.reviseJournal(stamp),
+    ];
+  }
 
   Future<void> _queueEdit(
     DavJournalEntry entry,

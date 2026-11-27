@@ -26,11 +26,15 @@ final class NativeImportItemResult {
     this.componentType,
     this.status, [
     this.code,
+    this.safeMessage,
+    this.operationId,
   ]);
   final String uid;
   final String componentType;
   final NativeImportItemStatus status;
   final String? code;
+  final String? safeMessage;
+  final String? operationId;
 }
 
 /// A resource is one component type and one UID recurrence set. Original
@@ -355,7 +359,7 @@ final class DavNativeImportService {
                     .where((c) => c.recurrenceIdKey == null)
                     .firstOrNull ??
                 semantic.components.first;
-            await queue.enqueueUpdate(
+            final operationId = await queue.enqueueUpdate(
               accountId: accountId,
               collectionId: collectionId,
               objectId: current.id,
@@ -384,6 +388,9 @@ final class DavNativeImportService {
               uid,
               'VJOURNAL',
               NativeImportItemStatus.queued,
+              null,
+              null,
+              operationId,
             );
           }
           if (existing.isNotEmpty ||
@@ -475,6 +482,9 @@ final class DavNativeImportService {
             uid,
             resource.componentType,
             NativeImportItemStatus.queued,
+            null,
+            null,
+            queuedOperation,
           );
         });
         results.add(result);
@@ -495,6 +505,7 @@ final class DavNativeImportService {
             resource.componentType,
             NativeImportItemStatus.failed,
             error is DavException ? error.code : 'IcalLocalImportFailed',
+            error is DavException ? error.safeMessage : null,
           ),
         );
       }

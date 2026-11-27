@@ -3,7 +3,6 @@ import 'package:uuid/uuid.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../dav/ical/ical_document.dart';
-import '../../dav/mutation/dav_mutation_patch.dart';
 import '../journal_component.dart';
 import 'journal_controls.dart';
 import 'journal_property_editor.dart';
@@ -50,6 +49,73 @@ class JournalChildDraft {
   final List<JournalPropertyDraft> fields;
   final List<JournalChildDraft> children;
   String get name => original.name;
+
+  JournalChildDraft._(this.original, this.fields, this.children);
+
+  Map<String, Object?> toDraftJson({bool includeOriginal = true}) => {
+    if (includeOriginal) 'original': journalChildDraftToJson(original),
+    'fields': [
+      for (final field in fields)
+        {
+          ...field.toDraftJson(),
+          'index': original.children.indexOf(field.original ?? original),
+        },
+    ],
+    'children': [
+      for (final child in children)
+        {
+          ...child.toDraftJson(
+            includeOriginal: !original.children.contains(child.original),
+          ),
+          'index': original.children.indexOf(child.original),
+        },
+    ],
+  };
+
+  static JournalChildDraft fromDraftJson(
+    Map<String, Object?> json,
+    VoidCallback changed, {
+    IcalComponent? original,
+  }) {
+    final baseline =
+        original ??
+        journalChildDraftFromJson(
+          (json['original'] as Map).cast<String, Object?>(),
+        );
+    final fields = <JournalPropertyDraft>[];
+    final children = <JournalChildDraft>[];
+    final result = JournalChildDraft._(baseline, fields, children);
+    try {
+      for (final field in (json['fields'] as List).cast<Map>()) {
+        final index = field['index'] as int;
+        fields.add(
+          JournalPropertyDraft.fromDraftJson(
+            field.cast<String, Object?>(),
+            changed,
+            original: index < 0
+                ? null
+                : baseline.children[index] as IcalProperty,
+          ),
+        );
+      }
+      for (final child in (json['children'] as List).cast<Map>()) {
+        final index = child['index'] as int;
+        children.add(
+          fromDraftJson(
+            child.cast<String, Object?>(),
+            changed,
+            original: index < 0
+                ? null
+                : baseline.children[index] as IcalComponent,
+          ),
+        );
+      }
+      return result;
+    } on Object {
+      result.dispose();
+      rethrow;
+    }
+  }
 
   bool get containsDerived =>
       original.properties.any(isDerivedJournalProperty) ||
@@ -122,16 +188,7 @@ Map<String, Object?> journalChildDraftToJson(IcalComponent component) => {
       if (node is IcalComponent)
         journalChildDraftToJson(node)
       else if (node is IcalProperty)
-        {
-          'property': node.name,
-          if (!node.isDirty && node.originalPhysicalLines.isNotEmpty)
-            'lines': node.originalPhysicalLines,
-          ...DavRawPropertyValue(
-            value: node.rawValue,
-            group: node.group,
-            parameters: node.parameters,
-          ).toJson(),
-        },
+        {'property': node.name, ...journalDraftPropertyToJson(node)},
   ],
 };
 
@@ -144,23 +201,10 @@ IcalComponent journalChildDraftFromJson(Map<String, Object?> json) {
     children: [
       for (final node in (json['children'] as List).cast<Map>())
         if (node['property'] case final String name)
-          _propertyFromDraft(name, node.cast<String, Object?>())
+          journalDraftPropertyFromJson(name, node.cast<String, Object?>())
         else
           journalChildDraftFromJson(node.cast<String, Object?>()),
     ],
-  );
-}
-
-IcalProperty _propertyFromDraft(String name, Map<String, Object?> json) {
-  final raw = DavRawPropertyValue.fromJson(json);
-  final lines = (json['lines'] as List?)?.cast<String>() ?? const <String>[];
-  return IcalProperty(
-    name: name,
-    group: raw.group,
-    rawValue: raw.value,
-    parameters: raw.parameters,
-    originalPhysicalLines: lines,
-    isDirty: lines.isEmpty,
   );
 }
 

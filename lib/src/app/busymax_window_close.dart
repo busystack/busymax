@@ -100,9 +100,11 @@ class BusyMaxWindowCloseGuard extends StatefulWidget {
     super.key,
     required this.onCloseRequested,
     required this.child,
+    this.navigationCoordinator,
   });
 
   final BusyMaxWindowCloseHandler onCloseRequested;
+  final BusyMaxWindowCloseCoordinator? navigationCoordinator;
   final Widget child;
 
   @override
@@ -113,6 +115,28 @@ class BusyMaxWindowCloseGuard extends StatefulWidget {
 class _BusyMaxWindowCloseGuardState extends State<BusyMaxWindowCloseGuard> {
   BusyMaxWindowCloseCoordinator? _coordinator;
   _BusyMaxWindowCloseRegistration? _registration;
+  _BusyMaxWindowCloseRegistration? _navigationRegistration;
+
+  @override
+  void initState() {
+    super.initState();
+    _registerNavigation();
+  }
+
+  @override
+  void didUpdateWidget(BusyMaxWindowCloseGuard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.navigationCoordinator != widget.navigationCoordinator) {
+      _navigationRegistration?.dispose();
+      _registerNavigation();
+    }
+  }
+
+  void _registerNavigation() {
+    _navigationRegistration = widget.navigationCoordinator?._register(
+      () => widget.onCloseRequested(),
+    );
+  }
 
   @override
   void didChangeDependencies() {
@@ -127,6 +151,7 @@ class _BusyMaxWindowCloseGuardState extends State<BusyMaxWindowCloseGuard> {
   @override
   void dispose() {
     _registration?.dispose();
+    _navigationRegistration?.dispose();
     super.dispose();
   }
 

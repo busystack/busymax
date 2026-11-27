@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:file_selector/file_selector.dart';
 
 import '../../dav/ical/ical_attachments.dart';
@@ -9,6 +12,7 @@ import 'journal_workspace.dart';
 const journalDesktopFiles = JournalFileActions(
   read: _readJournalFile,
   export: _exportJournalFile,
+  exportDraft: _exportJournalDraft,
   pickAttachment: _pickJournalAttachment,
   saveAttachment: saveDavInlineAttachmentToDesktop,
   exportCollection: exportNativeCollectionWithDirectoryDialog,
@@ -42,4 +46,19 @@ Future<void> _exportJournalFile(String raw) async {
     suggestedName: 'busymax-journal.ics',
     calendarData: raw,
   );
+}
+
+Future<void> _exportJournalDraft(String json) async {
+  final target = await getSaveLocation(
+    suggestedName: 'busymax-journal-draft.json',
+    acceptedTypeGroups: const [
+      XTypeGroup(extensions: ['json'], mimeTypes: ['application/json']),
+    ],
+  );
+  if (target != null) {
+    await XFile.fromData(
+      Uint8List.fromList(utf8.encode(json)),
+      mimeType: 'application/json',
+    ).saveTo(target.path);
+  }
 }

@@ -4,6 +4,7 @@ import '../../features/notifications/daily_summary_policy.dart';
 import '../../ui/windows/windows_diagnostics_dialog.dart';
 
 import 'dart:async';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,9 +28,11 @@ import '../../ui/windows/windows_workspace_shell.dart';
 import '../../ui/windows/windows_desktop_runtime.dart';
 import '../../ui/windows/windows_calendar_activation_flows.dart';
 import '../app_bootstrap.dart';
+import '../busymax_window_close.dart';
 import '../common/desktop_calendar_open_readiness.dart';
 
 final windowsRootNavigatorKey = GlobalKey<NavigatorState>();
+final _journalNavigation = BusyMaxWindowCloseCoordinator();
 
 final windowsAppRouter = GoRouter(
   navigatorKey: windowsRootNavigatorKey,
@@ -52,9 +55,10 @@ final windowsAppRouter = GoRouter(
     ),
     GoRoute(
       path: '/journals',
-      builder: (_, _) => const WindowsWorkspaceShell(
+      onExit: (_, _) => _journalNavigation.requestClose(),
+      builder: (_, _) => WindowsWorkspaceShell(
         destination: WindowsWorkspaceDestination.journals,
-        child: WindowsJournalPage(),
+        child: WindowsJournalPage(navigationCoordinator: _journalNavigation),
       ),
     ),
     GoRoute(
@@ -90,6 +94,12 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
   late final WindowsClockPreference _clockPreference;
   late final BusyMaxSystemFirstWeekdayController _firstWeekdayController;
   Future<void> _calendarOpenTail = Future<void>.value();
+
+  @override
+  Future<AppExitResponse> didRequestAppExit() async =>
+      await _journalNavigation.requestClose()
+      ? AppExitResponse.exit
+      : AppExitResponse.cancel;
 
   @override
   void initState() {

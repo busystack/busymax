@@ -6,7 +6,41 @@ two-provider matrix remains blocked by stock Nextcloud storage admission.
 Use the [fixture and runner instructions](../test/interop/caldav/README.md#journal-candidate-qualification)
 to repeat the run.
 
+## Range, draft and admission corrections
+
+This follow-up started from BusyMax `df88856c2ec98aae37152f5cdc887c99de3bf6b3`
+on `release/v0.5.0` and BusyStack `b1fe00a4edf80630767eee07476585d3cf024c92`
+on `release/v0.2.0`. The BusyStack candidate is
+`75685be70c48a776322f957a17d937b5352a279b`, with schema 17 and JAR SHA-256
+`8fc37a17246761a3c654866b41bca30bd5ae595bd4db2769e3dc1b7fdd061bfe`.
+The local image ID is `sha256:38152c13f99345ed98eab4a99b5e56b88dfaf99094c2a86d6783e190064726b8`.
+`clean verify` passed 649 unit and 272 integration tests. The protocol and
+OAuth companion suites passed six and four tests. The distribution gate and
+reverse-proxy browser restore passed on that image. The first operations run
+hit Docker’s exhausted default subnet pool when creating a nested restore
+test network. Use the run manifest for the outcome of the sequential retry.
+BusyMax remains at schema 28. Recurrence-position comparison ignores RANGE,
+while the durable event/task and journal editing keys retain their previous
+representation. The draft document carries its own format version.
+
+| Requirement and standard | Independent expected result | Path, command and executed scope |
+| --- | --- | --- |
+| F01, RFC 5545 §3.8.4.4 | A moved ordinary exception promoted by edit or cancellation occurs once at its original recurrence position. Its effective start stays moved. | `JournalRepository.editOccurrence`, `cancelOccurrenceRange` and `JournalMessage.update`. `flutter test test/journal/journal_itip_test.dart` passed. `journal_live_test.dart` exercised the stored and queued DATE, UTC and TZID combinations with file reopen and HTTPS readback on stock Nextcloud. |
+| F02 | An unfinished name, multiline value, quoting flag and edits in later fields or children survive draft decoding. A validated save still rejects an incomplete name. | `JournalPropertyDraft` and `JournalChildDraft`. `flutter test test/journal/journal_repository_test.dart` passed the nested JSON and persisted-patch regression. The native runner reports incomplete-parameter readback separately. |
+| F03 | A failed local write leaves the same editor contents on Close, system back and route exit. Retrying allows Close and reopen with the exact text. | `JournalWorkspace`, `BusyMaxWindowCloseCoordinator` and platform routes. `flutter test test/journal/journal_workspace_test.dart` passed an injected SQLite failure and retry. Delayed-write, Windows and Android native variants remain open. |
+| F04 | Stale advanced and ordinary edits remain visible and export alongside the saved ICS. Unsupported or incomplete editor input remains raw JSON. | `JournalWorkspace` draft recovery. `journal_workspace_test.dart` passed stale LINK, RRULE, VSTATUS, description and attachment export assertions through an injected file adapter. Native adapter and permission-transition qualification remain open. |
+| F05, RFC 9073 §5.3 and RFC 10051 §8 | Reordering or removing unrelated UID-less children preserves each derived child. A change to protected data is rejected. | `DavMutationPatch.applyTo`. `journal_repository_test.dart` passed durable JSON replay for direct VSTATUS and VSTATUS under PARTICIPANT. |
+| F06, RFC 5545 §3.8.4.4 and RFC 4791 §4.1 | An incompatible detached identity yields HTTP 403 with `valid-calendar-data` and leaves the old representation, ETag, membership, history and sync token unchanged. Valid adjacent objects remain queryable. | `CalendarContent` and `CalendarConstraints`. `DavHttpIT#mismatchedRecurrenceIdentityFailsBeforeWritingOrIndexing` passed for VJOURNAL, VEVENT and VTODO in server `clean verify`. BusyMax whole-resource validation also rejects incompatible authored data. |
+| F07, RFC 5546 §3.5 | A mixed PUBLISH review keeps the organizer failure and the queued sibling separately. Closing, reopening and retrying preserves the review without requeuing the successful sibling. | `JournalImportReview`, `DavNativeImportService` and `JournalWorkspace`. `journal_workspace_test.dart` passed the partial PUBLISH review and retry. Provider rejection remains a queue outcome, and a full native import matrix remains open. |
+| F08, RFC 5545 §3.6.3 and provider validation behavior | BusyStack rejects the unstamped create with HTTP 403 and unchanged inventory. Nextcloud accepts it and GET returns a valid single UTC DTSTAMP with the remaining semantics preserved. | `test/interop/caldav/journal-provider-reports.py` passed the named default-repair and strict replacement assertions on both fixtures. BusyStack passed all 15 report probes. Other stock Nextcloud REPORT results retain their separate outcomes. |
+
+The [matrix runner](../test/interop/caldav/README.md#journal-candidate-qualification)
+records the candidate’s running JAR hash, provider versions, raw outcomes,
+native markers and skipped or missing gates in `build/qualification`.
+
 ## Sources and artifacts
+
+This section and the reviewed R01–R10 coverage below describe the preceding qualification run.
 
 | Input | Identity |
 | --- | --- |
