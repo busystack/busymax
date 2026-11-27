@@ -35,6 +35,15 @@ def clean(path):
     return not subprocess.check_output(['git', 'status', '--porcelain'], cwd=path)
 
 
+def apk_signer_digests(output):
+    # Build-tools 37 labels signers by signature scheme. Older official
+    # releases label them by ordinal.
+    return {digest.lower() for digest in re.findall(
+        r'^(?:Signer #\d+|V[1-4](?:\.\d+)? Signer(?: #\d+)?):? '
+        r'certificate SHA-256 digest: ([a-fA-F0-9]{64})$', output, re.M,
+    )}
+
+
 def utc():
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
@@ -236,10 +245,7 @@ done
                 )
                 if response.returncode:
                     return set()
-                return set(re.findall(
-                    r'^Signer #\d+ certificate SHA-256 digest: ([a-fA-F0-9]+)$',
-                    response.stdout, re.M,
-                ))
+                return apk_signer_digests(response.stdout)
 
             signing_identity = certificates(apk)
             if not signing_identity:
