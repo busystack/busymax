@@ -29,9 +29,15 @@ import 'package:uuid/uuid.dart';
 
 void main() {
   final fixture = Platform.environment['BUSYMAX_JOURNAL_LIVE_FIXTURE'];
-  for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud]) {
+  final cases = [
+    for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud])
+      for (final recovery in [false, true]) (provider, recovery),
+  ];
+  for (final (provider, recurrenceRecovery) in cases) {
     test(
-      'journal durable CRUD with independent HTTPS readback on ${provider.name}',
+      recurrenceRecovery
+          ? 'journal range and historical queue recovery with independent HTTPS readback on ${provider.name}'
+          : 'journal durable CRUD with independent HTTPS readback on ${provider.name}',
       () async {
         final specs = jsonDecode(File(fixture!).readAsStringSync()) as Map;
         final spec = specs[provider.storageValue] as Map;
@@ -187,6 +193,201 @@ void main() {
         ).replayDueOperations();
         await pull();
         var journals = JournalRepository(database);
+        if (recurrenceRecovery) {
+          final legacyFile = File('${directory.path}/legacy.db');
+          await legacyFile.writeAsBytes(
+            gzip.decode(
+              File('test/journal/fixtures/legacy-range-v28.sqlite.gz')
+                  .readAsBytesSync(),
+            ),
+          );
+          final legacyDatabase = AppDatabase(NativeDatabase(legacyFile));
+          final PendingOp legacy;
+          try {
+            legacy = await legacyDatabase
+                .select(legacyDatabase.pendingOps)
+                .getSingle();
+          } finally {
+            await legacyDatabase.close();
+          }
+          final legacyHref = collectionUri.resolve('legacy-recovery.ics');
+          expect(
+            (await request(
+              'PUT',
+              legacyHref,
+              body: legacy.baselineRawIcs,
+              headers: {'Content-Type': 'text/calendar', 'If-None-Match': '*'},
+            )).statusCode,
+            201,
+          );
+          final beforeRecovery = await request('GET', legacyHref);
+          expect(beforeRecovery.statusCode, 200);
+          await pull();
+          final replayedObject =
+              await (database.select(database.davObjects)..where(
+                    (row) => row.requestUri.equals(legacyHref.toString()),
+                  ))
+                  .getSingle();
+          await database
+              .into(database.pendingOps)
+              .insert(
+                legacy.copyWith(
+                  accountId: accountId,
+                  provider: Value(provider.storageValue),
+                  davObjectId: Value(replayedObject.id),
+                  davCollectionId: Value(collection.id),
+                  davCollectionHref: Value(collection.hrefKey),
+                  davMemberHref: Value(replayedObject.hrefKey),
+                  baselineRawIcs: Value(replayedObject.rawIcsBody),
+                  baselineEtag: Value(replayedObject.etag),
+                ),
+              );
+          expect((await replay()).appliedCount, 0);
+          final afterBlocked = await request('GET', legacyHref);
+          expect(afterBlocked.bodyBytes, beforeRecovery.bodyBytes);
+          expect(afterBlocked.headers['etag'], beforeRecovery.headers['etag']);
+          await database.close();
+          database = AppDatabase(NativeDatabase(file));
+          journals = JournalRepository(database);
+          final legacyEntry = (await journals.watchEntries().first).singleWhere(
+            (row) => row.uid == 'legacy' && row.recurrenceIdKey == null,
+          );
+          final recovery = (await journals.read(legacyEntry)).pendingRecovery!;
+          expect(recovery.operation.state, 'failed');
+          expect(
+            recovery.operation.mutationPatchJson,
+            legacy.mutationPatchJson,
+          );
+          final groups = DavJournalPendingRecovery.competingComponents(
+            IcalSemanticDocument.parse(recovery.invalidCandidate),
+          );
+          final group = groups.entries.single;
+          expect(
+            group.value.map((item) => item.summary),
+            containsAll(['Original detached entry', 'Offline future edit']),
+          );
+          await journals.repairPendingUpdate(recovery, {
+            group.key: group.value.indexWhere(
+              (item) => item.recurrenceRange == 'THISANDFUTURE',
+            ),
+          });
+          expect((await replay()).appliedCount, 1);
+          final corrected = await request('GET', legacyHref);
+          expect(corrected.statusCode, 200);
+          expect(
+            corrected.headers['etag'],
+            isNot(beforeRecovery.headers['etag']),
+          );
+          expect(corrected.body, contains('SUMMARY:Offline future edit'));
+          expect(
+            corrected.body,
+            isNot(contains('SUMMARY:Original detached entry')),
+          );
+          expect(
+            RegExp(
+              r'^RECURRENCE-ID;',
+              multiLine: true,
+            ).allMatches(corrected.body),
+            hasLength(1),
+          );
+
+          final rangeHref = collectionUri.resolve('single-at-range.ics');
+          const rangeBaseline =
+              'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
+              'BEGIN:VJOURNAL\r\nUID:single-at-range\r\nDTSTAMP:20261125T000000Z\r\n'
+              'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:0\r\n'
+              'DTSTART:20261126T090000Z\r\nRRULE:FREQ=DAILY;COUNT=5\r\n'
+              'DESCRIPTION:Master\r\nEND:VJOURNAL\r\n'
+              'BEGIN:VJOURNAL\r\nUID:single-at-range\r\nDTSTAMP:20261126T000000Z\r\n'
+              'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:1\r\n'
+              'RECURRENCE-ID;RANGE=THISANDFUTURE:20261127T090000Z\r\n'
+              'DTSTART:20261127T110000Z\r\nDESCRIPTION:Future body\r\n'
+              'X-QA:range metadata\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+          const cancellation =
+              'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
+              'METHOD:CANCEL\r\nBEGIN:VJOURNAL\r\nUID:single-at-range\r\n'
+              'DTSTAMP:20261127T120000Z\r\nORGANIZER:mailto:range@example.invalid\r\n'
+              'SEQUENCE:2\r\nRECURRENCE-ID:20261127T090000Z\r\n'
+              'STATUS:CANCELLED\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+          final seededRange = await request(
+            'PUT',
+            rangeHref,
+            body: rangeBaseline,
+            headers: {'If-None-Match': '*', 'Content-Type': 'text/calendar'},
+          );
+          expect(seededRange.statusCode, 201);
+          await pull();
+          final preview = NextcloudNativeImportPreview.parse(
+            IcalDocument.parse(cancellation),
+          );
+          Future<NativeImportItemResult> importCancellation() async =>
+              (await DavNativeImportService(database).import(
+                accountId: accountId,
+                collectionId: collection.id,
+                preview: preview,
+              )).single;
+          expect(
+            (await importCancellation()).status,
+            NativeImportItemStatus.queued,
+          );
+          Future<String> exportRange() async =>
+              (await DavNativeExportService(database).collection(
+                accountId,
+                collection.id,
+              )).singleWhere((item) => item.uid == 'single-at-range').rawIcs;
+          final cancelledRange = await exportRange();
+          expect(cancelledRange, isNot(contains('METHOD:')));
+          await database.close();
+          database = AppDatabase(NativeDatabase(file));
+          journals = JournalRepository(database);
+          expect(await exportRange(), cancelledRange);
+          expect(
+            (await importCancellation()).status,
+            NativeImportItemStatus.duplicate,
+          );
+          expect((await replay()).appliedCount, 1);
+          final rangeReadback = await request('GET', rangeHref);
+          expect(rangeReadback.statusCode, 200);
+          final series = rangeReadback.body
+              .replaceAll(RegExp(r'\r?\n[ \t]'), '')
+              .split('BEGIN:VJOURNAL')
+              .skip(1)
+              .map(
+                (part) => part
+                    .split('END:VJOURNAL')
+                    .first
+                    .split(RegExp(r'\r?\n'))
+                    .toSet(),
+              )
+              .toList();
+          expect(series, hasLength(3));
+          expect(
+            series.singleWhere(
+              (part) => part.contains('RECURRENCE-ID:20261127T090000Z'),
+            ),
+            containsAll([
+              'STATUS:CANCELLED',
+              'DTSTART:20261127T110000Z',
+              'SEQUENCE:2',
+            ]),
+          );
+          expect(
+            series.singleWhere(
+              (part) => part.contains(
+                'RECURRENCE-ID;RANGE=THISANDFUTURE:20261128T090000Z',
+              ),
+            ),
+            containsAll([
+              'DTSTART:20261128T110000Z',
+              'DESCRIPTION:Future body',
+              'X-QA:range metadata',
+              'SEQUENCE:1',
+            ]),
+          );
+          expect(rangeReadback.body, isNot(contains('METHOD:')));
+
+          return;
+        }
         await journals.create(
           collection,
           title: 'New journal',
@@ -458,195 +659,6 @@ void main() {
           final persisted = await request('GET', nestedHref);
           expect(persisted.body, effective);
         }
-        final legacyFile = File('${directory.path}/legacy.db');
-        await legacyFile.writeAsBytes(
-          gzip.decode(
-            File('test/journal/fixtures/legacy-range-v28.sqlite.gz')
-                .readAsBytesSync(),
-          ),
-        );
-        final legacyDatabase = AppDatabase(NativeDatabase(legacyFile));
-        final PendingOp legacy;
-        try {
-          legacy = await legacyDatabase
-              .select(legacyDatabase.pendingOps)
-              .getSingle();
-        } finally {
-          await legacyDatabase.close();
-        }
-        final legacyHref = collectionUri.resolve('legacy-recovery.ics');
-        expect(
-          (await request(
-            'PUT',
-            legacyHref,
-            body: legacy.baselineRawIcs,
-            headers: {'Content-Type': 'text/calendar', 'If-None-Match': '*'},
-          )).statusCode,
-          201,
-        );
-        final beforeRecovery = await request('GET', legacyHref);
-        expect(beforeRecovery.statusCode, 200);
-        await pull();
-        final replayedObject =
-            await (database.select(
-                  database.davObjects,
-                )..where((row) => row.requestUri.equals(legacyHref.toString())))
-                .getSingle();
-        await database
-            .into(database.pendingOps)
-            .insert(
-              legacy.copyWith(
-                accountId: accountId,
-                provider: Value(provider.storageValue),
-                davObjectId: Value(replayedObject.id),
-                davCollectionId: Value(collection.id),
-                davCollectionHref: Value(collection.hrefKey),
-                davMemberHref: Value(replayedObject.hrefKey),
-                baselineRawIcs: Value(replayedObject.rawIcsBody),
-                baselineEtag: Value(replayedObject.etag),
-              ),
-            );
-        expect((await replay()).appliedCount, 0);
-        final afterBlocked = await request('GET', legacyHref);
-        expect(afterBlocked.bodyBytes, beforeRecovery.bodyBytes);
-        expect(afterBlocked.headers['etag'], beforeRecovery.headers['etag']);
-        await database.close();
-        database = AppDatabase(NativeDatabase(file));
-        journals = JournalRepository(database);
-        final legacyEntry = (await journals.watchEntries().first).singleWhere(
-          (row) => row.uid == 'legacy' && row.recurrenceIdKey == null,
-        );
-        final recovery = (await journals.read(legacyEntry)).pendingRecovery!;
-        expect(recovery.operation.state, 'failed');
-        expect(recovery.operation.mutationPatchJson, legacy.mutationPatchJson);
-        final groups = DavJournalPendingRecovery.competingComponents(
-          IcalSemanticDocument.parse(recovery.invalidCandidate),
-        );
-        final group = groups.entries.single;
-        expect(
-          group.value.map((item) => item.summary),
-          containsAll(['Original detached entry', 'Offline future edit']),
-        );
-        await journals.repairPendingUpdate(recovery, {
-          group.key: group.value.indexWhere(
-            (item) => item.recurrenceRange == 'THISANDFUTURE',
-          ),
-        });
-        expect((await replay()).appliedCount, 1);
-        final corrected = await request('GET', legacyHref);
-        expect(corrected.statusCode, 200);
-        expect(
-          corrected.headers['etag'],
-          isNot(beforeRecovery.headers['etag']),
-        );
-        expect(corrected.body, contains('SUMMARY:Offline future edit'));
-        expect(
-          corrected.body,
-          isNot(contains('SUMMARY:Original detached entry')),
-        );
-        expect(
-          RegExp(
-            r'^RECURRENCE-ID;',
-            multiLine: true,
-          ).allMatches(corrected.body),
-          hasLength(1),
-        );
-
-        final rangeHref = collectionUri.resolve('single-at-range.ics');
-        const rangeBaseline =
-            'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
-            'BEGIN:VJOURNAL\r\nUID:single-at-range\r\nDTSTAMP:20261125T000000Z\r\n'
-            'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:0\r\n'
-            'DTSTART:20261126T090000Z\r\nRRULE:FREQ=DAILY;COUNT=5\r\n'
-            'DESCRIPTION:Master\r\nEND:VJOURNAL\r\n'
-            'BEGIN:VJOURNAL\r\nUID:single-at-range\r\nDTSTAMP:20261126T000000Z\r\n'
-            'ORGANIZER:mailto:range@example.invalid\r\nSEQUENCE:1\r\n'
-            'RECURRENCE-ID;RANGE=THISANDFUTURE:20261127T090000Z\r\n'
-            'DTSTART:20261127T110000Z\r\nDESCRIPTION:Future body\r\n'
-            'X-QA:range metadata\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
-        const cancellation =
-            'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//Live range fixture//EN\r\n'
-            'METHOD:CANCEL\r\nBEGIN:VJOURNAL\r\nUID:single-at-range\r\n'
-            'DTSTAMP:20261127T120000Z\r\nORGANIZER:mailto:range@example.invalid\r\n'
-            'SEQUENCE:2\r\nRECURRENCE-ID:20261127T090000Z\r\n'
-            'STATUS:CANCELLED\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
-        final seededRange = await request(
-          'PUT',
-          rangeHref,
-          body: rangeBaseline,
-          headers: {'If-None-Match': '*', 'Content-Type': 'text/calendar'},
-        );
-        expect(seededRange.statusCode, 201);
-        await pull();
-        final preview = NextcloudNativeImportPreview.parse(
-          IcalDocument.parse(cancellation),
-        );
-        Future<NativeImportItemResult> importCancellation() async =>
-            (await DavNativeImportService(database).import(
-              accountId: accountId,
-              collectionId: collection.id,
-              preview: preview,
-            )).single;
-        expect(
-          (await importCancellation()).status,
-          NativeImportItemStatus.queued,
-        );
-        Future<String> exportRange() async =>
-            (await DavNativeExportService(database).collection(
-              accountId,
-              collection.id,
-            )).singleWhere((item) => item.uid == 'single-at-range').rawIcs;
-        final cancelledRange = await exportRange();
-        expect(cancelledRange, isNot(contains('METHOD:')));
-        await database.close();
-        database = AppDatabase(NativeDatabase(file));
-        journals = JournalRepository(database);
-        expect(await exportRange(), cancelledRange);
-        expect(
-          (await importCancellation()).status,
-          NativeImportItemStatus.duplicate,
-        );
-        expect((await replay()).appliedCount, 1);
-        final rangeReadback = await request('GET', rangeHref);
-        expect(rangeReadback.statusCode, 200);
-        final series = rangeReadback.body
-            .replaceAll(RegExp(r'\r?\n[ \t]'), '')
-            .split('BEGIN:VJOURNAL')
-            .skip(1)
-            .map(
-              (part) => part
-                  .split('END:VJOURNAL')
-                  .first
-                  .split(RegExp(r'\r?\n'))
-                  .toSet(),
-            )
-            .toList();
-        expect(series, hasLength(3));
-        expect(
-          series.singleWhere(
-            (part) => part.contains('RECURRENCE-ID:20261127T090000Z'),
-          ),
-          containsAll([
-            'STATUS:CANCELLED',
-            'DTSTART:20261127T110000Z',
-            'SEQUENCE:2',
-          ]),
-        );
-        expect(
-          series.singleWhere(
-            (part) => part.contains(
-              'RECURRENCE-ID;RANGE=THISANDFUTURE:20261128T090000Z',
-            ),
-          ),
-          containsAll([
-            'DTSTART:20261128T110000Z',
-            'DESCRIPTION:Future body',
-            'X-QA:range metadata',
-            'SEQUENCE:1',
-          ]),
-        );
-        expect(rangeReadback.body, isNot(contains('METHOD:')));
-
         if (provider == BusyProvider.nextcloud) {
           final corpusPath =
               Platform.environment['BUSYMAX_JOURNAL_CORPUS'] ??

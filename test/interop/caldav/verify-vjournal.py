@@ -360,8 +360,9 @@ done
         str(server), str(nextcloud),
     ])
     run('busymax-live', ['flutter', 'test', 'test/journal', '--reporter', 'expanded'],
-        named=[f'journal durable CRUD with independent HTTPS readback on {provider}'
-               for provider in profiles])
+        named=[f'{scenario} with independent HTTPS readback on {provider}'
+               for provider in profiles
+               for scenario in ('journal durable CRUD', 'journal range and historical queue recovery')])
     for platform in ('linux', 'windows', 'android'):
         for provider in ('caldav', 'nextcloud'):
             if platform == 'linux':
