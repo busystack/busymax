@@ -41,7 +41,6 @@ import 'journal_property_editor.dart';
 
 export 'journal_controls.dart';
 
-final _importReview = StateProvider<JournalImportReview?>((ref) => null);
 final _importOperation = StreamProvider.autoDispose.family<PendingOp?, String>((
   ref,
   id,
@@ -54,6 +53,12 @@ final _importOperation = StreamProvider.autoDispose.family<PendingOp?, String>((
 
 final _journalRepository = Provider(
   (ref) => JournalRepository(ref.watch(databaseProvider)),
+);
+final _importReviews = Provider(
+  (ref) => JournalImportReviewRepository(ref.watch(_journalRepository)),
+);
+final _importReview = StreamProvider.autoDispose(
+  (ref) => ref.watch(_importReviews).watch(),
 );
 final _journalSources = StreamProvider.autoDispose(
   (ref) => ref.watch(_journalRepository).watchSources(),
@@ -100,6 +105,7 @@ Object _linkIdentity(JournalLinkTarget target) => switch (target) {
   ),
   LinkedTask(:final task) => ('task', task.accountId, task.taskListId, task.id),
   LinkedXml(:final uri) => ('xml', uri),
+  UnresolvedJournalLink(:final valueType, :final value) => (valueType, value),
 };
 
 String _linkLabel(JournalLinkTarget target, AppLocalizations l10n) =>
@@ -108,6 +114,7 @@ String _linkLabel(JournalLinkTarget target, AppLocalizations l10n) =>
       LinkedEvent(:final event) => event.title,
       LinkedTask(:final task) => task.title,
       LinkedXml(:final uri) => uri.toString(),
+      UnresolvedJournalLink(:final value) => value,
     };
 
 class JournalWorkspace extends ConsumerStatefulWidget {
@@ -234,6 +241,10 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
       return;
     }
     switch (target) {
+      case UnresolvedJournalLink():
+        setState(
+          () => _error = AppLocalizations.of(context).scheduleUnavailable,
+        );
       case LinkedJournal(:final entry):
         final next = await repository.read(entry);
         if (!mounted) return;
@@ -741,7 +752,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                   collectionCapabilitiesFromStored(src).canAttemptCreateJournal,
             )
             .firstOrNull;
-    final review = ref.watch(_importReview);
+    final reviewState = ref.watch(_importReview);
+    final review = reviewState.valueOrNull;
     if (_showImportReview && review != null) {
       final pendingImport = review.preview;
       final destinations = sources.where((source) {
@@ -763,11 +775,26 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(l10n.importIcsFile),
-          ui.choose(l10n.journalCollection, destination?.id ?? '', [
-            (id: '', label: l10n.journalCollection),
-            for (final source in destinations)
-              (id: source.id, label: source.displayName),
-          ], (value) => setState(() => review.destinationId = value)),
+          ui.choose(
+            l10n.journalCollection,
+            destination?.id ?? '',
+            [
+              (id: '', label: l10n.journalCollection),
+              for (final source in destinations)
+                (id: source.id, label: source.displayName),
+            ],
+            (value) {
+              if (_busy || value.isEmpty || value == reviewedId) return;
+              final selected = destinations.singleWhere(
+                (source) => source.id == value,
+              );
+              _run(
+                () => ref
+                    .read(_importReviews)
+                    .selectDestination(review, selected),
+              );
+            },
+          ),
           if (pendingImport.isJournalMessage)
             Text(pendingImport.schedulingMethod!),
           if (reviewedId != null && destination == null)
@@ -801,32 +828,33 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                         (pendingImport.schedulingMethod != null &&
                             !pendingImport.isJournalMessage)
                     ? null
-                    : () => _run(() async {
-                        final results =
-                            await DavNativeImportService(
-                              ref.read(databaseProvider),
-                            ).import(
-                              accountId: destination.accountId,
-                              collectionId: destination.id,
-                              preview: remaining,
-                            );
-                        review.remember(destination.id, results);
-                        if (mounted) setState(() {});
-                      }),
+                    : () => _run(
+                        () =>
+                            ref.read(_importReviews).queue(review, destination),
+                      ),
                 primary: true,
               ),
               ui.button(
                 l10n.close,
                 _busy ? null : () => setState(() => _showImportReview = false),
               ),
+              if (widget.files?.exportDraft != null)
+                ui.button(
+                  l10n.journalExportRecovery,
+                  _busy
+                      ? null
+                      : () => _run(
+                          () => widget.files!.exportDraft!(review.encode()),
+                        ),
+                ),
               ui.button(
                 l10n.discardChangesAction,
                 _busy
                     ? null
-                    : () {
-                        ref.read(_importReview.notifier).state = null;
-                        setState(() => _showImportReview = false);
-                      },
+                    : () => _run(() async {
+                        await ref.read(_importReviews).discard(review);
+                        if (mounted) setState(() => _showImportReview = false);
+                      }),
               ),
             ],
           ),
@@ -951,10 +979,14 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                                 _renameCollection = false;
                               }),
                       ),
+                    if (widget.files != null && reviewState.hasError)
+                      Text(l10n.journalOperationFailed),
                     if (widget.files != null)
                       ui.button(
                         l10n.importIcsFile,
-                        _busy || (newSource == null && review == null)
+                        _busy ||
+                                !reviewState.hasValue ||
+                                (newSource == null && review == null)
                             ? null
                             : () => _run(() async {
                                 if (review != null) {
@@ -967,25 +999,31 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                                     .read(icalImportServiceProvider)
                                     .parsePreview(bytes)
                                     .nativePreview;
-                                setState(() {
-                                  _notice = null;
-                                  ref
-                                      .read(_importReview.notifier)
-                                      .state = JournalImportReview(
-                                    NextcloudNativeImportPreview(
-                                      preview.resources
-                                          .where(
-                                            (resource) =>
-                                                resource.componentType ==
-                                                'VJOURNAL',
-                                          )
-                                          .toList(),
-                                      preview.rejected,
-                                      preview.schedulingMethod,
-                                    ),
-                                  );
-                                  _showImportReview = true;
-                                });
+                                await ref
+                                    .read(_importReviews)
+                                    .begin(
+                                      newSource!,
+                                      JournalImportReview(
+                                        NextcloudNativeImportPreview(
+                                          preview.resources
+                                              .where(
+                                                (resource) =>
+                                                    resource.componentType ==
+                                                    'VJOURNAL',
+                                              )
+                                              .toList(),
+                                          preview.rejected,
+                                          preview.schedulingMethod,
+                                        ),
+                                        bytes,
+                                      ),
+                                    );
+                                if (mounted) {
+                                  setState(() {
+                                    _notice = null;
+                                    _showImportReview = true;
+                                  });
+                                }
                               }),
                       ),
                     ui.button(
@@ -2379,19 +2417,24 @@ class _JournalEditorState extends State<_JournalEditor> {
                 ],
                 ..._attachmentControls(l10n, canEdit),
                 for (final related in widget.relatedEntries)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: ui.button(
-                      '${l10n.openLink} · ${_linkLabel(related, l10n)}',
-                      locked
-                          ? null
-                          : () async {
-                              if (await _flushDraft() && mounted) {
-                                await widget.openReference(related);
-                              }
-                            },
+                  if (related is UnresolvedJournalLink)
+                    Text(
+                      '${related.valueType}: ${related.value}\n${l10n.scheduleUnavailable}',
+                    )
+                  else
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: ui.button(
+                        '${l10n.openLink} · ${_linkLabel(related, l10n)}',
+                        locked
+                            ? null
+                            : () async {
+                                if (await _flushDraft() && mounted) {
+                                  await widget.openReference(related);
+                                }
+                              },
+                      ),
                     ),
-                  ),
                 if (recovering && _unreadableDraft == null) ...[
                   for (final field in _details)
                     Text(field.toProperty().serializeLogicalLine()),

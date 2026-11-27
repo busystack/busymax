@@ -84,6 +84,13 @@ final class LinkedXml extends JournalLinkTarget {
   final Uri uri;
 }
 
+final class UnresolvedJournalLink extends JournalLinkTarget {
+  const UnresolvedJournalLink(this.valueType, this.value);
+
+  final String valueType;
+  final String value;
+}
+
 final class JournalRepository {
   JournalRepository(this.database, {DateTime Function()? nowUtc})
     : _queue = DavPendingOperationQueue(database: database),
@@ -98,6 +105,10 @@ final class JournalRepository {
   Future<DavJournalDraft?> readDraft(String id) => (database.select(
     database.davJournalDrafts,
   )..where((draft) => draft.id.equals(id))).getSingleOrNull();
+
+  Stream<DavJournalDraft?> watchDraft(String id) => (database.select(
+    database.davJournalDrafts,
+  )..where((draft) => draft.id.equals(id))).watchSingleOrNull();
 
   Future<void> saveDraft({
     required String id,
@@ -263,8 +274,9 @@ final class JournalRepository {
   Future<List<JournalLinkTarget>> relatedEntries(JournalSnapshot origin) async {
     await _source(origin.entry.accountId, origin.entry.collectionId);
     final uids = <String>{};
-    final uris = <String>{};
+    final uris = <String, Set<String>>{};
     final xml = <Uri>{};
+    final references = <(String, String)>{};
     for (final property in origin.component.component.properties) {
       if (property.name != 'LINK' && property.name != 'RELATED-TO') continue;
       final relation = property.parameterValue('RELTYPE')?.toUpperCase();
@@ -272,8 +284,11 @@ final class JournalRepository {
       final type = property.parameterValue('VALUE')?.toUpperCase();
       if (type == 'UID' ||
           (property.name == 'RELATED-TO' && (type == null || type == 'TEXT'))) {
-        uids.add(property.decodedTextValue);
+        final uid = property.decodedTextValue;
+        uids.add(uid);
+        references.add(('UID', uid));
       } else if (type == 'URI' || type == 'XML-REFERENCE') {
+        references.add((type!, property.rawValue));
         final uri = Uri.tryParse(property.rawValue);
         if (uri != null &&
             uri.hasAuthority &&
@@ -281,14 +296,20 @@ final class JournalRepository {
             uri.userInfo.isEmpty) {
           if (type == 'XML-REFERENCE' && uri.hasFragment) {
             xml.add(uri);
+            references.remove((type, property.rawValue));
           } else if (type == 'URI' && !uri.hasFragment && !uri.hasQuery) {
-            uris.add(uri.toString());
+            uris.putIfAbsent(uri.toString(), () => {}).add(property.rawValue);
           }
         }
       }
     }
     final targets = <JournalLinkTarget>[for (final uri in xml) LinkedXml(uri)];
-    if (uids.isEmpty && uris.isEmpty) return targets;
+    List<JournalLinkTarget> includeUnresolved() => [
+      ...targets,
+      for (final (type, value) in references)
+        UnresolvedJournalLink(type, value),
+    ];
+    if (uids.isEmpty && uris.isEmpty) return includeUnresolved();
     final objects = database.davObjects;
     final collections = database.davCollections;
     final query =
@@ -304,7 +325,7 @@ final class JournalRepository {
               collections.serverMissing.not() &
               ((objects.collectionId.equals(origin.entry.collectionId) &
                       objects.primaryUid.isIn(uids)) |
-                  objects.requestUri.isIn(uris)),
+                  objects.requestUri.isIn(uris.keys)),
         );
     final candidates = <String, DavObject>{};
     final uidMatches = <String, List<String>>{};
@@ -326,10 +347,10 @@ final class JournalRepository {
     final ids = {
       for (final uid in uids)
         if (uidMatches[uid] case [final id]) id,
-      for (final uri in uris)
+      for (final uri in uris.keys)
         if (uriMatches[uri] case [final id]) id,
     }..remove(origin.entry.davObjectId);
-    if (ids.isEmpty) return targets;
+    if (ids.isEmpty) return includeUnresolved();
     final removed =
         await (database.select(database.pendingOps)..where(
               (row) =>
@@ -340,7 +361,7 @@ final class JournalRepository {
             ))
             .get();
     ids.removeAll(removed.map((row) => row.davObjectId));
-    if (ids.isEmpty) return targets;
+    if (ids.isEmpty) return includeUnresolved();
     final account = await (database.select(
       database.accounts,
     )..where((row) => row.id.equals(origin.entry.accountId))).getSingle();
@@ -400,39 +421,51 @@ final class JournalRepository {
               .map((row) => row.readTable(taskRows))
               .get()
         : const <Task>[];
-    return [
-      ...targets,
-      for (final id in ids)
-        switch (candidates[id]?.dominantComponentType) {
-          'VJOURNAL' => [
-            if (_uniqueLink(
-                  components.where((row) => row.davObjectId == id).toList(),
-                  (row) => row.recurrenceIdKey == null,
-                )
-                case final journal?)
-              LinkedJournal(journal),
-          ],
-          'VEVENT' => [
-            if (_uniqueLink(
-                  events.where((row) => row.davObjectId == id).toList(),
-                  (row) =>
-                      row.providerRecurringEventId == null &&
-                      row.recurrenceIdKey == null,
-                )
-                case final event?)
-              LinkedEvent(event),
-          ],
-          'VTODO' => [
-            if (_uniqueLink(
-                  tasks.where((row) => row.davObjectId == id).toList(),
-                  (row) => row.recurrenceIdKey == null,
-                )
-                case final task?)
-              LinkedTask(task),
-          ],
-          _ => <JournalLinkTarget>[],
-        }.singleOrNull,
-    ].nonNulls.toList(growable: false);
+    for (final id in ids) {
+      final target = switch (candidates[id]?.dominantComponentType) {
+        'VJOURNAL' => [
+          if (_uniqueLink(
+                components.where((row) => row.davObjectId == id).toList(),
+                (row) => row.recurrenceIdKey == null,
+              )
+              case final journal?)
+            LinkedJournal(journal),
+        ],
+        'VEVENT' => [
+          if (_uniqueLink(
+                events.where((row) => row.davObjectId == id).toList(),
+                (row) =>
+                    row.providerRecurringEventId == null &&
+                    row.recurrenceIdKey == null,
+              )
+              case final event?)
+            LinkedEvent(event),
+        ],
+        'VTODO' => [
+          if (_uniqueLink(
+                tasks.where((row) => row.davObjectId == id).toList(),
+                (row) => row.recurrenceIdKey == null,
+              )
+              case final task?)
+            LinkedTask(task),
+        ],
+        _ => <JournalLinkTarget>[],
+      }.singleOrNull;
+      if (target == null) continue;
+      targets.add(target);
+      final object = candidates[id]!;
+      if (object.primaryUid case final uid?
+          when uidMatches[uid]?.singleOrNull == id) {
+        references.remove(('UID', uid));
+      }
+      final href = object.requestUri;
+      if (uriMatches[href]?.singleOrNull == id) {
+        for (final value in uris[href] ?? const <String>{}) {
+          references.remove(('URI', value));
+        }
+      }
+    }
+    return includeUnresolved();
   }
 
   T? _uniqueLink<T>(List<T> candidates, bool Function(T) master) =>

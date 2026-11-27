@@ -8,6 +8,7 @@ import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/dav/ical/dav_native_import.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/journal/journal_import_review.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/journal/presentation/journal_workspace.dart';
 import 'package:busymax/src/journal/presentation/material_journal_controls.dart';
@@ -275,34 +276,42 @@ void main() {
         '',
       ].join('\r\n');
       var reads = 0;
+      String? recoveryExport;
       await tester.binding.setSurfaceSize(const Size(1100, 850));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [databaseProvider.overrideWithValue(db)],
-          child: MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(
-              body: JournalWorkspace(
-                controls: const MaterialJournalControls(),
-                files: JournalFileActions(
-                  read: () async {
-                    reads++;
-                    return Uint8List.fromList(utf8.encode(message));
-                  },
-                  export: (_) async {},
-                  exportDraft: (_) async {},
-                  pickAttachment: () async => null,
-                  saveAttachment: (_) async => null,
-                ),
+      Widget app() => ProviderScope(
+        overrides: [databaseProvider.overrideWithValue(db)],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: JournalWorkspace(
+              controls: const MaterialJournalControls(),
+              files: JournalFileActions(
+                read: () async {
+                  reads++;
+                  return Uint8List.fromList(utf8.encode(message));
+                },
+                export: (_) async {},
+                exportDraft: (value) async {
+                  recoveryExport = value;
+                },
+                pickAttachment: () async => null,
+                saveAttachment: (_) async => null,
               ),
             ),
           ),
         ),
       );
+      await tester.pumpWidget(app());
       await _wait(tester, find.textContaining('Original journal'));
-      final import = find.widgetWithText(OutlinedButton, 'Import .ics file');
+      final import = find.byWidgetPredicate(
+        (widget) =>
+            widget is OutlinedButton &&
+            widget.onPressed != null &&
+            widget.child is Text &&
+            (widget.child as Text).data == 'Import .ics file',
+      );
       await _wait(tester, import);
       await tester.tap(import.first);
       await _wait(tester, find.text('Successful sibling'));
@@ -313,9 +322,19 @@ void main() {
       expect(find.text('Successful sibling'), findsNothing);
       await tester.tap(find.text('Close'));
       await _wait(tester, import);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      await tester.pumpWidget(app());
+      await _wait(tester, import);
       await tester.tap(import.first);
       await _wait(tester, organizerError);
       expect(reads, 1);
+      await tester.tap(find.text('Export recovery bundle (JSON)'));
+      await _settle(tester);
+      expect(
+        JournalImportReview.decode(recoveryExport!).sourceBytes,
+        utf8.encode(message),
+      );
       await tester.tap(find.text('Save'));
       await _settle(tester);
       expect(organizerError, findsOneWidget);
@@ -327,6 +346,61 @@ void main() {
         unorderedEquals(['Original journal', 'Successful sibling']),
       );
       await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  test(
+    'journal import review reopens with queued IDs and exact unsent input',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('journal-review');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/review.sqlite');
+      var database = AppDatabase(NativeDatabase(file));
+      addTearDown(() => database.close());
+      await setupSource(database);
+      var reviews = JournalImportReviewRepository(JournalRepository(database));
+      const raw =
+          'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//QA//EN\r\n'
+          'BEGIN:VJOURNAL\r\nUID:valid\r\nDTSTAMP:20261126T090000Z\r\n'
+          'SUMMARY:Retained input\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n';
+      final source = await database.select(database.davCollections).getSingle();
+      await reviews.begin(
+        source,
+        JournalImportReview(
+          NextcloudNativeImportPreview.parse(IcalDocument.parse(raw)),
+          utf8.encode(raw),
+        ),
+      );
+      final open = (await reviews.watch().first)!;
+      final expectedBody = open.preview.resources.single.rawIcs;
+      expect(open.destinationId, source.id);
+      await database.customStatement('''
+        CREATE TRIGGER fail_review_update BEFORE UPDATE ON dav_journal_drafts
+        BEGIN SELECT RAISE(ABORT, 'fixture write failure'); END
+      ''');
+      await expectLater(reviews.queue(open, source), throwsException);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect((await reviews.watch().first)!.encode(), open.encode());
+      await database.customStatement('DROP TRIGGER fail_review_update');
+      await reviews.queue(open, source);
+      await expectLater(reviews.queue(open, source), throwsException);
+      final queued = (await database.select(database.pendingOps).get()).single;
+      await database.close();
+      database = AppDatabase(NativeDatabase(file));
+      reviews = JournalImportReviewRepository(JournalRepository(database));
+      final resumed = (await reviews.watch().first)!;
+      expect(resumed.sourceBytes, utf8.encode(raw));
+      expect(resumed.preview.resources.single.rawIcs, expectedBody);
+      expect(resumed.destinationId, source.id);
+      expect(resumed.results.single.status, NativeImportItemStatus.queued);
+      expect(resumed.results.single.operationId, queued.id);
+      expect(resumed.remaining(source.id).resources, isEmpty);
+      await reviews.discard(resumed);
+      expect(await reviews.watch().first, isNull);
+      expect(
+        (await database.select(database.pendingOps).get()).single.id,
+        queued.id,
+      );
     },
   );
 

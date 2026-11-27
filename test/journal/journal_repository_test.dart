@@ -185,6 +185,10 @@ void main() {
       targets.whereType<LinkedXml>().single.uri.fragment,
       "xpointer(id('item'))",
     );
+    expect(
+      targets.whereType<UnresolvedJournalLink>().map((link) => link.value),
+      unorderedEquals(['uri-target', unrelated]),
+    );
     await (db.update(db.calendarSources)
           ..where((row) => row.id.equals('dav-calendar-home')))
         .write(const CalendarSourcesCompanion(hidden: Value(true)));
@@ -193,6 +197,10 @@ void main() {
     final hidden = await repository.relatedEntries(origin);
     expect(hidden.whereType<LinkedEvent>(), isEmpty);
     expect(hidden.whereType<LinkedTask>(), isEmpty);
+    expect(
+      hidden.whereType<UnresolvedJournalLink>().map((link) => link.value),
+      unorderedEquals(['uri-target', unrelated, 'linked-event', 'linked-task']),
+    );
   });
 
   test('nested journal authoring survives JSON drafts and durable patches', () {
