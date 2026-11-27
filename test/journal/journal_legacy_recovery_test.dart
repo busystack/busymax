@@ -124,10 +124,11 @@ void main() {
             await (db.update(
               db.pendingOps,
             )..where((row) => row.id.equals(operation.id))).write(
-              const PendingOpsCompanion(
-                state: Value('in_progress'),
-                retryClassification: Value('transient'),
-                attemptCount: Value(1),
+              PendingOpsCompanion(
+                state: const Value('in_progress'),
+                retryClassification: const Value('transient'),
+                // A crash during the first dispatch can leave the count at 0.
+                attemptCount: Value(creating ? 0 : 1),
               ),
             );
           }
@@ -253,7 +254,7 @@ void main() {
             expect(requests, ['GET', 'GET']);
             reopened = (await repository.read(selected)).pendingRecovery!;
             expect(reopened.canReplace, isTrue);
-            expect(reopened.operation.attemptCount, 1);
+            expect(reopened.operation.attemptCount, creating ? 0 : 1);
           }
           await repository.repairPendingUpdate(reopened, {
             journalRecurrencePosition(range.recurrenceId): detached.indexOf(
