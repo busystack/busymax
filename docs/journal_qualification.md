@@ -52,12 +52,20 @@ corrections and their translated messages.
 | Converted component revisions | The BusyMax repository and real HTTPS cases checked one revision instant for the master and both changed detached exceptions. Queue reopen and conditional readback retained the resulting timestamps and organizer sequence values. |
 | Linux GTK files | Three production processes passed the recovery export, reviewed repair, and byte-for-byte attachment save. The third process exported ICS with the binary attachment and imported it under a distinct UID. This scenario uses one private offline profile. |
 | Linux native journal conflicts | Both providers returned HTTP 412 for each competing write. The journal UI displayed the local and remote versions, and the test verified all three stored versions. Independent readback confirmed keep-server, reapply and duplicate results. This case covers competing title changes. |
+| Android API 35 QA | Both native editor smokes passed on the isolated emulator after retrying with SwiftShader and Vulkan disabled. The manifest records each debug QA application ID, signer and installed APK hash separately from the preflight build. Eleven required case markers remain open on each provider. |
 | BusyStack and Nextcloud raw admission | BusyStack passed all 22 operations. The official Nextcloud 35.0.3 image passed 12 and rejected 10 across the two dated PERIOD forms and three typed relationship forms. The independent admission runner checked prior bytes, ETag and collection state after the rejected writes. |
 
 The shared DAV lifecycle tests use calendar and task fixtures. The earlier
 API 37 LAN smoke exercised system permission and direct HTTPS. The full
 native journal matrix and installed release packages still require their
 own acceptance results.
+
+In this follow-up, the four configured journal HTTPS cases passed in a serial
+run. A later aggregate run failed to apply a range promotion on Nextcloud.
+The same named durable CRUD case passed on a freshly initialized stock
+fixture. The Linux two-process replay passed on both providers. A separate
+Nextcloud Linux rerun hit a collection deletion confirmation timeout. The
+manifest retains the earlier passing scenarios and the failed reruns.
 
 ## November 27 continuation
 

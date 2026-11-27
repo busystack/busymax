@@ -359,6 +359,11 @@ To repeat only Android native stages after an emulator failure, add
 `--native-platform android` to the matrix command. The unselected cells
 remain unexecuted and keep the overall gate incomplete.
 
+Use `vjournal-nextcloud.py start /tmp --memory-backed` for an isolated
+admission or replay check on a host with slow disk I/O. The fixture records
+its storage type. Use the default persistent volume for service restart
+and state retention tests.
+
 ### Routed Android API 37 smoke
 
 Use a private routed IPv4 address belonging to the QA host and a disposable
