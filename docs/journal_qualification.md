@@ -60,11 +60,20 @@ record is in `build/qualification/vjournal-completion-20261127`.
 | Windows and strict Snap | The Windows launcher requires an authorized healthy desktop host. The local VM booted into Automatic Repair. The canonical Snap builder requires the owner’s desktop OAuth configuration. The installed-package gates remain open. |
 
 The final-source journal HTTPS suite passed four named cases, including
-recovery after downstream denial and historical queue repair. The follow-up
-event and task regression used the official Calendar 6.7.0 and Tasks 0.18.1
-apps. Its exact-version test encountered an unknown HTTP mutation outcome
-and large-collection rediscovery timed out. The separate user and group
-sharing test passed.
+recovery after downstream denial and historical queue repair. The event,
+task and sharing reruns used official Calendar 6.7.0 and Tasks 0.18.1 on
+a new unmodified Nextcloud 35.0.3 instance. Both the exact-version DAV
+semantics case and the 128-member collection case passed, along with the
+separate user and group ACL case. Earlier attempts had an unknown HTTP
+mutation outcome and a large-collection rediscovery timeout.
+
+Both stages of the Nextcloud service-restart regression in
+`test/dav/nextcloud_live_integration_test.dart` passed with a real container
+restart and the same stock installation. A separate HTTPS peer verified that
+a dated journal kept its bytes, ETag, inventory and sync token, that its
+deleted sibling stayed absent, and that a conditional journal update
+succeeded afterward. This covers a service restart. Restored-cache
+qualification after a backup restore still needs its own client scenario.
 
 The final deterministic rerun passed 5,533 tests with 125 skips and no
 failures at `4fbf75aef35b19c78df3630c871cd89d44d5ffe1`, which carries the
@@ -80,24 +89,22 @@ The server candidate in this continuation uses JAR SHA-256
 `8fc37a17246761a3c654866b41bca30bd5ae595bd4db2769e3dc1b7fdd061bfe` and
 image ID
 `sha256:38152c13f99345ed98eab4a99b5e56b88dfaf99094c2a86d6783e190064726b8`.
-The preceding verification of this exact server and JAR passed 649 unit
-and 272 integration tests. This continuation's fresh Maven run passed all
-649 unit tests, then reported five integration errors across 227 executed
-cases. The targeted verification passed 53 of 54, with PostgreSQL startup
-failing for the remaining class. A serial retry of that class passed its four
-identity cases. Protocol and OAuth companion tests passed all ten. The
-distribution and operations gates, including V9-to-V17 archive restore, passed
-on the candidate image. All six browser profiles passed, including strict DAV
-Depth, reverse proxy, OpenID Connect and both restore variants. The OpenID
-Connect restore retry ran after other fixtures had shut down, following an
-earlier Chromium network-change error.
+The final serial `./mvnw -B -ntp clean verify` passed 649 unit and 272
+integration tests and reproduced the deployed JAR's exact SHA-256. The
+earlier run reported five errors across 227 integration cases. The final
+run passed all of those classes. Protocol and OAuth companion tests passed
+all ten. The distribution and operations gates, including V9-to-V17 archive
+restore, passed on the candidate image. All six browser profiles passed,
+including strict DAV Depth, reverse proxy, OpenID Connect and both restore
+variants. The OpenID Connect restore retry ran after other fixtures had shut
+down, following an earlier Chromium network-change error.
 
-The candidate-aware BusyStack lifecycle suite passed five of its six named
-cases, including direct and group permissions, strict paged sync, and
-credential revocation, expiry and disabling. Its profile restoration hit an
-early readiness failure during the transformed timezone scenario. The
-focused retry after the QA readiness correction reached the ten-minute
-test limit. The suite's full result remains failed.
+The final candidate-aware BusyStack lifecycle suite passed all six named
+cases, including direct and group permissions, strict paged sync, canonical
+ETag retrieval after timezone normalization, and credential revocation,
+expiry and disabling. An earlier timezone case hit a fixture readiness
+failure. Both the focused rerun and the full serial rerun passed on fresh
+instances of the verified image.
 
 ## Property and behavior checklist
 
