@@ -49,7 +49,7 @@ server-side credential. See [Google's OAuth overview](https://developers.google.
 ## One supported build command
 
 Prerequisites: Linux amd64, Flutter **3.50.1** and its bundled Dart **3.14.0**,
-Snapcraft **9.2.1**, snapd, configured LXD, `squashfs-tools`, and the Linux native
+Snapcraft **9.2.2**, snapd, configured LXD, `squashfs-tools`, and the Linux native
 build/test dependencies listed in [Development](development.md). The runtime
 verifier creates a new tagged Ubuntu 24.04 VM; the host needs VM-capable LXD.
 The source checkout must be clean on `release/vVERSION` or `main`, match the
@@ -57,7 +57,7 @@ explicit revision, and incorporate fetched `origin/main`.
 
 ```bash
 tool/release/build_snap_local.sh \
-  --version 0.4.3 \
+  --version 0.5.0 \
   --revision "$(git rev-parse HEAD)" \
   --google-oauth /path/to/google-desktop-download-directory \
   --local-config config/release.local.json \

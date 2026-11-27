@@ -1,7 +1,7 @@
 name: busymax
 description: BusyMax calendar and task manager.
 publish_to: 'none'
-version: 0.4.3
+version: 0.5.0
 
 environment:
   sdk: ^3.14.0
