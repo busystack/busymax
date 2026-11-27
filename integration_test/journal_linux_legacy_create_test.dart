@@ -157,6 +157,7 @@ Future<void> _saveInGtk(File result) async {
     for (final command in [
       ['windowfocus', '--sync', window],
       ['key', '--clearmodifiers', 'ctrl+l'],
+      ['key', '--clearmodifiers', 'ctrl+a'],
       ['type', '--clearmodifiers', result.path],
       ['key', '--clearmodifiers', 'Return'],
     ]) {
