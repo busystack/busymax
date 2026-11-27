@@ -152,8 +152,14 @@ void main() {
           final secret = find.byKey(const Key('caldav-password-field'));
           await waitJournalWidget(tester, secret);
           if (reconnect) {
-            expect(tester.widget<TextField>(server).readOnly, isTrue);
-            expect(tester.widget<TextField>(user).readOnly, isTrue);
+            for (final field in [server, user]) {
+              final input = find.descendant(
+                of: field,
+                matching: find.byType(EditableText),
+              );
+              expect(tester.widget<EditableText>(input).readOnly, isTrue);
+            }
+            expect(inputValue(tester, user), username);
           } else {
             await tester.enterText(server, authority.toString());
             await tester.enterText(user, username);
