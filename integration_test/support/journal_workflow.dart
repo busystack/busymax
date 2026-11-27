@@ -42,6 +42,7 @@ void runJournalWorkflow({
   List<Override> Function(AppDatabase)? runtimeOverrides,
   JournalRestartStage? restart,
   Directory? persistentProfile,
+  bool checkConflictChoices = false,
 }) {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final description = restart == null
@@ -99,7 +100,7 @@ void runJournalWorkflow({
               'busymax.qa.journal.${sha256.convert(utf8.encode(profileDirectory.path))}.$provider.',
             ),
           );
-    final accountClient = client();
+    final accountClient = _JournalAccountClient(client());
     final peer = client();
     final network = NetworkConnectivityMonitor.withoutPlatformObservation();
     final collectionName =
@@ -477,6 +478,119 @@ void runJournalWorkflow({
         return;
       }
 
+      if (checkConflictChoices) {
+        var currentTitle = 'Local edit';
+        for (final (number, action, preserveLocal) in [
+          (1, 'Keep server version', false),
+          (2, 'Review and reapply local change', true),
+          (3, 'Duplicate as new item', false),
+        ]) {
+          final before = (await tester.runAsync(
+            () => request('GET', object.requestUri),
+          ))!;
+          expect(before.statusCode, 200);
+          expect(before.body, contains('SUMMARY:$currentTitle\r\n'));
+          final localTitle = 'Local conflict choice $number';
+          final remoteTitle = 'Remote conflict choice $number';
+          online = false;
+          final current = find.textContaining('$currentTitle ·');
+          await waitJournalWidget(tester, current);
+          await _tapVisible(tester, current);
+          await waitJournalWidget(tester, input('Title'));
+          await tester.enterText(input('Title'), localTitle);
+          await _editorAction(tester, button('Save', true));
+          await waitJournalWidget(tester, find.textContaining(localTitle));
+          final changed = (await tester.runAsync(
+            () => request(
+              'PUT',
+              object.requestUri,
+              body: before.body.replaceFirst(
+                'SUMMARY:$currentTitle\r\n',
+                'SUMMARY:$remoteTitle\r\n',
+              ),
+              headers: {
+                'Content-Type': 'text/calendar; charset=utf-8',
+                'If-Match': before.headers['etag']!,
+              },
+            ),
+          ))!;
+          expect(changed.statusCode, anyOf(200, 204));
+          online = true;
+          accountClient.preconditionFailures.clear();
+          await _refresh(tester, enabledRefresh());
+          expect(
+            accountClient.preconditionFailures,
+            contains((
+              uri: Uri.parse(object.requestUri),
+              etag: before.headers['etag']!,
+            )),
+          );
+          final conflict = (await tester.runAsync(
+            () async =>
+                (await database.select(database.davConflictSnapshots).get())
+                    .singleWhere((row) => row.resolvedAtUtc == null),
+          ))!;
+          expect(conflict.baselineRawIcs, contains('SUMMARY:$currentTitle'));
+          expect(
+            conflict.localCandidateRawIcs,
+            contains('SUMMARY:$localTitle'),
+          );
+          expect(conflict.remoteRawIcs, contains('SUMMARY:$remoteTitle'));
+          final remoteAfterConflict = (await tester.runAsync(
+            () => request('GET', object.requestUri),
+          ))!;
+          expect(remoteAfterConflict.body, contains('SUMMARY:$remoteTitle'));
+
+          final selected = find.textContaining(
+            RegExp('^(?:$localTitle|$remoteTitle) ·'),
+          );
+          await waitJournalWidget(tester, selected);
+          await _tapVisible(tester, selected);
+          await waitJournalWidget(tester, find.text('Blocked by conflict'));
+          expect(find.text(localTitle), findsWidgets);
+          expect(find.text(remoteTitle), findsWidgets);
+          await _editorAction(tester, button(action, false));
+          await _refresh(tester, enabledRefresh());
+          currentTitle = preserveLocal ? localTitle : remoteTitle;
+          final resolved = (await tester.runAsync(
+            () => request('GET', object.requestUri),
+          ))!;
+          expect(resolved.statusCode, 200);
+          expect(resolved.body, contains('SUMMARY:$currentTitle\r\n'));
+          expect(resolved.body, contains('DESCRIPTION:First body'));
+          expect(resolved.body, contains('DESCRIPTION:Second body'));
+          if (number == 3) {
+            final duplicate = (await tester.runAsync(
+              () async => (await database.select(database.davObjects).get())
+                  .singleWhere(
+                    (row) =>
+                        row.collectionId == collection!.id &&
+                        !row.serverDeleted &&
+                        row.requestUri != object.requestUri,
+                  ),
+            ))!;
+            final copy = (await tester.runAsync(
+              () => request('GET', duplicate.requestUri),
+            ))!;
+            expect(copy.statusCode, 200);
+            expect(copy.body, contains('SUMMARY:$localTitle'));
+            expect(copy.body, contains('DESCRIPTION:First body'));
+            expect(copy.body, contains('DESCRIPTION:Second body'));
+            expect(duplicate.primaryUid, isNot(object.primaryUid));
+          }
+        }
+        final finalEntry = find.textContaining('$currentTitle ·');
+        await waitJournalWidget(tester, finalEntry);
+        await _tapVisible(tester, finalEntry);
+        await waitJournalWidget(tester, input('Title'));
+        await tester.enterText(input('Title'), 'Local edit');
+        await _editorAction(tester, button('Save', true));
+        await _refresh(tester, enabledRefresh());
+        debugPrint(
+          'JOURNAL_WORKFLOW_CASE $provider journal-content-conflict-choices PASS',
+        );
+      }
+
       const dav = 'DAV:';
       final target = collection.requestUri;
       final beforeDelete = (await tester.runAsync(
@@ -640,6 +754,31 @@ void runJournalWorkflow({
       });
     }
   });
+}
+
+final class _JournalAccountClient extends http.BaseClient {
+  _JournalAccountClient(this.delegate);
+
+  final http.Client delegate;
+  final preconditionFailures = <({Uri uri, String etag})>[];
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final response = await delegate.send(request);
+    if (request.method == 'PUT' && response.statusCode == 412) {
+      final etag = request.headers.entries
+          .where((entry) => entry.key.toLowerCase() == 'if-match')
+          .firstOrNull
+          ?.value;
+      if (etag != null) {
+        preconditionFailures.add((uri: request.url, etag: etag));
+      }
+    }
+    return response;
+  }
+
+  @override
+  void close() => delegate.close();
 }
 
 String inputValue(WidgetTester tester, Finder field) => tester

@@ -21,6 +21,8 @@ void main() {
       fixture: () => desktopJournalFixture(provider),
       restart: stage == null ? null : JournalRestartStage.values.byName(stage),
       persistentProfile: profile == null ? null : Directory(profile),
+      checkConflictChoices:
+          Platform.environment['BUSYMAX_LINUX_JOURNAL_CONFLICTS'] == '1',
       app: () => const LinuxBusyMaxApp(),
       openJournals: (_, container) async =>
           container.read(appRouterProvider).go('/journals'),
