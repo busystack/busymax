@@ -100,7 +100,10 @@ def main():
         print('Aged only the issued QA credential timestamps; verifier unchanged and secrets not printed.')
     elif args.action == 'restart':
         subprocess.run(deployment('restart', 'application'), check=True)
-        subprocess.run(deployment('up', '-d', '--no-build', '--wait', 'application'), check=True)
+        if candidate is None:
+            subprocess.run(deployment('up', '-d', '--no-build', '--wait', 'application'), check=True)
+        else:
+            candidate_tools['wait_for_readiness'](candidate)
     elif args.action == 'profile':
         if args.arguments not in [['default'], ['strict'], ['no-repair'], ['subpath']]:
             raise SystemExit('Select default, strict, no-repair or subpath QA profile')
@@ -116,7 +119,10 @@ def main():
         environment = dict(os.environ)
         environment.pop('BUSYSTACK_DAV_ALLOW_SYNC_DEPTH_ONE', None)
         environment.pop('BUSYSTACK_DAV_REPAIR_LOCAL_OBSERVANCE_UNTIL', None)
-        subprocess.run(deployment('up', '-d', '--no-build', '--force-recreate', '--wait', 'application'), check=True, env=environment)
+        wait = ['--wait'] if candidate is None else []
+        subprocess.run(deployment('up', '-d', '--no-build', '--force-recreate', *wait, 'application'), check=True, env=environment)
+        if candidate is not None:
+            candidate_tools['wait_for_readiness'](candidate)
         subprocess.run(deployment('up', '-d', '--no-build', '--force-recreate', '--wait', 'https'), check=True, env=environment)
     elif args.action == 'stop':
         subprocess.run(compose('down'), check=True)

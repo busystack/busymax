@@ -9,6 +9,7 @@ import secrets
 import shutil
 import subprocess
 import tempfile
+import time
 
 FIXTURES = Path(__file__).resolve().parent
 PORT = 18448
@@ -153,6 +154,25 @@ def verify_running_identity(state):
     if schema != '17':
         raise RuntimeError(f'Unexpected candidate schema: {schema}')
     return int(schema)
+
+
+def wait_for_readiness(state):
+    """Wait for the candidate's actual health check through a slow QA boot."""
+    container = compose(state, 'ps', '--all', '--quiet', 'application',
+                        stdout=subprocess.PIPE, text=True).stdout.strip()
+    if not container or '\n' in container:
+        raise RuntimeError('Expected one disposable candidate application container')
+    deadline = time.monotonic() + 240
+    while time.monotonic() < deadline:
+        running, health = capture(
+            'docker', 'inspect', '--format', '{{.State.Running}} {{.State.Health.Status}}',
+            container).split()
+        if running != 'true':
+            raise RuntimeError('The disposable candidate stopped during startup')
+        if health == 'healthy':
+            return verify_running_identity(state)
+        time.sleep(2)
+    raise RuntimeError('The disposable candidate did not become healthy within 240 seconds')
 
 
 def browser_action(state, *args):
