@@ -465,12 +465,22 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                             accountId: op.accountId,
                             operationId: op.id,
                           );
-                          await ref.read(manualSyncRunnerProvider)(
-                            davCollectionSyncScope(
-                              op.accountId,
-                              editorSource!.id,
-                            ),
+                          final scope = davCollectionSyncScope(
+                            op.accountId,
+                            editorSource!.id,
                           );
+                          if (widget.onRefresh case final refresh?) {
+                            await refresh(scope);
+                          } else {
+                            final outcome = await ref.read(
+                              manualSyncRunnerProvider,
+                            )(scope);
+                            if (outcome.needsAttention && mounted) {
+                              setState(
+                                () => _error = l10n.journalOperationFailed,
+                              );
+                            }
+                          }
                           final fresh = await repository.read(current!.entry);
                           if (mounted) setState(() => _open = fresh);
                         }),

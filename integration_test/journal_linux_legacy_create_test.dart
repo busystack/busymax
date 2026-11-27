@@ -66,6 +66,21 @@ void main() {
         final save = find.text('Export recovery bundle (JSON)');
         await _tap(tester, save);
         await tester.runAsync(() => _saveInGtk(exported));
+        for (
+          var attempt = 0;
+          attempt < 100 && !exported.existsSync();
+          attempt++
+        ) {
+          await tester.pump(const Duration(milliseconds: 100));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 100)),
+          );
+        }
+        expect(
+          exported.existsSync(),
+          isTrue,
+          reason: 'GTK must save the selected recovery file.',
+        );
       }
       final recovery = jsonDecode(exported.readAsStringSync()) as Map;
       expect(recovery['operationId'], operation.id);
@@ -146,12 +161,25 @@ Future<void> _saveInGtk(File result) async {
       ['key', '--clearmodifiers', 'Return'],
     ]) {
       expect((await Process.run('xdotool', command)).exitCode, 0);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
     }
-    while (DateTime.now().isBefore(deadline)) {
-      if (result.existsSync() && result.lengthSync() > 0) return;
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+    final visible = await Process.run('xdotool', [
+      'search',
+      '--onlyvisible',
+      '--name',
+      r'^Save File$',
+    ]);
+    if (visible.exitCode == 0 && (visible.stdout as String).trim() == window) {
+      expect(
+        (await Process.run('xdotool', [
+          'key',
+          '--clearmodifiers',
+          'alt+s',
+        ])).exitCode,
+        0,
+      );
     }
-    break;
+    return;
   }
-  throw TestFailure('The native GTK picker did not save the recovery bundle.');
+  throw TestFailure('The native GTK save picker did not open.');
 }
