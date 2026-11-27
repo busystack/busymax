@@ -137,11 +137,34 @@ def main():
         return dict(status='fail' if not smoke_passed else 'partial' if missing else 'pass',
                     executed=sorted(executed), missing=missing)
 
-    def linux_restart(provider):
-        label = f'linux-{provider}-process-restart'
+    def linux_profile(label, command, named, *, restart=False):
         root = Path(tempfile.mkdtemp(prefix='journal-native-profile-'))
         runtime = root / 'runtime'
         runtime.mkdir(mode=0o700)
+        extra_env = {'XDG_CONFIG_HOME': str(root / 'config'),
+                     'XDG_DATA_HOME': str(root / 'data'),
+                     'XDG_RUNTIME_DIR': str(runtime),
+                     'GIO_USE_VFS': 'local'}
+        if restart:
+            extra_env['BUSYMAX_JOURNAL_RESTART_PROFILE'] = str(root / 'profile')
+        passed = run(label, ['dbus-run-session', '--', *command],
+                     named=named, extra_env=extra_env)
+        binary = BUSYMAX / 'build/linux/x64/debug/bundle/busymax'
+        if passed:
+            with binary.open('rb') as executable:
+                results[label]['executableSha256'] = hashlib.file_digest(executable, 'sha256').hexdigest()
+        try:
+            for mount in (runtime / 'doc', runtime / 'gvfs'):
+                if mount.is_mount():
+                    subprocess.run(['fusermount3', '-uz', str(mount)], check=True)
+            shutil.rmtree(root)
+        except (OSError, subprocess.CalledProcessError) as error:
+            results[label]['cleanupError'] = str(error)
+            passed = False
+        return passed
+
+    def linux_restart(provider):
+        label = f'linux-{provider}-process-restart'
         stages = """
 set -eu
 printf %s busymax-journal-test-keyring | gnome-keyring-daemon --unlock --components=secrets
@@ -151,24 +174,12 @@ for stage in queue replay; do
     --plain-name "Linux offline journal $stage across processes on $1"
 done
 """
-        passed = run(
-            label, ['dbus-run-session', '--', 'bash', '-c', stages, 'journal-restart', provider],
+        passed = linux_profile(
+            label, ['bash', '-c', stages, 'journal-restart', provider],
             named=[f'Linux offline journal {stage} across processes on {provider}'
                    for stage in ('queue', 'replay')],
-            extra_env={'XDG_CONFIG_HOME': str(root / 'config'),
-                       'XDG_DATA_HOME': str(root / 'data'),
-                       'XDG_RUNTIME_DIR': str(runtime),
-                       'GIO_USE_VFS': 'local',
-                       'BUSYMAX_JOURNAL_RESTART_PROFILE': str(root / 'profile')},
+            restart=True,
         )
-        try:
-            for mount in (runtime / 'doc', runtime / 'gvfs'):
-                if mount.is_mount():
-                    subprocess.run(['fusermount3', '-uz', str(mount)], check=True)
-            shutil.rmtree(root)
-        except (OSError, subprocess.CalledProcessError) as error:
-            results[label]['cleanupError'] = str(error)
-            passed = False
         return label, passed
 
     def android(provider, profile):
@@ -290,7 +301,7 @@ done
             if platform == 'linux':
                 name = f'Linux journal collection and editor on {provider}'
                 label = f'linux-{provider}-native'
-                passed = run(label, ['flutter', 'test', '-d', 'linux',
+                passed = linux_profile(label, ['flutter', 'test', '-d', 'linux',
                     'integration_test/journal_linux_workflows_test.dart', '--reporter', 'expanded',
                     '--plain-name', name], named=[name])
                 labels = [label]
