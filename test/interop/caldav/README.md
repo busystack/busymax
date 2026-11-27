@@ -291,6 +291,10 @@ forward the named test and case output. Run all native suites in isolated
 profiles. Missing scenarios and failed writes keep the matrix incomplete.
 The generated evidence reports source and provider identities alongside
 named cases. Keep fixture files and generated device credentials out of Git.
+The disposable Nextcloud fixture allows 100 calendar creations per hour and
+100 calendars or subscriptions per account. These documented `occ` settings
+keep repeated fixture runs within a finite quota. The fixture records the
+settings beside the official image identity.
 
 For an existing authorized Windows OpenSSH host with a desktop session and
 the pinned Flutter and Visual Studio toolchains, use
@@ -308,6 +312,33 @@ GNOME Keyring available. This adds two separate native processes per provider.
 The first queues a creation, edit and deletion in a private SQLite profile.
 The second opens the same profile, unlocks access through the isolated native
 keyring, reconciles those operations and checks the result with HTTPS GETs.
+
+### Routed Android API 37 smoke
+
+Use a private routed IPv4 address belonging to the QA host and a disposable
+API 37 device profile. Start the relay in a separate shell after the two
+providers are ready. It uses a fresh CA for the LAN address and verifies
+both upstream endpoints with their original fixture CAs.
+
+```sh
+python3 test/interop/caldav/vjournal-lan.py \
+  "$nextcloud/busymax-live.json" "$nextcloud" "$VJOURNAL_LAN_RUNTIME" \
+  --address "$VJOURNAL_LAN_ADDRESS" --caldav-port "$VJOURNAL_CALDAV_LAN_PORT" \
+  --nextcloud-port "$VJOURNAL_NEXTCLOUD_LAN_PORT"
+```
+
+Create a private Android defines file from the relay's `busymax-live.json`.
+Set `BUSYMAX_JOURNAL_PROVIDER` to the selected provider key and
+`BUSYMAX_JOURNAL_NATIVE_FIXTURE` to its base64 JSON object. Put the CA PEM
+content in `ca` and omit `caFile`. Use the matching QA application ID,
+verify the built APK's application ID and signer on the authorized device,
+and run `integration_test/journal_android_lan_smoke_test.dart` with
+`--no-uninstall` and the private defines file. Start with the QA package's
+LAN permission denied and grant it in the Android permission dialog. The
+smoke checks Android's route classification, the dispatch guard and a
+trusted HTTPS journal create, read and cleanup. Full app synchronization,
+permission recovery, restart and installed-package scenarios require their
+own assertions. Stop the relay process before stopping the provider fixtures.
 
 Clean up only the fixtures created above.
 
@@ -335,6 +366,13 @@ you explicitly discard it. If the saved entry changes meanwhile, inspect
 the draft, export it as JSON with its saved counterpart, or start a reviewed
 new entry after checking the destination. Changing the date form of a
 series requires compatible recurrence dates and rule bounds.
+
+Import review retains the exact source bytes, reviewed destination and local
+queue outcomes when BusyMax closes. Reopen **Import .ics file** to resume.
+Use **Export recovery bundle (JSON)** to save the original content and
+per-entry outcomes. Discarding the review leaves previously queued entries
+in the journal. A visible unavailable reference keeps its original value
+and can be edited in Details.
 
 Stock Nextcloud 35.0.3 rejected both dated RDATE PERIOD forms and three
 explicit relationship VALUE cases on create and conditional replacement.
