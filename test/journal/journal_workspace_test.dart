@@ -30,6 +30,7 @@ Future<void> setupSource(AppDatabase db) async {
           authority: 'https://example.invalid/',
           providerAccountId: 'qa',
           credentialKind: 'caldav_password',
+          authState: const Value('signed_in'),
           createdAtUtc: 'now',
           updatedAtUtc: 'now',
         ),
@@ -54,6 +55,62 @@ Future<void> setupSource(AppDatabase db) async {
 }
 
 void main() {
+  testWidgets(
+    'journal collection controls remain reachable with a narrow keyboard viewport',
+    (tester) async {
+      final db = AppDatabase.memoryForTests();
+      addTearDown(db.close);
+      await tester.runAsync(() => setupSource(db));
+      await tester.binding.setSurfaceSize(const Size(320, 560));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [databaseProvider.overrideWithValue(db)],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                viewInsets: const EdgeInsets.only(bottom: 190),
+                textScaler: const TextScaler.linear(1.5),
+              ),
+              child: child!,
+            ),
+            home: const Scaffold(
+              body: JournalWorkspace(controls: MaterialJournalControls()),
+            ),
+          ),
+        ),
+      );
+      final create = find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is OutlinedButton &&
+                widget.onPressed != null &&
+                widget.child is Text &&
+                (widget.child as Text).data == 'New journal collection',
+          )
+          .hitTestable();
+      await _wait(tester, create);
+      await tester.tap(create);
+      await tester.pump();
+      final title = field('Title');
+      await _wait(tester, title);
+      await tester.ensureVisible(title);
+      await tester.enterText(title, 'Narrow collection');
+      await tester.pump();
+      final save = find.widgetWithText(OutlinedButton, 'Save');
+      await tester.ensureVisible(save);
+      await tester.pump();
+      expect(save.hitTestable(), findsOneWidget);
+      expect(
+        tester.widget<TextField>(title).controller?.text,
+        'Narrow collection',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'journal import reviews partial outcomes and retries only failures',
     (tester) async {

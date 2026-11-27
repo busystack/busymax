@@ -253,10 +253,13 @@ void runJournalWorkflow({
       );
       await openJournals(tester, container);
       await waitJournalWidget(tester, find.text('New journal collection'));
-      await tester.tap(find.text('New journal collection'));
+      await _tapVisible(tester, find.text('New journal collection'));
       await tester.pump();
-      await tester.enterText(input('Title'), collectionName);
-      await tester.tap(find.text('Save'));
+      final collectionTitle = input('Title');
+      await tester.ensureVisible(collectionTitle);
+      await tester.enterText(collectionTitle, collectionName);
+      final collectionSave = find.text('Save');
+      await _tapVisible(tester, collectionSave);
       await waitJournalWidget(tester, find.text('Save'), absent: true);
       collection = await tester.runAsync(
         () async => (await database.select(database.davCollections).get())
@@ -275,7 +278,7 @@ void runJournalWorkflow({
       expect(remote.body, contains('VJOURNAL'));
       debugPrint('JOURNAL_WORKFLOW_CASE $provider collection-create PASS');
 
-      await tester.tap(find.text('New entry'));
+      await _tapVisible(tester, find.text('New entry'));
       await waitJournalWidget(tester, input('Title'));
       await tester.enterText(input('Title'), 'Journal café');
       await tester.tap(find.text('Add description'));
@@ -331,7 +334,7 @@ void runJournalWorkflow({
       await waitJournalWidget(tester, find.textContaining('Peer edit'));
       await tester.enterText(input('Search'), 'second body');
       await waitJournalWidget(tester, find.textContaining('Peer edit'));
-      await tester.tap(find.textContaining('Peer edit'));
+      await _tapVisible(tester, find.textContaining('Peer edit'));
       await waitJournalWidget(tester, input('Title'));
       await tester.enterText(input('Title'), 'Local edit');
       if (restart == null) {
@@ -353,7 +356,7 @@ void runJournalWorkflow({
       await waitJournalWidget(tester, input('Search'));
       expect(inputValue(tester, input('Search')), 'second body');
       expect(find.textContaining('Peer edit'), findsOneWidget);
-      await tester.tap(find.textContaining('Peer edit'));
+      await _tapVisible(tester, find.textContaining('Peer edit'));
       await waitJournalWidget(tester, input('Title'));
       expect(inputValue(tester, input('Title')), 'Local edit');
       if (restart == null) {
@@ -409,7 +412,7 @@ void runJournalWorkflow({
       if (restart == JournalRestartStage.queue) {
         Future<void> create(String title) async {
           await waitJournalWidget(tester, find.text('New entry'));
-          await tester.tap(find.text('New entry'));
+          await _tapVisible(tester, find.text('New entry'));
           await waitJournalWidget(tester, input('Title'));
           await tester.enterText(input('Title'), title);
           await _editorAction(tester, button('Save', true));
@@ -428,12 +431,12 @@ void runJournalWorkflow({
         ))!;
         online = false;
         await create(offlineCreation);
-        await tester.tap(find.textContaining('Local edit'));
+        await _tapVisible(tester, find.textContaining('Local edit'));
         await waitJournalWidget(tester, input('Title'));
         await tester.enterText(input('Title'), offlineEdit);
         await _editorAction(tester, button('Save', true));
         await waitJournalWidget(tester, find.textContaining(offlineEdit));
-        await tester.tap(find.textContaining(offlineDeletion));
+        await _tapVisible(tester, find.textContaining(offlineDeletion));
         await waitJournalWidget(tester, input('Title'));
         await _editorAction(tester, button('Delete', false));
         await _editorAction(
@@ -486,7 +489,7 @@ void runJournalWorkflow({
           .innerText;
       expect(syncToken, isNotEmpty);
 
-      await tester.tap(find.textContaining('Local edit'));
+      await _tapVisible(tester, find.textContaining('Local edit'));
       await waitJournalWidget(tester, input('Title'));
       await _editorAction(tester, button('Delete', false));
       await _editorAction(
@@ -538,11 +541,11 @@ void runJournalWorkflow({
 
       final rename = button('Rename', false);
       await waitJournalWidget(tester, rename);
-      await tester.tap(rename);
+      await _tapVisible(tester, rename);
       await waitJournalWidget(tester, input('Title'));
       final renamed = '$collectionName renamed';
       await tester.enterText(input('Title'), renamed);
-      await tester.tap(button('Save', true));
+      await _tapVisible(tester, button('Save', true));
       await waitJournalWidget(tester, button('Save', true), absent: true);
       final renamedRemote = (await tester.runAsync(
         () => request(
@@ -561,14 +564,14 @@ void runJournalWorkflow({
             .innerText,
         renamed,
       );
-      await tester.tap(button('Delete collection', false));
+      await _tapVisible(tester, button('Delete collection', false));
       final confirmation = find.text(
         provider == 'nextcloud'
             ? 'Delete "$renamed"?'
             : 'Permanently delete this collection and all its contents?',
       );
       await waitJournalWidget(tester, confirmation);
-      await tester.tap(button('Delete', false));
+      await _tapVisible(tester, button('Delete', false));
       await waitJournalWidget(tester, confirmation, absent: true);
       await waitJournalWidget(tester, enabledRefresh());
       const nc = 'http://nextcloud.com/ns';
@@ -671,9 +674,17 @@ Future<void> _editorAction(WidgetTester tester, Finder action) async {
   await tester.tap(action);
 }
 
+Future<void> _tapVisible(WidgetTester tester, Finder target) async {
+  await tester.ensureVisible(target);
+  await tester.pump();
+  final visible = target.hitTestable();
+  await waitJournalWidget(tester, visible);
+  await tester.tap(visible);
+}
+
 Future<void> _refresh(WidgetTester tester, Finder enabled) async {
   await waitJournalWidget(tester, enabled);
-  await tester.tap(enabled);
+  await _tapVisible(tester, enabled);
   await tester.pump();
   await waitJournalWidget(tester, enabled);
 }
