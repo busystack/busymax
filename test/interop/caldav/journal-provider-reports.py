@@ -14,19 +14,41 @@ from xml.etree import ElementTree as ET
 def repaired_journal_stamp(readback):
     """Return the repaired representation with its direct journal stamp removed."""
     unfolded = re.sub(rb'\r?\n[ \t]', b'', readback)
-    journals = re.findall(rb'^BEGIN:VJOURNAL\r?\n(.*?)^END:VJOURNAL\r?$',
-                          unfolded, re.M | re.S)
-    if len(journals) != 1 or b'BEGIN:' in journals[0]:
-        return None  # The minimal repair fixture contains no child components.
-    stamp_pattern = rb'^DTSTAMP:(\d{8}T\d{6}Z)\r?$'
-    stamps = re.findall(stamp_pattern, unfolded, re.M)
-    if len(stamps) != 1 or re.findall(stamp_pattern, journals[0], re.M) != stamps:
+    lines = unfolded.splitlines(keepends=True)
+    components = []
+    stamps = []
+    expected_components = (b'VCALENDAR', b'VJOURNAL')
+    journal_seen = False
+    for index, original_line in enumerate(lines):
+        line = original_line.rstrip(b'\r\n')
+        boundary = re.fullmatch(rb'(BEGIN|END):([A-Z0-9-]+)', line, re.I)
+        if boundary:
+            action, name = (part.upper() for part in boundary.groups())
+            if action == b'BEGIN':
+                components.append(name)
+                if tuple(components) != expected_components[:len(components)]:
+                    return None
+                if name == b'VJOURNAL':
+                    if journal_seen:
+                        return None
+                    journal_seen = True
+            elif not components or components.pop() != name:
+                return None
+        elif re.match(rb'^(?:[A-Z0-9-]+\.)?DTSTAMP(?:[:;]|$)', line, re.I):
+            stamps.append((index, tuple(components), line))
+    if components or not journal_seen or len(stamps) != 1:
+        return None
+    index, placement, line = stamps[0]
+    # The minimal fixture expects an unparameterized UTC stamp. Count grouped
+    # and parameterized variants above so they cannot hide a duplicate.
+    value = re.fullmatch(rb'(?i:DTSTAMP):([0-9]{8}T[0-9]{6}Z)', line)
+    if placement != expected_components or value is None:
         return None
     try:
-        datetime.strptime(stamps[0].decode('ascii'), '%Y%m%dT%H%M%SZ')
+        datetime.strptime(value[1].decode('ascii'), '%Y%m%dT%H%M%SZ')
     except ValueError:
         return None
-    return re.sub(rb'^DTSTAMP:[^\r\n]*\r?\n', b'', unfolded, flags=re.M)
+    return b''.join(lines[:index] + lines[index + 1:])
 
 
 def main():
