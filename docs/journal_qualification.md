@@ -7,6 +7,41 @@ conformance is upstream-blocked for the recorded representations.
 Use the [fixture and runner instructions](../test/interop/caldav/README.md#journal-candidate-qualification)
 to repeat the run.
 
+## Diagnostics discard follow-up
+
+Diagnostics can discard a quarantined journal create or update once its
+outcome is known. For an unsent create, discard removes its local
+projections. For an update, discard restores the server-confirmed
+projection. A previously attempted create requires a read confirming the
+original href is absent. A previously attempted update requires matching
+raw bytes and a strong ETag. A dependent operation with an uncertain
+outcome blocks discard of the chain. The quarantine retains its separate
+reviewed repair workflow.
+
+The two historical databases reproduced four failures through
+`PendingOpResolutionService.discard`, including an attempted update that
+used to discard despite a server mismatch. The four regressions now pass.
+They check read-only reconciliation, zero mutation requests, dependent
+cleanup, projection restoration, and preservation of siblings and unrelated
+queued changes. The focused legacy recovery and DAV mutation suites passed
+81 tests, including the existing partially completed move checks.
+
+The stock Nextcloud CRUD and Linux deletion scenarios passed twice in
+private profiles. A controlled Linux run reproduced the confirmation
+timeout with five successful HTTP responses delayed by twelve seconds
+each. Nextcloud returned DELETE 204 before the former UI test wait expired
+during refresh. The revised bounded test wait passed the same timing case
+and independently checked provider deletion and local projection removal.
+The original deletion log lacks the wire timing needed to identify its
+exact cause. The earlier range promotion replay failure also remains
+unexplained. New diagnostics record pending error codes, request methods,
+statuses and elapsed times without recording fixture contents or credentials.
+
+Results for this pass are under
+`build/qualification/vjournal-discard-followup`. The strict Nextcloud
+admission failures and the incomplete native and installed-package
+acceptance requirements remain open.
+
 ## Pending journal and collection export follow-up
 
 The historical database coverage includes unsent creations as well as

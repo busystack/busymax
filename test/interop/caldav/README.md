@@ -364,6 +364,11 @@ admission or replay check on a host with slow disk I/O. The fixture records
 its storage type. Use the default persistent volume for service restart
 and state retention tests.
 
+Set `BUSYMAX_LINUX_JOURNAL_SLOW_DELETE=1` when running the Linux Nextcloud
+editor test to check collection deletion and refresh with deliberately
+delayed successful responses. The test still requires independent DAV
+readback and local removal. The flag exercises the UI test deadline.
+
 ### Routed Android API 37 smoke
 
 Use a private routed IPv4 address belonging to the QA host and a disposable
