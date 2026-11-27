@@ -7042,6 +7042,12 @@ abstract class AppLocalizations {
   /// **'Date'**
   String get journalDate;
 
+  /// No description provided for @journalSeriesDateModeNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Changing a series time mode keeps its local dates and clock times. For an all-day series, the chosen time is applied to every original date.'**
+  String get journalSeriesDateModeNotice;
+
   /// No description provided for @journalStatus.
   ///
   /// In en, this message translates to:

@@ -17,6 +17,7 @@ import '../dav/storage/dav_object_repository.dart';
 import '../db/app_database.dart';
 import '../providers/busy_provider.dart';
 import 'journal_component.dart';
+import 'journal_date_conversion.dart';
 import 'journal_itip.dart';
 
 enum JournalDateFilter { all, dated, undated }
@@ -1110,17 +1111,64 @@ final class JournalRepository {
       database.accounts,
     )..where((r) => r.id.equals(entry.accountId))).getSingle();
     final now = _nowUtc().toUtc();
-    final scope = entry.recurrenceIdKey == null
+    final previous = editing.component.component;
+    final originalStart = editing.component.start;
+    var requestedOperations = operations;
+    final dateChange = operations
+        .where(
+          (item) =>
+              item.type == DavPatchOperationType.setRaw &&
+              item.propertyName == 'DTSTART',
+        )
+        .lastOrNull;
+    if (entry.recurrenceIdKey == null &&
+        originalStart != null &&
+        dateChange?.value != null &&
+        !dateChange!.preserveParameters) {
+      final oldStart = previous.firstProperty('DTSTART')!;
+      final newStart = IcalProperty(
+        group: oldStart.group,
+        name: 'DTSTART',
+        rawValue: dateChange.value!,
+        isDirty: true,
+        originalPhysicalLines: const [],
+        parameters: dateChange.parameters,
+      );
+      final next = parseIcalTemporal(newStart);
+      if (next != null &&
+          (next.kind != originalStart.kind ||
+              next.timeZoneId != originalStart.timeZoneId) &&
+          (previous.properties.any(
+                (item) =>
+                    const {'RRULE', 'RDATE', 'EXDATE'}.contains(item.name),
+              ) ||
+              IcalSemanticDocument.parse(editing.effectiveRawIcs)
+                      .components
+                      .length >
+                  1)) {
+        final converted = convertJournalSeriesDate(
+          editing.effectiveRawIcs,
+          originalStart,
+          newStart,
+        );
+        requestedOperations = [
+          DavPatchOperation.replaceJournalResource(converted),
+          ...operations.where((item) => item.propertyName != 'DTSTART'),
+        ];
+      }
+    }
+    final scope = !identical(requestedOperations, operations)
+        ? DavMutationScope.object
+        : entry.recurrenceIdKey == null
         ? DavMutationScope.recurrenceMaster
         : DavMutationScope.recurrenceException;
     final changes = DavMutationPatch(
       target: editing.key,
       scope: scope,
-      operations: operations,
+      operations: requestedOperations,
     );
     final edited = changes.applyTo(editing.effectiveRawIcs, nowUtc: now);
     if (edited == editing.effectiveRawIcs) return;
-    final previous = editing.component.component;
     final updated = IcalDocumentPatcher(IcalDocument.parse(edited))
         .requireComponent(editing.key);
     final revision = await _revisionOperations(
@@ -1132,7 +1180,7 @@ final class JournalRepository {
     final patch = DavMutationPatch(
       target: editing.key,
       scope: scope,
-      operations: [...operations, ...revision],
+      operations: [...requestedOperations, ...revision],
     );
     await _queueEdit(
       entry,

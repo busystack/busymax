@@ -579,6 +579,139 @@ void main() {
     );
   });
 
+  test('editing the master date mode converts the full UID set at the same civil positions', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'caldav',
+            authority: 'https://example.invalid/',
+            providerAccountId: 'edit',
+            credentialKind: 'caldav_password',
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    await db
+        .into(db.davCollections)
+        .insert(
+          DavCollectionsCompanion.insert(
+            id: 'series',
+            accountId: 'account',
+            displayName: 'Series',
+            hrefKey: '/series/',
+            requestUri: 'https://example.invalid/series/',
+            supportedComponentMask: const Value(8),
+            currentUserPrivilegesJson: const Value('["{DAV:}all"]'),
+            journalProjectionEnabled: const Value(true),
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    const zone =
+        'BEGIN:VTIMEZONE\r\nTZID:QA/Civil\r\nBEGIN:STANDARD\r\n'
+        'DTSTART:20200101T000000\r\nTZOFFSETFROM:+0530\r\nTZOFFSETTO:+0530\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n';
+    final original =
+        journal([
+              'DTSTART;VALUE=DATE:20261126',
+              'RRULE:FREQ=DAILY;UNTIL=20261130',
+              'RDATE;VALUE=DATE:20261201',
+              'EXDATE;VALUE=DATE:20261127',
+            ])
+            .replaceFirst('BEGIN:VJOURNAL', '${zone}BEGIN:VJOURNAL')
+            .replaceFirst(
+              'END:VCALENDAR',
+              'BEGIN:VJOURNAL\r\nUID:journal-fixture\r\nDTSTAMP:20261125T080000Z\r\n'
+                  'RECURRENCE-ID;VALUE=DATE;X-LOCAL=retained:20261128\r\n'
+                  'DTSTART;VALUE=DATE:20261129\r\nDESCRIPTION:Moved\r\nEND:VJOURNAL\r\nEND:VCALENDAR',
+            );
+    final imported = await DavNativeImportService(db).import(
+      accountId: 'account',
+      collectionId: 'series',
+      preview: NextcloudNativeImportPreview.parse(IcalDocument.parse(original)),
+    );
+    expect(imported.single.status, NativeImportItemStatus.queued);
+    final repository = JournalRepository(db);
+    final entry = (await repository.watchEntries().first).singleWhere(
+      (item) => item.recurrenceIdKey == null,
+    );
+    final before = await repository.read(entry);
+    final utc = DavPatchOperation.setRaw('DTSTART', '20261126T090000Z');
+    await repository.edit(before, [utc]);
+    final converted = await repository.read(entry);
+    expect(
+      converted.effectiveRawIcs,
+      contains('RRULE:FREQ=DAILY;UNTIL=20261130T090000Z'),
+    );
+    expect(converted.effectiveRawIcs, contains('RDATE:20261201T090000Z'));
+    expect(converted.effectiveRawIcs, contains('EXDATE:20261127T090000Z'));
+    expect(
+      converted.effectiveRawIcs,
+      contains('RECURRENCE-ID;X-LOCAL=retained:20261128T090000Z'),
+    );
+    final rows = repository.occurrences(converted, DateTime.utc(2026, 11));
+    expect(
+      rows.map((item) => (item.recurrenceId.rawValue, item.start.rawValue)),
+      unorderedEquals([
+        ('20261126T090000Z', '20261126T090000Z'),
+        ('20261128T090000Z', '20261129T090000Z'),
+        ('20261129T090000Z', '20261129T090000Z'),
+        ('20261130T090000Z', '20261130T090000Z'),
+      ]),
+    );
+    await repository.edit(converted, [
+      DavPatchOperation.setRaw('DTSTART', '20261126T090000'),
+    ]);
+    final floating = await repository.read(entry);
+    expect(
+      floating.effectiveRawIcs,
+      contains('RRULE:FREQ=DAILY;UNTIL=20261130T090000\r\n'),
+    );
+    final zoneParameter = IcalParameter(
+      name: 'TZID',
+      values: ['QA/Civil'],
+      wasQuoted: false,
+    );
+    await repository.edit(floating, [
+      DavPatchOperation.setRaw(
+        'DTSTART',
+        '20261126T090000',
+        parameters: [zoneParameter],
+      ),
+    ]);
+    final zoned = await repository.read(entry);
+    expect(
+      zoned.effectiveRawIcs,
+      contains('RRULE:FREQ=DAILY;UNTIL=20261130T033000Z'),
+    );
+    expect(
+      zoned.effectiveRawIcs,
+      contains('EXDATE;TZID=QA/Civil:20261127T090000'),
+    );
+    expect(zoned.effectiveRawIcs, contains('TZID:QA/Civil'));
+    final pending = (await db.select(db.pendingOps).get()).single;
+    await expectLater(
+      repository.edit(zoned, [
+        DavPatchOperation.setRaw('DTSTART', '20261126T080000Z'),
+      ]),
+      throwsA(
+        isA<DavException>().having(
+          (error) => error.code,
+          'code',
+          'IcalJournalDateConversionUnavailable',
+        ),
+      ),
+    );
+    expect((await db.select(db.pendingOps).get()).single, pending);
+    expect(
+      (await repository.read(entry)).effectiveRawIcs,
+      zoned.effectiveRawIcs,
+    );
+  });
+
   test('authored journals reject a different detached identity form and duplicate scopes', () {
     const ordinary = 'RECURRENCE-ID;VALUE=DATE:20261127';
     final master = journal([

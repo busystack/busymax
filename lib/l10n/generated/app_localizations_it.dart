@@ -4231,6 +4231,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get journalDate => 'Data';
 
   @override
+  String get journalSeriesDateModeNotice =>
+      'Changing a series time mode keeps its local dates and clock times. For an all-day series, the chosen time is applied to every original date.';
+
+  @override
   String get journalStatus => 'Stato';
 
   @override

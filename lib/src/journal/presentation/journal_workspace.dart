@@ -2275,6 +2275,12 @@ class _JournalEditorState extends State<_JournalEditor> {
                       (id: 'utcDateTime', label: '${l10n.journalDate} (UTC)'),
                       (id: 'tzidDateTime', label: l10n.journalZonedTime),
                     ], (value) => _changeDraft(() => _mode = value)),
+                  if (!derivedDate &&
+                      widget.occurrences != null &&
+                      _mode.isNotEmpty &&
+                      _mode != 'date' &&
+                      _mode != snapshot?.component.start?.kind.name)
+                    Text(l10n.journalSeriesDateModeNotice),
                   if (!derivedDate && _mode.isNotEmpty) ...[
                     Wrap(
                       spacing: 8,
