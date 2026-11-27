@@ -13,7 +13,7 @@ import 'package:busymax/src/features/settings/presentation/settings_screen.dart'
 import 'package:busymax/src/ui/windows/windows_settings_page.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

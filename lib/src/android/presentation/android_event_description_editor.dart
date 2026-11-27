@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 
 import '../../features/calendar/presentation/event_description_controller.dart';
 import '../../calendar_providers/calendar_description.dart';

@@ -14,7 +14,7 @@ import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/linux_window_service.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 import 'package:yaru/yaru.dart';

@@ -70,6 +70,70 @@ function Get-BusyMaxPackageRelativePath {
   return [IO.Path]::GetRelativePath($PackageRoot, $Path).Replace('\', '/')
 }
 
+function New-BusyMaxReleasePubCache {
+  $root = (New-Item -ItemType Directory -Force -Path '.dart_tool').FullName
+  $path = Join-Path $root "release-pub-$([guid]::NewGuid())"
+  return (New-Item -ItemType Directory -Path $path).FullName
+}
+
+function Get-BusyMaxReleaseInventory([string]$ReleasePath) {
+  $root = Get-Item -LiteralPath $ReleasePath
+  $entries = @($root) + @(Get-ChildItem -LiteralPath $ReleasePath -Recurse -Force)
+  foreach ($entry in $entries) {
+    if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+      throw "A Windows release bundle may not contain links: $($entry.FullName)"
+    }
+    if (-not $entry.PSIsContainer) {
+      $path = Get-BusyMaxPackageRelativePath $root.FullName $entry.FullName
+      $hash = (Get-FileHash -LiteralPath $entry.FullName -Algorithm SHA256).Hash
+      "$path|$hash"
+    }
+  }
+}
+
+function Write-BusyMaxReleaseReceipt(
+  [string]$ReleasePath, [string]$ConfigHash, [string]$LockHash, [bool]$Ci
+) {
+  $receiptPath = "$ReleasePath.busymax-integrity.json"
+  $temporary = "$receiptPath.$([guid]::NewGuid()).tmp"
+  $files = @(Get-BusyMaxReleaseInventory $ReleasePath | Sort-Object)
+  if (-not (Test-Path -LiteralPath (Join-Path $ReleasePath 'busymax.exe') -PathType Leaf)) {
+    throw 'Windows release compilation did not produce busymax.exe.'
+  }
+  try {
+    [ordered]@{
+      Schema = 1
+      ConfigSHA256 = $ConfigHash
+      LockSHA256 = $LockHash
+      Ci = $Ci
+      Files = $files
+    } | ConvertTo-Json | Set-Content -LiteralPath $temporary -Encoding utf8NoBOM
+    Move-Item -LiteralPath $temporary -Destination $receiptPath
+  } finally {
+    if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary }
+  }
+}
+
+function Assert-BusyMaxAcceptedRelease(
+  [string]$ReleasePath, [string]$ConfigPath, [bool]$Ci
+) {
+  $receiptPath = "$ReleasePath.busymax-integrity.json"
+  if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+    throw 'The Windows release bundle has no post-build integrity receipt. Rebuild with the release pipeline.'
+  }
+  $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+  if ($receipt.Schema -ne 1 -or $receipt.Ci -ne $Ci -or
+      $receipt.ConfigSHA256 -cne (Get-FileHash -LiteralPath $ConfigPath -Algorithm SHA256).Hash -or
+      $receipt.LockSHA256 -cne (Get-FileHash -LiteralPath 'pubspec.lock' -Algorithm SHA256).Hash) {
+    throw 'The Windows release integrity receipt differs from the current release configuration or lockfile.'
+  }
+  $actual = @(Get-BusyMaxReleaseInventory $ReleasePath | Sort-Object)
+  if ($actual.Count -eq 0 -or ($receipt.Files -join "`n") -cne ($actual -join "`n")) {
+    throw 'The Windows release bundle differs from the post-build integrity receipt.'
+  }
+  $actual
+}
+
 function Test-BusyMaxProhibitedPackageFile {
   param(
     [Parameter(Mandatory)][string]$PackageRoot,

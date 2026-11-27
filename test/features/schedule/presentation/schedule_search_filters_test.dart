@@ -8,7 +8,7 @@ import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:busymax/src/schedule/schedule_search_criteria.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';

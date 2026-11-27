@@ -21,7 +21,7 @@ import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/ui/windows/windows_event_editor_dialog.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

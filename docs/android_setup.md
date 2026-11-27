@@ -1,19 +1,15 @@
 # Android setup and provider registration
 
 BusyMax Android is a beta application with package ID
-`io.busystack.busymax`, version `0.4.2`, minimum API 24, and compile/target
-API 37. The supported toolchain is Flutter 3.47.5, its bundled Dart 3.13.4,
+`io.busystack.busymax`, version `0.4.3`, minimum API 24, and compile/target
+API 37. The supported toolchain is Flutter 3.50.1, its bundled Dart 3.14.0,
 JDK 17, Android platform 37, and Build Tools 37.x.
 
-The resolved Android build uses Gradle 9.4.1 and Android Gradle Plugin 9.2.0.
-Built-in Kotlin is enabled; the Kotlin plugin declaration is 2.4.0 so Flutter's
-toolchain validation sees the supported language level. Flutter 3.47.5's own
-Gradle integration still casts the Android application extension to the legacy
-type, so this pinned project retains `android.newDsl=false`. The new
-DSL causes Flutter's Gradle plugin to fail with an
-`ApplicationExtensionImpl`/`AbstractAppExtension` class cast before the app is
-configured. This is a narrow pinned-toolchain compatibility setting, not a
-blanket AGP 9 restriction.
+The Android build uses Gradle 9.4.1 and Android Gradle Plugin 9.2.0 with built-in
+Kotlin. It retains the legacy AGP DSL for the resolved Android plugins. The
+included Flutter Gradle build resolves its own compile-time dependencies,
+including AGP 9.1.1, Kotlin Gradle Plugin 2.4.10 and Kotlin serialization JSON
+1.11.0. An offline build requires those artifacts in Gradle's cache.
 
 Run the prerequisite check before changing the project:
 
@@ -141,6 +137,11 @@ tool/android/verify.sh
 It enforces the lockfile, regenerates localization and Drift output, checks
 generated consistency and formatting, runs analysis, platform boundaries, the
 complete Flutter suite, native plugin unit tests, and Android lint.
+
+The release script verifies the pinned Flutter SDK and resolved Pub packages,
+then uses Flutter's release plugin generator before compiling with `--no-pub`.
+After each APK or AAB build, it rechecks those inputs and verifies the Android
+engine and embedding files in the Gradle cache.
 
 Android 17/API 37 acceptance must include an upgrade that preserves an existing
 local-server account and its queued edits. Deny Nearby devices access, then

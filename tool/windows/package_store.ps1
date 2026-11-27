@@ -10,9 +10,14 @@ $prerequisites = & "$PSScriptRoot/check_prerequisites.ps1"
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
 $mode = if ($Ci) { 'CiNonProduction' } else { 'ProductionStore' }
 Assert-BusyMaxStoreConfig -Config $config -Mode $mode
-if (-not (Test-Path -LiteralPath "$ReleasePath/busymax.exe")) {
+if (-not (Test-Path -LiteralPath "$ReleasePath/busymax.exe" -PathType Leaf)) {
   throw "Windows release output was not found: $ReleasePath"
 }
+$ReleasePath = (Resolve-Path -LiteralPath $ReleasePath).Path
+$acceptedFiles = @(Assert-BusyMaxAcceptedRelease $ReleasePath $ConfigPath ([bool]$Ci))
+$flutterSdk = Split-Path -Parent (Split-Path -Parent $prerequisites.FlutterExecutable)
+& python tool/verify_upstream_packages.py --sdk $flutterSdk --require-target windows-release | Out-Host
+if ($LASTEXITCODE -ne 0) { throw 'Official Windows SDK or dependency integrity failed before packaging.' }
 $workspace = [IO.Path]::GetFullPath((Get-Location).Path)
 $allowedOutputRoot = [IO.Path]::GetFullPath(
   (Join-Path $workspace 'build\windows'))
@@ -51,9 +56,19 @@ foreach ($runtimeFile in $runtimeFiles) {
 }
 Get-ChildItem -LiteralPath $ReleasePath -File -Filter '*.dat' |
   Copy-Item -Destination $staging
+Copy-Item -LiteralPath "$ReleasePath/data" -Destination $staging -Recurse
+$compiledPaths = @('busymax.exe') + $runtimeFiles
+$expectedCompiled = @($acceptedFiles | Where-Object {
+  $path = ($_ -split '\|', 2)[0]
+  $path -cin $compiledPaths -or $path.StartsWith('data/', [StringComparison]::Ordinal) -or
+    ($path -notlike '*/*' -and $path -like '*.dat')
+})
+$stagedCompiled = @(Get-BusyMaxReleaseInventory $staging | Sort-Object)
+if (($expectedCompiled -join "`n") -cne ($stagedCompiled -join "`n")) {
+  throw 'The staged Windows payload differs from the post-build integrity receipt.'
+}
 Copy-BusyMaxVCRuntime -VisualStudioPath $prerequisites.VisualStudio `
   -Destination $staging
-Copy-Item -LiteralPath "$ReleasePath/data" -Destination $staging -Recurse
 $assets = Join-Path $staging 'Assets'
 New-Item -ItemType Directory -Force -Path $assets | Out-Null
 $logicalAssets = [ordered]@{

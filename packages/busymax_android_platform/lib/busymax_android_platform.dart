@@ -77,13 +77,15 @@ final class BusyMaxAndroidPlatform {
     String? authorityTenant,
   }) async => AndroidAuthorizationToken.fromMap(
     _stringMap(
-      await _methodChannel
-          .invokeMethod<Object?>('authorizeMicrosoftInteractive', {
-            'scopes': scopes,
-            'authorizationAttemptId': ?authorizationAttemptId,
-            'clientId': ?clientId,
-            'authorityTenant': ?authorityTenant,
-          }),
+      await _methodChannel.invokeMethod<Object?>(
+        'authorizeMicrosoftInteractive',
+        {
+          'scopes': scopes,
+          'authorizationAttemptId': ?authorizationAttemptId,
+          'clientId': ?clientId,
+          'authorityTenant': ?authorityTenant,
+        },
+      ),
     ),
   );
 

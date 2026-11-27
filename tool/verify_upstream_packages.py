@@ -6,6 +6,7 @@ or accept a version string as proof of unchanged source. The JSON manifest is
 generated from checksum-verified publisher archives when an upgrade is reviewed.
 """
 import argparse
+from functools import cache
 import hashlib
 import json
 import os
@@ -75,7 +76,66 @@ def canonical_source_blobs(root, revision, paths, command, environment):
     return result
 
 
-def verify_sdk(root, expected, host=None):
+def artifact_path(value):
+    if not value or any(part in ('', '.', '..') for part in value.split('/')) or '\\' in value or ':' in value:
+        raise ValueError('Invalid SDK artifact path: ' + value)
+    return PurePosixPath(value)
+
+
+def verify_artifact(path, digest, description):
+    approved = digest if isinstance(digest, list) else [digest]
+    if not path.is_file() or path.is_symlink() or sha(path) not in approved:
+        raise ValueError('Official SDK compiler/runtime missing or modified: ' + description)
+
+
+def verify_sdk_artifacts(root, artifacts, targets):
+    supported = {target for artifact in artifacts for target in artifact.get('required_for', [])}
+    unknown = set(targets) - supported
+    if unknown:
+        raise ValueError('No reviewed SDK artifact requirements for: ' + ', '.join(sorted(unknown)))
+
+    @cache
+    def check_directory(directory):
+        if directory == root:
+            return
+        check_directory(directory.parent)
+        if directory.resolve() != directory or (directory.exists() and not directory.is_dir()):
+            raise ValueError('Official SDK artifact directory was substituted: ' + directory.relative_to(root).as_posix())
+
+    verified = 0
+    for artifact in artifacts:
+        directory = artifact_path(artifact['directory'])
+        required = artifact.get('required') or not set(targets).isdisjoint(artifact.get('required_for', []))
+        for relative, digest in artifact['files'].items():
+            path = directory / artifact_path(relative)
+            actual = root.joinpath(*path.parts)
+            check_directory(actual.parent)
+            if required or actual.exists() or actual.is_symlink():
+                verify_artifact(actual, digest, path.as_posix())
+                verified += 1
+    return verified
+
+
+def verify_android_maven(gradle_home, expected, mode):
+    catalog = expected['android_maven'][mode]
+    revision = expected['identity']['engineRevision']
+    repository = gradle_home.resolve() / 'caches/modules-2/files-2.1/io.flutter'
+    verified = 0
+    for module, files in catalog.items():
+        component = repository / module / f'1.0.0-{revision}'
+        for name, digest in files.items():
+            copies = sorted(component.glob(f'*/{name}'))
+            if not copies:
+                raise ValueError('Official Android Maven artifact missing: ' + name)
+            for copy in copies:
+                if copy.resolve() != copy:
+                    raise ValueError('Official Android Maven artifact was substituted: ' + name)
+                verify_artifact(copy, digest, name)
+                verified += 1
+    return verified
+
+
+def verify_sdk(root, expected, host=None, targets=()):
     root = Path(root).resolve()
     host = host or sys.platform
     if host not in expected['artifacts']:
@@ -143,29 +203,11 @@ def verify_sdk(root, expected, host=None):
                 raise ValueError('Flutter SDK contains source modifications: ' + os.fsdecode(relative) +
                                  ' (Git blob identity mismatch after upstream text normalization; expected ' +
                                  object_id.decode() + ', got ' + digest.decode() + ')')
-    verified = 0
-    for artifact in expected['artifacts'][host]:
-        directory = PurePosixPath(artifact['directory'])
-        if directory.is_absolute() or '..' in directory.parts:
-            raise ValueError('Invalid SDK artifact directory')
-        parent = root.joinpath(*directory.parts)
-        # A mode not yet precached has no executable input to attest. Recheck
-        # after Flutter has acquired/build-used it; existing inputs never skip.
-        if not parent.exists():
-            if artifact.get('required'): raise ValueError('Official Dart SDK is missing')
-            continue
-        for relative, digest in artifact['files'].items():
-            path = PurePosixPath(relative)
-            if path.is_absolute() or '..' in path.parts:
-                raise ValueError('Invalid SDK artifact path')
-            actual = parent.joinpath(*path.parts)
-            if not actual.exists() and not actual.is_symlink() and not artifact.get('required'):
-                continue
-            approved = digest if isinstance(digest, list) else [digest]
-            if not actual.is_file() or actual.is_symlink() or sha(actual) not in approved:
-                raise ValueError('Official SDK compiler/runtime missing or modified: ' + relative)
-            verified += 1
-    return verified
+    if 'engineRevision' in expected['identity']:
+        stamp = root / 'bin/cache/engine.stamp'
+        if stamp.is_symlink() or stamp.read_text().strip() != expected['identity']['engineRevision']:
+            raise ValueError('Flutter cache engine stamp differs from the approved engine revision')
+    return verify_sdk_artifacts(root, expected['artifacts'][host], targets)
 
 
 def verify(configuration, manifest):
@@ -228,19 +270,32 @@ def main():
     parser.add_argument('--manifest', type=Path, default=root / 'tool/upstream_packages.json')
     parser.add_argument('--sdk', type=Path)
     parser.add_argument('--sdk-only', action='store_true')
+    parser.add_argument('--require-target', action='append', default=[], metavar='PLATFORM-MODE',
+                        help='Require every reviewed SDK artifact used by the given build target')
+    parser.add_argument('--android-maven-mode', choices=('debug', 'profile', 'release'),
+                        help='Verify the official Android engine and embedding in the Gradle cache')
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text())
     sdk = args.sdk
     if args.sdk_only and sdk is None:
         parser.error('--sdk-only requires an explicit --sdk')
-    if sdk is None and 'flutter' in manifest:
+    if (args.require_target or args.android_maven_mode) and 'flutter' not in manifest:
+        parser.error('Build artifact verification requires a Flutter SDK manifest')
+    if not args.sdk_only and 'flutter' in manifest:
         configuration = args.configuration.resolve()
         flutter = next((p for p in json.loads(configuration.read_text())['packages'] if p['name'] == 'flutter'), None)
         if flutter is None: raise ValueError('Resolved Flutter SDK is unavailable')
-        sdk = package_root(configuration, flutter['rootUri']).parent.parent
-    sdk_files = verify_sdk(sdk, manifest['flutter']) if 'flutter' in manifest else None
+        resolved_sdk = package_root(configuration, flutter['rootUri']).parent.parent
+        if sdk is not None and sdk.resolve() != resolved_sdk:
+            raise ValueError('Resolved Flutter package belongs to a different SDK')
+        sdk = resolved_sdk
+    sdk_files = verify_sdk(sdk, manifest['flutter'], targets=args.require_target) if 'flutter' in manifest else None
     packages = [] if args.sdk_only else verify(args.configuration, args.manifest)
-    print(json.dumps({'verifiedUpstreamPackages': packages, 'verifiedSdkFiles': sdk_files}))
+    result = {'verifiedUpstreamPackages': packages, 'verifiedSdkFiles': sdk_files}
+    if args.android_maven_mode:
+        gradle_home = Path(os.environ.get('GRADLE_USER_HOME') or Path.home() / '.gradle')
+        result['verifiedAndroidMavenFiles'] = verify_android_maven(gradle_home, manifest['flutter'], args.android_maven_mode)
+    print(json.dumps(result))
 
 
 if __name__ == '__main__':

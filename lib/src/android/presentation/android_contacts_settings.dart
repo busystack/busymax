@@ -17,7 +17,7 @@ import 'package:uuid/uuid.dart';
 import '../../app/app_bootstrap.dart';
 import '../../providers/busy_provider.dart';
 
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 
 final _androidLinkedContactsProvider = FutureProvider.autoDispose
     .family<Set<String>, String>((ref, accountId) async {

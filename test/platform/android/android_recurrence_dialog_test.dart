@@ -4,7 +4,7 @@ import 'package:busymax/src/android/presentation/android_recurrence_dialog.dart'
 import 'package:busymax/src/features/recurrence/domain/event_recurrence_codec.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -21,9 +21,9 @@ void main() {
         MaterialApp(
           localizationsDelegates: const [
             AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
+            flutterMaterialLocalizationsDelegate,
             GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
+            flutterCupertinoLocalizationsDelegate,
           ],
           supportedLocales: const [Locale('en')],
           home: Builder(
@@ -79,9 +79,9 @@ void main() {
           MaterialApp(
             localizationsDelegates: const [
               AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
+              flutterMaterialLocalizationsDelegate,
               GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
+              flutterCupertinoLocalizationsDelegate,
             ],
             supportedLocales: const [Locale('en')],
             home: Builder(
@@ -158,9 +158,9 @@ void main() {
       MaterialApp(
         localizationsDelegates: const [
           AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
+          flutterMaterialLocalizationsDelegate,
           GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
+          flutterCupertinoLocalizationsDelegate,
         ],
         supportedLocales: const [Locale('en')],
         home: Builder(

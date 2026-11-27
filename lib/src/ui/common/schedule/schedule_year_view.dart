@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 
 import 'schedule_presentation.dart';
 import '../../../app/busymax_surface_colors.dart';

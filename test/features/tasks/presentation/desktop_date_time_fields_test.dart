@@ -7,7 +7,7 @@ import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/core/time/linux_gweather_location_source.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

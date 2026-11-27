@@ -4,7 +4,7 @@ import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/app/busymax_shortcuts.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';

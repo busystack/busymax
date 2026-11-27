@@ -18,9 +18,16 @@ if ([string]::IsNullOrWhiteSpace($flutterExecutable) -or
   throw 'Windows prerequisite validation did not return the Flutter ' +
     'toolchain paths.'
 }
+$configHash = (Get-FileHash -LiteralPath $ConfigPath -Algorithm SHA256).Hash
 $identity = & "$PSScriptRoot/validate_release_config.ps1" `
   -ConfigPath $ConfigPath -Ci:$Ci
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
+$flutterSdk = Split-Path -Parent (Split-Path -Parent $flutterExecutable)
+
+function Assert-BusyMaxUpstreamIntegrity([string]$Target) {
+  & python tool/verify_upstream_packages.py --sdk $flutterSdk --require-target $Target
+  if ($LASTEXITCODE -ne 0) { throw "Official SDK or dependency integrity failed for $Target." }
+}
 
 function Invoke-BusyMaxPesterTests {
   $pesterModule = Get-Module -ListAvailable Pester |
@@ -47,38 +54,48 @@ function Invoke-BusyMaxPesterTests {
 }
 
 function Invoke-BusyMaxSourceGeneration {
+  $previousCache = $env:PUB_CACHE
+  $previousHost = $env:PUB_HOSTED_URL
   $snapshot = [System.IO.Path]::GetTempFileName()
-  & $dartExecutable run tool/check_generated_sources.dart snapshot $snapshot
-  if ($LASTEXITCODE -ne 0) { throw 'Generated source snapshot failed.' }
-  & $flutterExecutable pub get --enforce-lockfile
-  if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed.' }
-  & python tool/verify_upstream_packages.py
-  if ($LASTEXITCODE -ne 0) { throw 'Official dependency integrity failed.' }
-  & python -m unittest discover -s tool -p test_upstream_packages.py
-  if ($LASTEXITCODE -ne 0) { throw 'Official dependency integrity tests failed.' }
-  & $flutterExecutable gen-l10n
-  if ($LASTEXITCODE -ne 0) { throw 'Localization generation failed.' }
-  & $dartExecutable run build_runner build `
-    --delete-conflicting-outputs --force-jit
-  if ($LASTEXITCODE -ne 0) { throw 'Code generation failed.' }
-  & $dartExecutable run tool/check_generated_sources.dart verify $snapshot
-  Remove-Item -LiteralPath $snapshot
-  if ($LASTEXITCODE -ne 0) { throw 'Generated files differ from the reviewed snapshot.' }
+  try {
+    $env:PUB_CACHE = New-BusyMaxReleasePubCache
+    $env:PUB_HOSTED_URL = 'https://pub.dev'
+    & $flutterExecutable precache --windows
+    if ($LASTEXITCODE -ne 0) { throw 'Windows engine artifact acquisition failed.' }
+    & $flutterExecutable pub get --enforce-lockfile
+    if ($LASTEXITCODE -ne 0) { throw 'Clean, locked Windows dependency resolution failed.' }
+    Assert-BusyMaxUpstreamIntegrity 'windows-debug'
+    & python -m unittest discover -s tool -p test_upstream_packages.py
+    if ($LASTEXITCODE -ne 0) { throw 'Official dependency integrity tests failed.' }
+    & $dartExecutable run tool/check_generated_sources.dart snapshot $snapshot
+    if ($LASTEXITCODE -ne 0) { throw 'Generated source snapshot failed.' }
+    & $flutterExecutable gen-l10n
+    if ($LASTEXITCODE -ne 0) { throw 'Localization generation failed.' }
+    & $dartExecutable run build_runner build `
+      --force-jit
+    if ($LASTEXITCODE -ne 0) { throw 'Code generation failed.' }
+    & $dartExecutable run tool/check_generated_sources.dart verify $snapshot
+    if ($LASTEXITCODE -ne 0) { throw 'Generated files differ from the reviewed snapshot.' }
+  } finally {
+    $env:PUB_CACHE = $previousCache
+    $env:PUB_HOSTED_URL = $previousHost
+    Remove-Item -LiteralPath $snapshot
+  }
 }
 
 function Invoke-BusyMaxStaticAnalysis {
   & $dartExecutable format --output=none --set-exit-if-changed .
   if ($LASTEXITCODE -ne 0) { throw 'Formatting check failed.' }
-  & $flutterExecutable analyze
+  & $flutterExecutable analyze --no-pub
   if ($LASTEXITCODE -ne 0) { throw 'Flutter analysis failed.' }
-  & $dartExecutable run tool/check_platform_boundaries.dart
+  & $dartExecutable --packages=.dart_tool/package_config.json tool/check_platform_boundaries.dart
   if ($LASTEXITCODE -ne 0) { throw 'Platform boundary validation failed.' }
 }
 
 function Invoke-BusyMaxFlutterTests {
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
-  & $flutterExecutable test --machine | Tee-Object `
+  & $flutterExecutable test --no-pub --machine | Tee-Object `
     -FilePath 'build\windows\test-results\flutter-tests.jsonl'
   if ($LASTEXITCODE -ne 0) { throw 'Flutter tests failed.' }
 }
@@ -114,18 +131,65 @@ function Invoke-BusyMaxWindowsCompile {
   }
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
-  & $flutterExecutable build windows --release `
-    -t lib/main_windows.dart @defines 2>&1 |
-    Tee-Object -FilePath 'build\windows\test-results\windows-build.log'
-  $compileExitCode = $LASTEXITCODE
-  if ($compileExitCode -ne 0) {
-    throw "Flutter Windows release build failed with exit code $compileExitCode."
+  $buildPath = 'build\windows\x64'
+  $releasePath = Join-Path $buildPath 'runner/Release'
+  $lock = [IO.File]::Open(
+    (Join-Path (Get-Location).Path 'build/windows/.release-build.lock'),
+    [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+  $previousCache = $env:PUB_CACHE
+  $previousHost = $env:PUB_HOSTED_URL
+  $cache = $null
+  $accepted = $false
+  try {
+    if (Test-Path -LiteralPath $buildPath) {
+      Remove-Item -LiteralPath $buildPath -Recurse -Force
+    }
+    $lockHash = (Get-FileHash -LiteralPath 'pubspec.lock' -Algorithm SHA256).Hash
+    $cache = New-BusyMaxReleasePubCache
+    $env:PUB_CACHE = $cache
+    $env:PUB_HOSTED_URL = 'https://pub.dev'
+    & $flutterExecutable precache --windows
+    if ($LASTEXITCODE -ne 0) { throw 'Windows engine artifact acquisition failed.' }
+    & $flutterExecutable pub get --enforce-lockfile
+    if ($LASTEXITCODE -ne 0) { throw 'Clean, locked Windows dependency resolution failed.' }
+    Assert-BusyMaxUpstreamIntegrity 'windows-release'
+    & $flutterExecutable build windows --no-pub --release `
+      -t lib/main_windows.dart @defines 2>&1 |
+      Tee-Object -FilePath 'build\windows\test-results\windows-build.log'
+    $compileExitCode = $LASTEXITCODE
+    if ($compileExitCode -ne 0) {
+      throw "Flutter Windows release build failed with exit code $compileExitCode."
+    }
+    Assert-BusyMaxUpstreamIntegrity 'windows-release'
+    if (-not $Unconfigured) {
+      if ($configHash -cne (Get-FileHash -LiteralPath $ConfigPath -Algorithm SHA256).Hash -or
+          $lockHash -cne (Get-FileHash -LiteralPath 'pubspec.lock' -Algorithm SHA256).Hash) {
+        throw 'Windows release configuration or lockfile changed during compilation.'
+      }
+      Write-BusyMaxReleaseReceipt $releasePath $configHash $lockHash ([bool]$Ci)
+    }
+    $accepted = $true
+  } finally {
+    $env:PUB_CACHE = $previousCache
+    $env:PUB_HOSTED_URL = $previousHost
+    $lock.Dispose()
+    if (-not $accepted -and $cache -and (Test-Path -LiteralPath $cache)) {
+      Remove-Item -LiteralPath $cache -Recurse -Force
+    }
   }
 }
 
 function Invoke-BusyMaxNativeTests {
+  $releasePath = 'build\windows\x64\runner\Release'
+  $receiptPath = "$releasePath.busymax-integrity.json"
+  $receiptHash = (Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256).Hash
   & "$PSScriptRoot/run_native_tests.ps1"
   if ($LASTEXITCODE -ne 0) { throw 'Windows native tests failed.' }
+  if ($receiptHash -cne (Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256).Hash) {
+    throw 'Native tests changed the Windows release integrity receipt.'
+  }
+  Assert-BusyMaxAcceptedRelease $releasePath $ConfigPath ([bool]$Ci) | Out-Null
+  Write-Host 'Native tests preserved the accepted Windows release inventory.'
 }
 
 function Invoke-BusyMaxPackage {

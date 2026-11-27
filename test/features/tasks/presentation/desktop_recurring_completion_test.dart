@@ -22,7 +22,7 @@ import 'package:busymax/src/ui/windows/windows_schedule_page.dart';
 import 'package:busymax/src/ui/windows/windows_tasks_page.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';

@@ -7,7 +7,7 @@ import 'dart:async';
 
 import 'package:busymax_android_platform/busymax_android_platform.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -70,9 +70,9 @@ class _AndroidBusyMaxAppState extends ConsumerState<AndroidBusyMaxApp> {
       supportedLocales: busyMaxSupportedLocales,
       localizationsDelegates: const [
         AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
+        flutterMaterialLocalizationsDelegate,
         GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
+        flutterCupertinoLocalizationsDelegate,
       ],
       localeListResolutionCallback: (requested, supported) =>
           resolveBusyMaxLocales(requested, supported),

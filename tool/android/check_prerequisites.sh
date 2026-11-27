@@ -14,7 +14,7 @@ done
 
 flutter_bin="${BUSYMAX_FLUTTER_EXECUTABLE:-$(command -v flutter || true)}"
 if [[ -z "$flutter_bin" || ! -x "$flutter_bin" ]]; then
-  echo 'Flutter is missing. Install Flutter 3.47.5 and put it on PATH.' >&2
+  echo 'Flutter is missing. Install Flutter 3.50.1 and put it on PATH.' >&2
   exit 1
 fi
 flutter_bin="$(readlink -f "$flutter_bin")"
@@ -26,8 +26,8 @@ fi
 "$dart_bin" "$repo_root/tool/verify_flutter_sdk.dart" \
   --flutter "$flutter_bin" \
   --dart "$dart_bin" \
-  --expected-flutter 3.47.5 \
-  --expected-dart 3.13.4
+  --expected-flutter 3.50.1 \
+  --expected-dart 3.14.0
 
 java_version="$(java -version 2>&1 | sed -n '1s/.*version "\([^"]*\)".*/\1/p')"
 # The pinned Gradle 9.4.1 supports running on Java 17 through 26.
@@ -84,6 +84,6 @@ if $require_signing; then
   done
 fi
 
-echo 'PASSED: Flutter 3.47.5, bundled Dart 3.13.4, supported JDK, Android API 37, and Build Tools 37.x are available.'
+echo 'PASSED: Flutter 3.50.1, bundled Dart 3.14.0, supported JDK, Android API 37, and Build Tools 37.x are available.'
 echo "Flutter: $flutter_bin"
 echo "Android SDK: $sdk_root"

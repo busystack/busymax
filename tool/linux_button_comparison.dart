@@ -5,7 +5,7 @@ import 'package:busymax/src/app/app_theme.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/platform/linux_window_service.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/rendering.dart';
 
 const _referenceAccent = Color(0xFFC061CB);

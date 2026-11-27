@@ -41,19 +41,19 @@ $toolchainVerifier = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot `
 $toolchainJson = & $dartExecutable $toolchainVerifier `
   --flutter $flutterExecutable `
   --dart $dartExecutable `
-  --expected-flutter 3.47.5 `
-  --expected-dart 3.13.4
+  --expected-flutter 3.50.1 `
+  --expected-dart 3.14.0
 if ($LASTEXITCODE -ne 0) {
   throw 'Flutter SDK verification failed.'
 }
 $toolchain = $toolchainJson | ConvertFrom-Json
 $flutterVersion = [string]$toolchain.flutterVersion
 $dartVersion = [string]$toolchain.dartVersion
-if ($flutterVersion -ne '3.47.5') {
-  throw "BusyMax requires Flutter 3.47.5; found $flutterVersion."
+if ($flutterVersion -ne '3.50.1') {
+  throw "BusyMax requires Flutter 3.50.1; found $flutterVersion."
 }
-if ($dartVersion -ne '3.13.4') {
-  throw "Flutter 3.47.5 must provide Dart 3.13.4; found $dartVersion."
+if ($dartVersion -ne '3.14.0') {
+  throw "Flutter 3.50.1 must provide Dart 3.14.0; found $dartVersion."
 }
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere)) {

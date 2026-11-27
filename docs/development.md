@@ -5,25 +5,30 @@ and Windows. Release packaging has separate procedures linked below.
 
 ## Shared setup
 
-BusyMax development and CI use Flutter **3.47.5** and the Dart **3.13.4** SDK
+BusyMax development and CI use Flutter **3.50.1** and the Dart **3.14.0** SDK
 bundled with that Flutter installation. Use the bundled `dart` executable; do
 not mix Flutter with a different global Dart SDK. The `pubspec.yaml` constraint
-`sdk: ^3.13.4` is the Dart language/package compatibility constraint. It is not
+`sdk: ^3.14.0` is the Dart language/package compatibility constraint. It is not
 the repository's build-toolchain version.
 
 The workflows verify the selected SDK with `tool/verify_flutter_sdk.dart`.
-After installing Flutter 3.47.5, prepare the checkout in this order:
+After installing Flutter 3.50.1, prepare the checkout in this order:
 
 ```bash
 python3 tool/checkout_shared_dependencies.py
 flutter pub get --enforce-lockfile
 flutter gen-l10n
-dart run build_runner build --delete-conflicting-outputs --force-jit
+dart run build_runner build --force-jit
 ```
 
 Dependency resolution must precede localization generation, which must precede
 Drift generation. Generated localization and database files are committed; a
 generation run should leave them unchanged.
+
+BusyMax uses the SDK Material types through
+`lib/src/ui/common/flutter_material.dart` so the application, Yaru and the
+calendar package share their theme and widget types. Flutter 3.50's localization
+generator still emits the matching SDK Material and Cupertino delegates.
 
 The shared packages are ordinary siblings of `busymax/`. Their canonical URLs
 and exact commits are recorded in `tool/shared_dependencies.json`.
@@ -133,11 +138,15 @@ x86, ARM64, MSI, and EXE installers are outside the supported target.
 
 Install:
 
-- Flutter 3.47.5 with Windows desktop enabled;
+- Flutter 3.50.1 with Windows desktop enabled;
 - Visual Studio 2022 with **Desktop development with C++**, the x64 MSVC
   toolchain, and CMake tools;
 - Windows SDK `10.0.26100.0` or newer; and
 - Pester 5 when running the packaging contract tests (CI uses 5.7.1).
+
+Flutter needs permission to create Windows plugin symlinks during
+`flutter pub get`. Enable Developer Mode on your Windows build machine before
+restoring dependencies. See [Microsoft's Developer Mode setup guide](https://learn.microsoft.com/en-us/windows/apps/get-started/developer-mode-features-and-debugging#enable-developer-mode).
 
 From a PowerShell prompt at the repository root, verify the environment:
 

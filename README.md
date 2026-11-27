@@ -72,7 +72,9 @@ BusyMax provides day, week, month, year, and agenda views with calendar events a
 
 ## Build from source
 
-BusyMax requires Flutter **3.47.5** and its bundled Dart **3.13.4** SDK.
+BusyMax requires Flutter **3.50.1** and its bundled Dart **3.14.0** SDK.
+On Windows, complete the [Windows development setup](docs/development.md#windows-development)
+before running `flutter pub get`.
 
 The project also depends on three separately maintained repositories:
 
@@ -90,7 +92,7 @@ From the repository root:
 python3 tool/checkout_shared_dependencies.py
 flutter pub get --enforce-lockfile
 flutter gen-l10n
-dart run build_runner build --delete-conflicting-outputs --force-jit
+dart run build_runner build --force-jit
 ```
 
 ### Linux

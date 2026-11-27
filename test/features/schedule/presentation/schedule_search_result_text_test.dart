@@ -2,7 +2,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_search_resul
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_search_criteria.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../test_localized_app.dart';

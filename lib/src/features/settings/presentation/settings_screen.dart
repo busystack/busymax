@@ -27,7 +27,7 @@ import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../db/app_database.dart' show PendingOp;
 import '../../../microsoft_calendar/microsoft_shared_calendar_address.dart';
 
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';

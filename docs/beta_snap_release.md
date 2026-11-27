@@ -48,7 +48,7 @@ server-side credential. See [Google's OAuth overview](https://developers.google.
 
 ## One supported build command
 
-Prerequisites: Linux amd64, Flutter **3.47.5** and its bundled Dart **3.13.4**,
+Prerequisites: Linux amd64, Flutter **3.50.1** and its bundled Dart **3.14.0**,
 Snapcraft **9.2.1**, snapd, configured LXD, `squashfs-tools`, and the Linux native
 build/test dependencies listed in [Development](development.md). The runtime
 verifier creates a new tagged Ubuntu 24.04 VM; the host needs VM-capable LXD.
@@ -57,7 +57,7 @@ explicit revision, and incorporate fetched `origin/main`.
 
 ```bash
 tool/release/build_snap_local.sh \
-  --version 0.4.2 \
+  --version 0.4.3 \
   --revision "$(git rev-parse HEAD)" \
   --google-oauth /path/to/google-desktop-download-directory \
   --local-config config/release.local.json \
@@ -81,10 +81,14 @@ Ctrl-C or SIGTERM stops the command's owned process session, gives it five
 seconds to terminate, then kills remaining processes and retains the workspace.
 
 The command checks all five version files before compiling; it never rewrites
-them. v0.4.2 uses Android code **10**. It resolves the lockfile,
+them. v0.4.3 uses Android code **11**. It restores hosted packages from pub.dev
+into a fresh workspace cache with the lockfile enforced and verifies the
+Flutter SDK, Linux engine artifacts, and resolved packages before running the
+release checks. It
 generates/rechecks localization and Drift,
 runs formatting, analysis, platform boundaries, full Flutter/tool/native tests,
-and compiles a fresh configured bundle. It verifies the actual managed Google
+and compiles a fresh configured bundle. It rechecks upstream integrity after
+compilation and verifies the actual managed Google
 configuration in `libapp.so`, runs canonical Snapcraft packaging with
 `--use-lxd`. Its output stays inside the checkout during the LXD pack step,
 then the exact package moves to `artifacts/`. The command checks version,
@@ -106,11 +110,11 @@ owner's desktop or uploaded automatically.
 Use the exact printed path throughout. In its artifacts directory:
 
 ```bash
-sha256sum --check busymax_0.4.2_amd64.snap.sha256
-unsquashfs -cat busymax_0.4.2_amd64.snap meta/snap.yaml
+sha256sum --check busymax_0.4.3_amd64.snap.sha256
+unsquashfs -cat busymax_0.4.3_amd64.snap meta/snap.yaml
 ```
 
-Confirm `0.4.2`, `core24`, `devel`, `strict`, the BusyMax launcher, its autostart
+Confirm `0.4.3`, `core24`, `devel`, `strict`, the BusyMax launcher, its autostart
 entry, desktop file, icon and AppStream history. Investigate library warnings
 using [the library investigation record](snap_runtime_libraries.md); do not add
 broad linter suppression. The VM evidence must show no unresolved runtime ELF
@@ -122,7 +126,7 @@ preferences, contacts settings, conflicts and pending offline work. Back up
 that test state. Quit BusyMax and upgrade using the exact candidate:
 
 ```bash
-sudo snap install --dangerous /absolute/path/busymax_0.4.2_amd64.snap
+sudo snap install --dangerous /absolute/path/busymax_0.4.3_amd64.snap
 snap connections busymax
 snap run busymax
 ```
@@ -150,7 +154,7 @@ only the verified checksum. The build command never publishes:
 ```bash
 snapcraft login
 snapcraft whoami
-snapcraft upload --release=beta /absolute/path/busymax_0.4.2_amd64.snap
+snapcraft upload --release=beta /absolute/path/busymax_0.4.3_amd64.snap
 snapcraft revisions busymax --arch amd64
 snapcraft status busymax --arch amd64
 ```

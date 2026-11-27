@@ -14,7 +14,7 @@ import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';

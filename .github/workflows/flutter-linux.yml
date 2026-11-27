@@ -69,7 +69,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.47.5'
+          flutter-version: '3.50.1'
           cache: true
 
       - name: Verify pinned Flutter and bundled Dart
@@ -81,8 +81,8 @@ jobs:
           "$dart_executable" tool/verify_flutter_sdk.dart \
             --flutter "$flutter_executable" \
             --dart "$dart_executable" \
-            --expected-flutter 3.47.5 \
-            --expected-dart 3.13.4
+            --expected-flutter 3.50.1 \
+            --expected-dart 3.14.0
           printf 'BUSYMAX_FLUTTER_EXECUTABLE=%s\n' "$flutter_executable" >> "$GITHUB_ENV"
           printf 'BUSYMAX_DART_EXECUTABLE=%s\n' "$dart_executable" >> "$GITHUB_ENV"
 
@@ -91,8 +91,12 @@ jobs:
 
       - name: Resolve dependencies
         run: |
+          export PUB_CACHE="$(mktemp -d "$RUNNER_TEMP/busymax-pub.XXXXXXXX")"
+          export PUB_HOSTED_URL=https://pub.dev
+          printf 'PUB_CACHE=%s\nPUB_HOSTED_URL=%s\n' "$PUB_CACHE" "$PUB_HOSTED_URL" >> "$GITHUB_ENV"
+          "$BUSYMAX_FLUTTER_EXECUTABLE" precache --linux
           "$BUSYMAX_FLUTTER_EXECUTABLE" pub get --enforce-lockfile
-          python3 tool/verify_upstream_packages.py
+          python3 tool/verify_upstream_packages.py --require-target linux-debug
           python3 -m unittest discover -s tool -p test_upstream_packages.py
 
       - name: Generate localizations
@@ -101,7 +105,7 @@ jobs:
       - name: Generate Drift code
         run: >-
           "$BUSYMAX_DART_EXECUTABLE" run build_runner build
-          --delete-conflicting-outputs --force-jit
+          --force-jit
 
       - name: Verify generated files are committed
         run: git diff --exit-code
@@ -112,14 +116,14 @@ jobs:
           --output=none --set-exit-if-changed .
 
       - name: Analyze
-        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" analyze'
+        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" analyze --no-pub'
 
       - name: Check platform boundaries
         run: >-
           "$BUSYMAX_DART_EXECUTABLE" run tool/check_platform_boundaries.dart
 
       - name: Test
-        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" test'
+        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" test --no-pub'
 
       - name: Test GTK header-icon bridge
         run: |
@@ -128,7 +132,7 @@ jobs:
           printf '[Settings]\ngtk-icon-theme-name=Yaru\n' \
             > "$gtk_config/gtk-3.0/settings.ini"
           XDG_CONFIG_HOME="$gtk_config" xvfb-run -a \
-            "$BUSYMAX_FLUTTER_EXECUTABLE" test \
+            "$BUSYMAX_FLUTTER_EXECUTABLE" test --no-pub \
             integration_test/gtk_header_icons_integration_test.dart -d linux
 
       - name: Test native clock patterns, weekday locale, and GTK time picker
@@ -148,7 +152,9 @@ jobs:
 
       - name: Build unconfigured release with usable custom registration paths
         run: |
-          "$BUSYMAX_FLUTTER_EXECUTABLE" build linux --release -t lib/main_linux.dart
+          python3 tool/verify_upstream_packages.py --require-target linux-release
+          "$BUSYMAX_FLUTTER_EXECUTABLE" build linux --no-pub --release -t lib/main_linux.dart
+          python3 tool/verify_upstream_packages.py --require-target linux-release
           test -f build/linux/x64/release/bundle/data/flutter_assets/docs/google_setup.md
           test -f build/linux/x64/release/bundle/data/flutter_assets/docs/microsoft_setup.md
 

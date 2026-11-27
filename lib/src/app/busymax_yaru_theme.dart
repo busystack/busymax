@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/theme.dart';
 import 'package:yaru/widgets.dart'

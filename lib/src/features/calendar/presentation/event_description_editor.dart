@@ -1,7 +1,7 @@
 import 'event_description_controller.dart';
 export 'event_description_controller.dart' show EventDescriptionValue;
 
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_yaru_theme.dart';

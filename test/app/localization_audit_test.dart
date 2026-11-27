@@ -7,7 +7,7 @@ import 'package:busymax/l10n/generated/app_localizations_fa.dart';
 import 'package:busymax/src/l10n/app_locale.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/recurrence/presentation/recurrence_editor.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

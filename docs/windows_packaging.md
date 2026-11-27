@@ -46,6 +46,9 @@ production HTTPS URLs and complete OAuth configuration.
 
 ## Build and package
 
+Complete the [Windows development setup](development.md#windows-development),
+including Developer Mode for Flutter's plugin symlinks.
+
 Use a 64-bit Windows 11 PowerShell prompt:
 
 ```powershell
@@ -53,12 +56,20 @@ Use a 64-bit Windows 11 PowerShell prompt:
   -ConfigPath config\windows_store.local.json
 ```
 
-The script verifies Flutter 3.47.5 and bundled Dart 3.13.4, Visual Studio x64
+The script verifies Flutter 3.50.1 and bundled Dart 3.14.0, Visual Studio x64
 C++ tools, and Windows SDK 10.0.26100.0 or newer. It runs source generation,
 formatting, analysis, Dart/Flutter and PowerShell tests, platform-boundary and
 native tests, builds `lib/main_windows.dart`, stages runtime files, validates
 the manifest, packages the MSIX, unpacks the exact artifact, compares file
 inventories, and prints metadata and SHA-256. It performs no deployment.
+
+Source generation and release compilation each restore hosted packages from
+pub.dev into a fresh cache under `.dart_tool` with the lockfile enforced. The
+release build verifies reviewed SDK artifacts and package files before and
+after compilation. The successful
+configured build records SHA-256 hashes of the compiled bundle, configuration,
+and lockfile. Packaging requires that receipt, rechecks the bundle and inputs,
+and compares the copied payload against the receipt before adding MSIX assets.
 
 The manifest is rendered from
 `tool/windows/AppxManifest.xml.template`. It declares x64, minimum OS

@@ -24,7 +24,7 @@ import time
 import xml.etree.ElementTree as ET
 
 PRIVACY = 'https://busystack.org/privacy-busymax'
-SNAPCRAFT_VERSION = '9.2.1'
+SNAPCRAFT_VERSION = '9.2.2'
 PUBLIC_KEYS = {'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_AUTHORITY_TENANT',
                'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID'}
 SYNTHETIC = {'managed.apps.googleusercontent.com','later.apps.googleusercontent.com','fixture.apps.googleusercontent.com','original.apps.googleusercontent.com','owned.apps.googleusercontent.com','synthetic-public-secret','synthetic-managed-project','11111111-1111-1111-1111-111111111111','33333333-3333-3333-3333-333333333333','55555555-5555-5555-5555-555555555555',
@@ -185,7 +185,7 @@ def signal_owned(process, signum):
             pass
 
 
-def run(args, cwd, *, log=None, redactions=(), label=None, progress_interval=30):
+def run(args, cwd, *, log=None, redactions=(), label=None, progress_interval=30, env=None):
     """Stream only sanitized text; own and reap each command on every exit path.
 
     progress_interval controls diagnostic heartbeats, never command deadlines.
@@ -222,7 +222,7 @@ def run(args, cwd, *, log=None, redactions=(), label=None, progress_interval=30)
             emit(safe)
 
         diagnostic(f'\n[release] Starting {title}: {command}\n')
-        process = subprocess.Popen(args, cwd=cwd, stdout=subprocess.PIPE,
+        process = subprocess.Popen(args, cwd=cwd, env=env, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, start_new_session=True)
         try:
             with selectors.DefaultSelector() as selector:
@@ -313,7 +313,8 @@ def source_gate(source, revision, version):
     except (ValueError, ET.ParseError, OSError):
         raise ReleaseError('Release metadata does not match the requested version.') from None
     minimum_code = {
-        '0.3.1': 6, '0.3.2': 7, '0.4.0': 8, '0.4.1': 9, '0.4.2': 10,
+        '0.3.1': 6, '0.3.2': 7, '0.4.0': 8,
+        '0.4.1': 9, '0.4.2': 10, '0.4.3': 11,
     }.get(version, 1)
     require(code >= minimum_code, 'Android version code is too old.')
     recipe = (source / 'snap/snapcraft.yaml').read_text()
@@ -331,7 +332,7 @@ def tool_gate(source, flutter):
     dart = flutter.parent / 'cache/dart-sdk/bin/dart'
     require(flutter.is_file() and dart.is_file(), 'Flutter and its bundled Dart executable are required.')
     run([dart, source / 'tool/verify_flutter_sdk.dart', '--flutter', flutter, '--dart', dart,
-         '--expected-flutter', '3.47.5', '--expected-dart', '3.13.4'], source)
+         '--expected-flutter', '3.50.1', '--expected-dart', '3.14.0'], source)
     require(run(['snapcraft', 'version'], source) == f'snapcraft {SNAPCRAFT_VERSION}',
             'Snapcraft version does not match the reviewed release toolchain.')
     for tool in ('git', 'cmake', 'g++', 'pkg-config', 'xvfb-run', 'unsquashfs', 'lxc'):
@@ -409,15 +410,23 @@ def build(options):
     root = workspace / 'busymax'
     log = workspace / 'build.log'
     redactions = tuple(configuration.values()) + tuple(f'{key}={value}' for key, value in configuration.items())
+    pub_cache = workspace / 'pub-cache'
+    pub_cache.mkdir(mode=0o700)
+    build_env = {**os.environ, 'PUB_CACHE': str(pub_cache), 'PUB_HOSTED_URL': 'https://pub.dev'}
     def step(arguments, label):
-        return run(arguments, root, log=log, redactions=redactions, label=label)
+        return run(arguments, root, log=log, redactions=redactions, label=label, env=build_env)
     run(['git', 'clone', '--no-hardlinks', '--no-checkout', source, root], workspace, log=log, redactions=redactions)
     run(['git', 'checkout', '--detach', options.revision], root, log=log, redactions=redactions)
     require(not (root / 'build').exists(), 'A stale Flutter bundle reached the isolated source checkout.')
     step(['python3', 'tool/checkout_shared_dependencies.py'], 'Materializing exact pinned sibling dependencies')
+    flutter = options.flutter.resolve()
+    integrity = ['python3', 'tool/verify_upstream_packages.py', '--sdk', flutter.parent.parent,
+                 '--require-target', 'linux-debug', '--require-target', 'linux-release']
+    step([flutter, 'precache', '--linux'], 'Acquiring official Linux engine artifacts')
     step([options.flutter.resolve(), 'pub', 'get', '--enforce-lockfile'], 'Resolving locked Flutter dependencies')
+    step(integrity, 'Verifying official SDK and resolved dependencies')
     step([options.flutter.resolve(), 'gen-l10n'], 'Generating localization')
-    step([dart, 'run', 'build_runner', 'build', '--delete-conflicting-outputs', '--force-jit'], 'Generating Drift sources')
+    step([dart, 'run', 'build_runner', 'build', '--force-jit'], 'Generating Drift sources')
     step(['git', 'diff', '--exit-code'], 'Verifying generated-source and lockfile consistency')
     step([dart, 'format', '--output=none', '--set-exit-if-changed', '.'], 'Checking source formatting')
     step([options.flutter.resolve(), 'analyze', '--no-pub'], 'Analyzing source')
@@ -442,6 +451,7 @@ def build(options):
         require(not (root / 'build/linux/x64/release/bundle').exists(), 'Unexpected stale release bundle exists before compilation.')
         step([options.flutter.resolve(), 'build', 'linux', '--no-pub', '--release', '-t', 'lib/main_linux.dart',
               f'--dart-define-from-file={defines}'], 'Compiling configured Linux application')
+        step(integrity, 'Verifying official SDK and dependencies after compilation')
         bundle_gate(root / 'build/linux/x64/release/bundle', configuration, options.version)
         step(['git', 'diff', '--exit-code'], 'Verifying source and dependency locks after compilation')
     output = workspace / 'artifacts'
@@ -469,7 +479,7 @@ def build(options):
     (output / f'{artifact.name}.sha256').write_text(f'{digest}  {artifact.name}\n')
     manifest = {'schema': 1, 'status': 'candidate', 'release_ready': False,
                 'version': options.version, 'revision': options.revision,
-                'sha256': digest, 'artifact': str(artifact), 'flutter': '3.47.5', 'dart': '3.13.4',
+                'sha256': digest, 'artifact': str(artifact), 'flutter': '3.50.1', 'dart': '3.14.0',
                 'snapcraft': SNAPCRAFT_VERSION, 'base': 'core24', 'grade': 'devel', 'confinement': 'strict',
                 'dependencies': json.loads((root / 'tool/shared_dependencies.json').read_text()),
                 'google_registration': 'busymaxManaged',

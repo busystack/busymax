@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 
 import '../../app/common/busymax_design_values.dart';
 

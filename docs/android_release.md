@@ -5,7 +5,7 @@ Production key material is never tracked. Copy
 `storeFile` at the owner-controlled keystore, and fill its passwords and alias
 outside logs and shell history. Do not replace an established upload identity.
 
-The v0.4.2 package uses version code `10` in `android/app/build.gradle.kts`.
+The v0.4.3 package uses version code `11` in `android/app/build.gradle.kts`.
 Before choosing a subsequent code, check the distribution ledger and ensure it
 exceeds every previously distributed code, including ABI offsets from split
 APKs. Keep the public version in `pubspec.yaml` consistent with the release.
@@ -38,8 +38,14 @@ Outputs are:
 - `build/android/android-artifact-inspection.txt`
 
 The script selects `lib/main_android.dart`, enables R8/resource shrinking, and
-fails if Microsoft public registration or production signing is absent. For CI
-or development only, `--test-signing --allow-unconfigured-providers` produces
+fails if Microsoft public registration or production signing is absent. It
+restores hosted packages from pub.dev into a fresh temporary cache with the
+lockfile enforced. If compilation or post-build integrity verification fails,
+it removes the selected release outputs, including Gradle's APK copy. Restore
+the normal development package configuration with `flutter pub get --enforce-lockfile`
+before returning to development.
+
+For CI or development only, `--test-signing --allow-unconfigured-providers` produces
 an explicitly labeled debug-identity release-mode artifact. That artifact is
 not a finished distribution build and its unavailable provider flows are
 expected to remain disabled.

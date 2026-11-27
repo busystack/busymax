@@ -35,7 +35,7 @@ void main() {
     final prerequisiteScript = File('tool/windows/check_prerequisites.ps1')
         .readAsStringSync();
 
-    expect(workflow, contains("flutter-version: '3.47.5'"));
+    expect(workflow, contains("flutter-version: '3.50.1'"));
 
     for (final name in [
       'Verify x64 Windows build host',
@@ -103,10 +103,16 @@ void main() {
     expect(buildScript, contains(r'& $dartExecutable format'));
     expect(
       buildScript,
-      contains(r'& $dartExecutable run tool/check_platform_boundaries.dart'),
+      contains(
+        r'& $dartExecutable --packages=.dart_tool/package_config.json '
+        'tool/check_platform_boundaries.dart',
+      ),
     );
     expect(buildScript, contains(r'& $flutterExecutable analyze'));
-    expect(buildScript, contains(r'& $flutterExecutable test --machine'));
+    expect(
+      buildScript,
+      contains(r'& $flutterExecutable test --no-pub --machine'),
+    );
     expect(buildScript, contains(r'& $flutterExecutable build windows'));
     expect(buildScript, isNot(matches(RegExp(r'&\s+dart\s'))));
     expect(buildScript, isNot(matches(RegExp(r'&\s+flutter\s'))));
@@ -120,11 +126,45 @@ void main() {
     expect(prerequisiteScript, contains('-All'));
     expect(prerequisiteScript, contains("'cache\\dart-sdk\\bin\\dart.exe'"));
     expect(prerequisiteScript, contains('verify_flutter_sdk.dart'));
-    expect(prerequisiteScript, contains("flutterVersion -ne '3.47.5'"));
-    expect(prerequisiteScript, contains("dartVersion -ne '3.13.4'"));
+    expect(prerequisiteScript, contains("flutterVersion -ne '3.50.1'"));
+    expect(prerequisiteScript, contains("dartVersion -ne '3.14.0'"));
     expect(prerequisiteScript, isNot(contains('Get-Command dart')));
     expect(prerequisiteScript, isNot(contains(r'$flutterBin -ne $dartBin')));
   });
+
+  test(
+    'Windows release compilation and packaging require official artifacts',
+    () {
+      final release = File('tool/windows/build_release.ps1').readAsStringSync();
+      final package = File('tool/windows/package_store.ps1').readAsStringSync();
+      const verify = "Assert-BusyMaxUpstreamIntegrity 'windows-release'";
+      final compile = release.indexOf(
+        r'& $flutterExecutable build windows --no-pub --release',
+      );
+      final before = release.indexOf(verify);
+      final after = release.lastIndexOf(verify);
+      expect(
+        release.lastIndexOf('pub get --enforce-lockfile'),
+        lessThan(before),
+      );
+      expect(before, greaterThan(0));
+      expect(compile, greaterThan(before));
+      expect(after, greaterThan(compile));
+      expect(
+        release.indexOf('Write-BusyMaxReleaseReceipt'),
+        greaterThan(after),
+      );
+      expect(package, contains('--require-target windows-release'));
+      expect(
+        package.indexOf('--require-target windows-release'),
+        lessThan(package.indexOf(r'& $makeAppx pack')),
+      );
+      expect(
+        package.indexOf('Assert-BusyMaxAcceptedRelease'),
+        lessThan(package.indexOf('Copy-Item')),
+      );
+    },
+  );
 
   test(
     'Windows CI retains diagnostics and limits package artifact uploads',

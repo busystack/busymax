@@ -15,7 +15,7 @@ import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart'
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

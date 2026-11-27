@@ -11,7 +11,7 @@ import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

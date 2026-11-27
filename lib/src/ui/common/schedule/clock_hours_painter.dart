@@ -1,5 +1,5 @@
 import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
-import 'package:flutter/material.dart' show TimeOfDay;
+import 'package:busymax/src/ui/common/flutter_material.dart' show TimeOfDay;
 
 /// Upstream HoursPainter returns false from shouldRepaint. A clock/locale
 /// change can change text without changing the canvas size, so repaint it.

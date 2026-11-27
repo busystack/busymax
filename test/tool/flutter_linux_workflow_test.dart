@@ -13,10 +13,10 @@ void main() {
       'branches: [main]',
       'cancel-in-progress: true',
       'runs-on: ubuntu-24.04',
-      "flutter-version: '3.47.5'",
+      "flutter-version: '3.50.1'",
       'tool/verify_flutter_sdk.dart',
-      '--expected-flutter 3.47.5',
-      '--expected-dart 3.13.4',
+      '--expected-flutter 3.50.1',
+      '--expected-dart 3.14.0',
       'tool/check_release_pull_request.py',
       'tool/checkout_shared_dependencies.py',
       r'"$BUSYMAX_FLUTTER_EXECUTABLE" pub get --enforce-lockfile',
@@ -57,6 +57,23 @@ void main() {
       contains(r'dart_executable="$flutter_bin/cache/dart-sdk/bin/dart"'),
     );
     expect(workflow, isNot(contains(r'command -v dart')));
+  });
+
+  test('Linux CI checks acquired release artifacts before Snap packaging', () {
+    final workflow = File('.github/workflows/flutter-linux.yml')
+        .readAsStringSync();
+    const verify = 'python3 tool/verify_upstream_packages.py';
+    const release = '$verify --require-target linux-release';
+    final build = workflow.indexOf(
+      r'"$BUSYMAX_FLUTTER_EXECUTABLE" build linux --no-pub --release',
+    );
+    final before = workflow.indexOf(release);
+    final after = workflow.lastIndexOf(release);
+    expect(before, greaterThan(0));
+    expect(build, greaterThan(before));
+    expect(after, greaterThan(build));
+    expect(after, lessThan(workflow.indexOf('uses: snapcore/action-build@v1')));
+    expect(workflow, contains('$verify --require-target linux-debug'));
   });
 
   test('production validator requires managed Google but no original or managed Microsoft', () async {

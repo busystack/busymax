@@ -9,7 +9,7 @@ import 'package:busymax/src/android/presentation/android_settings_screen.dart';
 import 'package:busymax/src/dav/presentation/nextcloud_collection_dialog.dart';
 import 'package:busymax/src/ui/windows/windows_nextcloud_dialogs.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

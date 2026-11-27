@@ -32905,10 +32905,11 @@ class $$AccountsTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (oAuthTransitionAccountsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          OAuthTransitionAccount
+                          OAuthTransitionAccount,
+                          $OAuthTransitionAccountsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -32919,17 +32920,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).oAuthTransitionAccountsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (accountAuthorizationsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          AccountAuthorization
+                          AccountAuthorization,
+                          $AccountAuthorizationsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -32940,17 +32940,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).accountAuthorizationsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (domainSyncSchedulesRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          DomainSyncSchedule
+                          DomainSyncSchedule,
+                          $DomainSyncSchedulesTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -32961,17 +32960,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).domainSyncSchedulesRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (davAccountServicesRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          DavAccountService
+                          DavAccountService,
+                          $DavAccountServicesTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -32982,17 +32980,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).davAccountServicesRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (davCollectionCreationsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          DavCollectionCreation
+                          DavCollectionCreation,
+                          $DavCollectionCreationsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33003,17 +33000,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).davCollectionCreationsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (davCollectionsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          DavCollection
+                          DavCollection,
+                          $DavCollectionsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33024,17 +33020,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).davCollectionsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (davObjectsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          DavObject
+                          DavObject,
+                          $DavObjectsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33045,17 +33040,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).davObjectsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (davConflictSnapshotsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          DavConflictSnapshot
+                          DavConflictSnapshot,
+                          $DavConflictSnapshotsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33066,17 +33060,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).davConflictSnapshotsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (taskListsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          TaskList
+                          TaskList,
+                          $TaskListsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33087,17 +33080,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).taskListsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (tasksRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          Task
+                          Task,
+                          $TasksTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33108,17 +33100,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).tasksRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (pendingOpsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          PendingOp
+                          PendingOp,
+                          $PendingOpsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33129,17 +33120,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).pendingOpsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (syncRunsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          SyncRun
+                          SyncRun,
+                          $SyncRunsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33150,17 +33140,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).syncRunsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (calendarSourcesRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          CalendarSource
+                          CalendarSource,
+                          $CalendarSourcesTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33171,17 +33160,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).calendarSourcesRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (calendarEventsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          CalendarEvent
+                          CalendarEvent,
+                          $CalendarEventsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33192,17 +33180,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).calendarEventsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (webCalSubscriptionsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          WebCalSubscription
+                          WebCalSubscription,
+                          $WebCalSubscriptionsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33213,17 +33200,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).webCalSubscriptionsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (syncCursorsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          SyncCursor
+                          SyncCursor,
+                          $SyncCursorsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33234,17 +33220,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).syncCursorsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (scheduleItemOverridesRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          ScheduleItemOverride
+                          ScheduleItemOverride,
+                          $ScheduleItemOverridesTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33255,17 +33240,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).scheduleItemOverridesRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (notificationScheduleRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          NotificationScheduleData
+                          NotificationScheduleData,
+                          $NotificationScheduleTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33276,17 +33260,16 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).notificationScheduleRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                       if (locationResolutionsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           Account,
                           $AccountsTable,
-                          LocationResolution
+                          LocationResolution,
+                          $LocationResolutionsTable
                         >(
                           currentTable: table,
                           referencedTable: $$AccountsTableReferences
@@ -33297,10 +33280,8 @@ class $$AccountsTableTableManager
                                 table,
                                 p0,
                               ).locationResolutionsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.accountId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'account_id',
                           typedResults: items,
                         ),
                     ];
@@ -35750,10 +35731,11 @@ class $$DavCollectionCreationsTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (davCollectionCreationAcknowledgmentsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavCollectionCreation,
                           $DavCollectionCreationsTable,
-                          DavCollectionCreationAcknowledgment
+                          DavCollectionCreationAcknowledgment,
+                          $DavCollectionCreationAcknowledgmentsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavCollectionCreationsTableReferences
@@ -35766,10 +35748,8 @@ class $$DavCollectionCreationsTableTableManager
                                 table,
                                 p0,
                               ).davCollectionCreationAcknowledgmentsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.operationId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'operation_id',
                           typedResults: items,
                         ),
                     ];
@@ -37537,10 +37517,11 @@ class $$DavCollectionsTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (davObjectsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavCollection,
                           $DavCollectionsTable,
-                          DavObject
+                          DavObject,
+                          $DavObjectsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavCollectionsTableReferences
@@ -37551,17 +37532,16 @@ class $$DavCollectionsTableTableManager
                                 table,
                                 p0,
                               ).davObjectsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.collectionId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'collection_id',
                           typedResults: items,
                         ),
                       if (davConflictSnapshotsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavCollection,
                           $DavCollectionsTable,
-                          DavConflictSnapshot
+                          DavConflictSnapshot,
+                          $DavConflictSnapshotsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavCollectionsTableReferences
@@ -37572,17 +37552,16 @@ class $$DavCollectionsTableTableManager
                                 table,
                                 p0,
                               ).davConflictSnapshotsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davCollectionId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_collection_id',
                           typedResults: items,
                         ),
                       if (taskListsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavCollection,
                           $DavCollectionsTable,
-                          TaskList
+                          TaskList,
+                          $TaskListsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavCollectionsTableReferences
@@ -37593,17 +37572,16 @@ class $$DavCollectionsTableTableManager
                                 table,
                                 p0,
                               ).taskListsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davCollectionId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_collection_id',
                           typedResults: items,
                         ),
                       if (tasksRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavCollection,
                           $DavCollectionsTable,
-                          Task
+                          Task,
+                          $TasksTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavCollectionsTableReferences
@@ -37614,17 +37592,16 @@ class $$DavCollectionsTableTableManager
                                 table,
                                 p0,
                               ).tasksRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davCollectionId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_collection_id',
                           typedResults: items,
                         ),
                       if (calendarSourcesRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavCollection,
                           $DavCollectionsTable,
-                          CalendarSource
+                          CalendarSource,
+                          $CalendarSourcesTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavCollectionsTableReferences
@@ -37635,17 +37612,16 @@ class $$DavCollectionsTableTableManager
                                 table,
                                 p0,
                               ).calendarSourcesRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davCollectionId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_collection_id',
                           typedResults: items,
                         ),
                       if (calendarEventsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavCollection,
                           $DavCollectionsTable,
-                          CalendarEvent
+                          CalendarEvent,
+                          $CalendarEventsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavCollectionsTableReferences
@@ -37656,17 +37632,16 @@ class $$DavCollectionsTableTableManager
                                 table,
                                 p0,
                               ).calendarEventsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davCollectionId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_collection_id',
                           typedResults: items,
                         ),
                       if (syncCursorsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavCollection,
                           $DavCollectionsTable,
-                          SyncCursor
+                          SyncCursor,
+                          $SyncCursorsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavCollectionsTableReferences
@@ -37677,10 +37652,8 @@ class $$DavCollectionsTableTableManager
                                 table,
                                 p0,
                               ).syncCursorsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davCollectionId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_collection_id',
                           typedResults: items,
                         ),
                     ];
@@ -38807,10 +38780,11 @@ class $$DavObjectsTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (davObjectComponentsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavObject,
                           $DavObjectsTable,
-                          DavObjectComponent
+                          DavObjectComponent,
+                          $DavObjectComponentsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavObjectsTableReferences
@@ -38821,17 +38795,16 @@ class $$DavObjectsTableTableManager
                                 table,
                                 p0,
                               ).davObjectComponentsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davObjectId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_object_id',
                           typedResults: items,
                         ),
                       if (davConflictSnapshotsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavObject,
                           $DavObjectsTable,
-                          DavConflictSnapshot
+                          DavConflictSnapshot,
+                          $DavConflictSnapshotsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavObjectsTableReferences
@@ -38842,17 +38815,16 @@ class $$DavObjectsTableTableManager
                                 table,
                                 p0,
                               ).davConflictSnapshotsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davObjectId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_object_id',
                           typedResults: items,
                         ),
                       if (tasksRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavObject,
                           $DavObjectsTable,
-                          Task
+                          Task,
+                          $TasksTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavObjectsTableReferences
@@ -38863,17 +38835,16 @@ class $$DavObjectsTableTableManager
                                 table,
                                 p0,
                               ).tasksRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davObjectId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_object_id',
                           typedResults: items,
                         ),
                       if (pendingOpsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavObject,
                           $DavObjectsTable,
-                          PendingOp
+                          PendingOp,
+                          $PendingOpsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavObjectsTableReferences
@@ -38884,17 +38855,16 @@ class $$DavObjectsTableTableManager
                                 table,
                                 p0,
                               ).pendingOpsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davObjectId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_object_id',
                           typedResults: items,
                         ),
                       if (calendarEventsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavObject,
                           $DavObjectsTable,
-                          CalendarEvent
+                          CalendarEvent,
+                          $CalendarEventsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavObjectsTableReferences
@@ -38905,10 +38875,8 @@ class $$DavObjectsTableTableManager
                                 table,
                                 p0,
                               ).calendarEventsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davObjectId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_object_id',
                           typedResults: items,
                         ),
                     ];
@@ -39513,10 +39481,11 @@ class $$DavObjectComponentsTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (tasksRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavObjectComponent,
                           $DavObjectComponentsTable,
-                          Task
+                          Task,
+                          $TasksTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavObjectComponentsTableReferences
@@ -39527,17 +39496,16 @@ class $$DavObjectComponentsTableTableManager
                                 table,
                                 p0,
                               ).tasksRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davComponentId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_component_id',
                           typedResults: items,
                         ),
                       if (calendarEventsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavObjectComponent,
                           $DavObjectComponentsTable,
-                          CalendarEvent
+                          CalendarEvent,
+                          $CalendarEventsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavObjectComponentsTableReferences
@@ -39548,10 +39516,8 @@ class $$DavObjectComponentsTableTableManager
                                 table,
                                 p0,
                               ).calendarEventsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.davComponentId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'dav_component_id',
                           typedResults: items,
                         ),
                     ];
@@ -40318,10 +40284,11 @@ class $$DavConflictSnapshotsTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (pendingOpsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           DavConflictSnapshot,
                           $DavConflictSnapshotsTable,
-                          PendingOp
+                          PendingOp,
+                          $PendingOpsTable
                         >(
                           currentTable: table,
                           referencedTable: $$DavConflictSnapshotsTableReferences
@@ -40332,10 +40299,8 @@ class $$DavConflictSnapshotsTableTableManager
                                 table,
                                 p0,
                               ).pendingOpsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.conflictSnapshotId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'conflict_snapshot_id',
                           typedResults: items,
                         ),
                     ];
@@ -45868,10 +45833,11 @@ class $$CalendarSourcesTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (calendarEventsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           CalendarSource,
                           $CalendarSourcesTable,
-                          CalendarEvent
+                          CalendarEvent,
+                          $CalendarEventsTable
                         >(
                           currentTable: table,
                           referencedTable: $$CalendarSourcesTableReferences
@@ -45882,17 +45848,16 @@ class $$CalendarSourcesTableTableManager
                                 table,
                                 p0,
                               ).calendarEventsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.calendarSourceId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'calendar_source_id',
                           typedResults: items,
                         ),
                       if (icalImportReceiptsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           CalendarSource,
                           $CalendarSourcesTable,
-                          IcalImportReceipt
+                          IcalImportReceipt,
+                          $IcalImportReceiptsTable
                         >(
                           currentTable: table,
                           referencedTable: $$CalendarSourcesTableReferences
@@ -45903,17 +45868,16 @@ class $$CalendarSourcesTableTableManager
                                 table,
                                 p0,
                               ).icalImportReceiptsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.calendarSourceId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'calendar_source_id',
                           typedResults: items,
                         ),
                       if (webCalSubscriptionsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           CalendarSource,
                           $CalendarSourcesTable,
-                          WebCalSubscription
+                          WebCalSubscription,
+                          $WebCalSubscriptionsTable
                         >(
                           currentTable: table,
                           referencedTable: $$CalendarSourcesTableReferences
@@ -45924,17 +45888,16 @@ class $$CalendarSourcesTableTableManager
                                 table,
                                 p0,
                               ).webCalSubscriptionsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.calendarSourceId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'calendar_source_id',
                           typedResults: items,
                         ),
                       if (syncCursorsRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           CalendarSource,
                           $CalendarSourcesTable,
-                          SyncCursor
+                          SyncCursor,
+                          $SyncCursorsTable
                         >(
                           currentTable: table,
                           referencedTable: $$CalendarSourcesTableReferences
@@ -45945,10 +45908,8 @@ class $$CalendarSourcesTableTableManager
                                 table,
                                 p0,
                               ).syncCursorsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.projectionSourceId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'projection_source_id',
                           typedResults: items,
                         ),
                     ];
@@ -47762,10 +47723,11 @@ class $$CalendarEventsTableTableManager
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (calendarEventAttendeesRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           CalendarEvent,
                           $CalendarEventsTable,
-                          CalendarEventAttendee
+                          CalendarEventAttendee,
+                          $CalendarEventAttendeesTable
                         >(
                           currentTable: table,
                           referencedTable: $$CalendarEventsTableReferences
@@ -47776,17 +47738,16 @@ class $$CalendarEventsTableTableManager
                                 table,
                                 p0,
                               ).calendarEventAttendeesRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.calendarEventId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'calendar_event_id',
                           typedResults: items,
                         ),
                       if (calendarEventRemindersRefs)
-                        await $_getPrefetchedData<
+                        await $_getPrefetchedDataByColumns<
                           CalendarEvent,
                           $CalendarEventsTable,
-                          CalendarEventReminder
+                          CalendarEventReminder,
+                          $CalendarEventRemindersTable
                         >(
                           currentTable: table,
                           referencedTable: $$CalendarEventsTableReferences
@@ -47797,10 +47758,8 @@ class $$CalendarEventsTableTableManager
                                 table,
                                 p0,
                               ).calendarEventRemindersRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.calendarEventId == item.id,
-                              ),
+                          currentColumn: 'id',
+                          referencedColumn: 'calendar_event_id',
                           typedResults: items,
                         ),
                     ];

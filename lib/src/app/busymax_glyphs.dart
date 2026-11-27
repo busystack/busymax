@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' show Icons;
+import 'package:busymax/src/ui/common/flutter_material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:yaru/yaru.dart';
 

@@ -28,7 +28,7 @@ import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:drift/drift.dart' show Value, Variable;
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

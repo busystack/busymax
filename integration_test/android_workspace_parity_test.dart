@@ -39,7 +39,7 @@ import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:busymax/src/platform/gtk_header_icon_service.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

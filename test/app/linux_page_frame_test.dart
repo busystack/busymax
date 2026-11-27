@@ -3,7 +3,7 @@ import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/linux/linux_page_frame.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
