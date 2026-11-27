@@ -93,6 +93,12 @@ def utc():
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def checkpoint(artifact, evidence):
+    temporary = artifact / 'manifest.json.next'
+    temporary.write_text(json.dumps(evidence, indent=2) + '\n')
+    temporary.replace(artifact / 'manifest.json')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--server', type=Path, required=True)
@@ -162,15 +168,21 @@ def main():
         )},
         'admissionCorpusSha256': hashlib.sha256(corpus.read_bytes()).hexdigest(),
         'gates': {},
-        'nativeMatrix': {},
+        'nativeMatrix': {f'{platform}/{provider}': 'not run'
+                         for platform in ('linux', 'windows', 'android')
+                         for provider in profiles},
     }
     results = evidence['gates']
     environment = dict(os.environ, BUSYMAX_JOURNAL_LIVE_FIXTURE=str(fixture),
                        BUSYMAX_JOURNAL_CORPUS=str(corpus))
+    checkpoint(artifact, evidence)
 
     def run(label, command, *, named=(), extra_env=None):
         log = artifact / (label + '.log')
         started = utc()
+        results[label] = dict(started=started, status='running',
+                              command=command, missing=list(named), log=log.name)
+        checkpoint(artifact, evidence)
         with log.open('w') as output:
             try:
                 process = subprocess.run(command, cwd=BUSYMAX, env={**environment, **(extra_env or {})},
@@ -184,6 +196,7 @@ def main():
                    if not re.search(r'^\d\d:\d\d \+\d+.*: .*' + re.escape(name) + r'$', content, re.M)]
         results[label] = dict(started=started, finished=utc(), exitCode=code,
                               command=command, missing=missing, log=log.name)
+        checkpoint(artifact, evidence)
         print(f'{label} completed with status {code}', flush=True)
         return code == 0 and not missing
 
@@ -211,8 +224,13 @@ def main():
                      named=named, extra_env=extra_env)
         binary = BUSYMAX / 'build/linux/x64/debug/bundle/busymax'
         if passed:
-            with binary.open('rb') as executable:
-                results[label]['executableSha256'] = hashlib.file_digest(executable, 'sha256').hexdigest()
+            try:
+                with binary.open('rb') as executable:
+                    results[label]['executableSha256'] = hashlib.file_digest(executable, 'sha256').hexdigest()
+            except OSError as error:
+                results[label]['artifactError'] = str(error)
+                passed = False
+            checkpoint(artifact, evidence)
         try:
             def active_mount(mount):
                 try:
@@ -301,6 +319,19 @@ done
                     return set()
                 return apk_signer_digests(response.stdout)
 
+            def read_installed(local_apk):
+                paths = subprocess.run(
+                    [*adb, 'shell', 'pm', 'path', package_id],
+                    capture_output=True, text=True,
+                )
+                base = next((line.removeprefix('package:') for line in paths.stdout.splitlines()
+                             if line.startswith('package:') and line.endswith('/base.apk')), None)
+                if paths.returncode or base is None:
+                    return False
+                copied = subprocess.run([*adb, 'pull', base, str(local_apk)],
+                                        capture_output=True)
+                return copied.returncode == 0
+
             signing_identity = certificates(apk)
             if not signing_identity:
                 return 'not run: the QA APK signature could not be verified'
@@ -311,19 +342,9 @@ done
             if installed.returncode:
                 return 'not run: the device package inventory could not be read'
             if f'package:{package_id}' in installed.stdout.splitlines():
-                paths = subprocess.run(
-                    [*adb, 'shell', 'pm', 'path', package_id],
-                    capture_output=True, text=True,
-                )
-                base = next((line.removeprefix('package:') for line in paths.stdout.splitlines()
-                             if line.startswith('package:') and line.endswith('/base.apk')), None)
-                if paths.returncode or base is None:
-                    return 'not run: the installed QA APK could not be located'
                 with tempfile.TemporaryDirectory(dir=artifact) as directory:
                     local_apk = Path(directory) / 'existing-qa.apk'
-                    copied = subprocess.run([*adb, 'pull', base, str(local_apk)],
-                                            capture_output=True)
-                    if copied.returncode or certificates(local_apk) != signing_identity:
+                    if not read_installed(local_apk) or certificates(local_apk) != signing_identity:
                         return 'not run: existing QA signing identity differs; retained installed package and data'
             # A safe update catches other install problems before Flutter's
             # install retry can uninstall a previously installed QA package.
@@ -331,11 +352,21 @@ done
                 return 'not run: the safe QA install/update failed'
             with apk.open('rb') as binary:
                 apk_hash = hashlib.file_digest(binary, 'sha256').hexdigest()
-            results[f'android-{provider}-apk'] = {'applicationId': package_id, 'sha256': apk_hash}
+            apk_identity = {'applicationId': package_id, 'preflightSha256': apk_hash,
+                            'signerCertificateSha256': sorted(signing_identity)}
+            results[f'android-{provider}-apk'] = apk_identity
             label = f'android-{provider}-native'
             passed = run(label, ['flutter', 'test', native, '-d', serial,
                          '--no-uninstall', define, '--reporter', 'expanded'], extra_env=flags,
                          named=[f'Android journal collection and editor on {provider}'])
+            with tempfile.TemporaryDirectory(dir=artifact) as directory:
+                local_apk = Path(directory) / 'tested-qa.apk'
+                if read_installed(local_apk) and certificates(local_apk) == signing_identity:
+                    with local_apk.open('rb') as binary:
+                        apk_identity['installedSha256'] = hashlib.file_digest(binary, 'sha256').hexdigest()
+                else:
+                    apk_identity['artifactError'] = 'Installed QA artifact could not be verified after the run.'
+                    passed = False
             return native_result('android', provider, [label], passed)
         finally:
             if mapped:
@@ -387,6 +418,7 @@ done
             else:
                 result = 'not run: supply --windows-runner'
             evidence['nativeMatrix'][f'{platform}/{provider}'] = result
+            checkpoint(artifact, evidence)
     evidence['finished'] = utc()
     evidence['sourceUnchanged'] = (clean(BUSYMAX) and clean(server)
                                    and commit(BUSYMAX) == evidence['busymax']
@@ -400,7 +432,7 @@ done
         nextcloud_records, json.loads(corpus.read_bytes()), evidence['admissionCorpusSha256'],
         nextcloud_info, results['nextcloud-admission']['exitCode'],
     )
-    (artifact / 'manifest.json').write_text(json.dumps(evidence, indent=2) + '\n')
+    checkpoint(artifact, evidence)
     complete = (evidence['sourceUnchanged']
                 and all(isinstance(outcome, dict) and outcome['status'] == 'pass'
                     for outcome in evidence['nativeMatrix'].values())
