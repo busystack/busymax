@@ -45,6 +45,7 @@ void runJournalWorkflow({
   JournalRestartStage? restart,
   Directory? persistentProfile,
   bool checkConflictChoices = false,
+  bool slowCollectionRemoval = false,
 }) {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final description = restart == null
@@ -694,6 +695,9 @@ void runJournalWorkflow({
       );
       await waitJournalWidget(tester, confirmation);
       accountClient.trace.clear();
+      if (slowCollectionRemoval) {
+        accountClient.delayRemovalResponses = true;
+      }
       await _tapVisible(tester, button('Delete', false));
       await waitJournalWidget(
         tester,
@@ -711,7 +715,9 @@ void runJournalWorkflow({
             final child = (element.widget as Semantics).child;
             return child is Text ? child.data : null;
           }).whereType<String>();
-          return 'Journal status ${messages.join(', ')}. DAV requests ${accountClient.trace}.';
+          return 'Journal status ${messages.join(', ')}. DAV requests '
+              '${accountClient.trace}. Delayed responses '
+              '${accountClient.delayedRemovalMethods}.';
         },
       );
       await waitJournalWidget(tester, enabledRefresh());
@@ -747,6 +753,13 @@ void runJournalWorkflow({
         isFalse,
       );
       collection = null;
+      if (slowCollectionRemoval) {
+        expect(accountClient.delayedRemovalMethods, hasLength(5));
+        expect(accountClient.delayedRemovalMethods, contains('DELETE'));
+        debugPrint(
+          'JOURNAL_WORKFLOW_CASE $provider collection-delete-slow-response PASS',
+        );
+      }
       debugPrint(
         'JOURNAL_WORKFLOW_CASE $provider collection-rename-delete-readback PASS',
       );
@@ -783,10 +796,18 @@ final class _JournalAccountClient extends http.BaseClient {
   final http.Client delegate;
   final preconditionFailures = <({Uri uri, String etag})>[];
   final trace = JournalHttpTrace();
+  bool delayRemovalResponses = false;
+  final delayedRemovalMethods = <String>[];
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final response = await trace.send(delegate, request);
+    if (delayRemovalResponses && delayedRemovalMethods.length < 5) {
+      // The removal and its refresh make several requests. Successful
+      // responses within their individual deadlines can outlast a short UI wait.
+      delayedRemovalMethods.add(request.method);
+      await Future<void>.delayed(const Duration(seconds: 12));
+    }
     if (request.method == 'PUT' && response.statusCode == 412) {
       final etag = request.headers.entries
           .where((entry) => entry.key.toLowerCase() == 'if-match')

@@ -23,6 +23,9 @@ void main() {
       persistentProfile: profile == null ? null : Directory(profile),
       checkConflictChoices:
           Platform.environment['BUSYMAX_LINUX_JOURNAL_CONFLICTS'] == '1',
+      slowCollectionRemoval:
+          provider == 'nextcloud' &&
+          Platform.environment['BUSYMAX_LINUX_JOURNAL_SLOW_DELETE'] == '1',
       app: () => const LinuxBusyMaxApp(),
       openJournals: (_, container) async =>
           container.read(appRouterProvider).go('/journals'),
