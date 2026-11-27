@@ -40,6 +40,21 @@ diagnostics appear in the [local upstream drafts](journal_nextcloud_upstream_dra
 The supported Nextcloud workflow profile requires its own complete native and
 installed-package results.
 
+## Property and behavior checklist
+
+| Properties and applicable clause | Authoring and preservation | Evidence available |
+| --- | --- | --- |
+| `UID`, `DTSTAMP`, `CREATED`, `LAST-MODIFIED`, `SEQUENCE`, RFC 5545 §§3.6.3, 3.8.4.7 and 3.8.7 | The repository manages identity and revision data. The validator requires exactly one UID and one UTC DTSTAMP for authored journals. | J01 and J23 provider checks, retained revision through local reopen and HTTPS readback, and the separate repair oracle. The organizer and scope combinations still need full qualification. |
+| `SUMMARY`, repeatable `DESCRIPTION`, RFC 5545 §§3.8.1.5 and 3.8.1.12 | The standard editor provides independent description blocks and retains language, ALTREP, parameters and empty properties. | J07 and R01 focused regressions plus narrower native edit smoke. |
+| `STATUS`, `CLASS`, `URL`, `ORGANIZER`, repeatable `ATTENDEE`, `CATEGORIES`, `COMMENT`, `CONTACT`, `REQUEST-STATUS`, RFC 5545 §§3.6.3 and 3.8 | Status has a dedicated control. The Details editor supports the other authorable values. The raw component retains recorded revisions and parameters. | Individual property and editor cases passed. The full cross-runtime property and negative corpus remains open. |
+| `DTSTART`, `RECURRENCE-ID`, `RRULE`, `RDATE`, `EXDATE`, RFC 5545 §§3.3, 3.8.4.4 and 3.8.5 | Date modes, recurrence and original positions remain in one raw UID set. Date conversion is atomic, and ambiguous conversions leave the original set intact. | Independent date and recurrence unit tests, provider round trips for selected cases and journal REPORT boundary probes. |
+| Repeatable `ATTACH`, RFC 5545 §3.8.1.1 | The editor supports URI and binary attachments. It retains format parameters and rejects file URIs for DAV storage. | Byte and metadata tests in the journal repository and workspace. Complete real file-provider and installed-package scenarios remain open. |
+| `COLOR`, repeatable `IMAGE` and wrapper metadata, RFC 7986 | Journal Details supports applicable component fields. Collection and wrapper fields stay in their original scope. | Admission J10 and preserved extension readback. All placement negatives and authoring combinations remain open. |
+| `STYLED-DESCRIPTION`, `STRUCTURED-DATA`, `PARTICIPANT`, `VLOCATION`, `VRESOURCE`, RFC 9073 §§4–7 | The editor retains nested structures and property parameters. Derived values are protected during replay. | J11 admission and nested editor, coalescence and stable-signature regressions. |
+| `RELATED-TO`, `LINK`, `CONCEPT`, `REFID`, RFC 9253 §§2, 7–9 | Details retains typed relationship values. Navigation uses same-collection UID or same-account URI lookup, and unresolved values remain visible. | Repository routing tests and J12 wire probes. Scoped transfer, native navigation and complete relationship validation remain open. |
+| `VSTATUS`, RFC 10051 §§8 and 12.1 | The nested editor and typed mutation patches retain applicable status fields and parent status. | Direct and participant editor regressions, durable queue reopen and provider readback. |
+| `METHOD`, event and task properties and unknown extensions, RFC 5546 §3.5 and RFC 4791 §§4.1 and 5.3.3 | Journal file messages use the import review. The stored journal omits METHOD and excludes event duration, alarms, task completion and event-only fields. Unrecognized raw data can be retained and exported. | RFC 5546 focused tests, independent METHOD-free readback and journal validation negatives. Full platform import and transfer qualification remains open. |
+
 ## Range, draft and admission corrections
 
 This follow-up started from BusyMax `df88856c2ec98aae37152f5cdc887c99de3bf6b3`
