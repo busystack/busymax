@@ -703,6 +703,7 @@ void runJournalWorkflow({
         tester,
         confirmation,
         absent: true,
+        timeout: const Duration(minutes: 2),
         failureContext: () {
           final statuses = find.descendant(
             of: find.byType(JournalWorkspace),
@@ -894,9 +895,15 @@ Future<void> waitJournalWidget(
   WidgetTester tester,
   Finder finder, {
   bool absent = false,
+  Duration? timeout,
   String Function()? failureContext,
 }) async {
-  for (var attempt = 0; attempt < 240; attempt++) {
+  final elapsed = Stopwatch()..start();
+  for (
+    var attempt = 0;
+    timeout == null ? attempt < 240 : elapsed.elapsed < timeout;
+    attempt++
+  ) {
     await tester.pump(const Duration(milliseconds: 100));
     if (finder.evaluate().isEmpty == absent) return;
     await tester.runAsync(
