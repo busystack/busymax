@@ -467,7 +467,7 @@ void runJournalWorkflow({
       }
 
       const dav = 'DAV:';
-      final target = collection!.requestUri;
+      final target = collection.requestUri;
       final beforeDelete = (await tester.runAsync(
         () => request(
           'PROPFIND',
