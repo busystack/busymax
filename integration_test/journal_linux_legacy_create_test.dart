@@ -190,20 +190,18 @@ Future<void> _transferJournalFiles(
   await _tap(tester, find.text('Save'));
   await waitJournalWidget(tester, find.text(importedUid));
   await _tap(tester, find.text('Close'));
-  expect(find.textContaining(RegExp(r'^Series ·')), findsNWidgets(2));
+  final entries = find.textContaining(RegExp(r'^Series ·'));
+  await waitJournalWidget(tester, entries.at(1));
+  expect(entries, findsNWidgets(2));
 }
 
 Future<void> _tapEditorAction(WidgetTester tester, Finder control) async {
-  await tester.scrollUntilVisible(
-    control,
-    210,
-    scrollable: find
-        .descendant(
-          of: find.byType(ListView),
-          matching: find.byType(Scrollable),
-        )
-        .first,
+  final editor = find.descendant(
+    of: find.byType(ListView),
+    matching: find.byType(Scrollable),
   );
+  await waitJournalWidget(tester, editor);
+  await tester.scrollUntilVisible(control, 210, scrollable: editor.first);
   await _tap(tester, control);
 }
 
