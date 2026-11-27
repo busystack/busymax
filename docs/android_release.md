@@ -10,6 +10,10 @@ Before choosing a subsequent code, check the distribution ledger and ensure it
 exceeds every previously distributed code, including ABI offsets from split
 APKs. Keep the public version in `pubspec.yaml` consistent with the release.
 
+The 0.5.0 candidate uses the new public version while development and isolated
+QA builds retain base code 11. Select a greater eligible distribution code from
+the owner's APK and Play Console ledger before building the production update.
+
 With real public provider configuration and owner signing present, build both
 formats with:
 

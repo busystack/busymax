@@ -110,11 +110,11 @@ owner's desktop or uploaded automatically.
 Use the exact printed path throughout. In its artifacts directory:
 
 ```bash
-sha256sum --check busymax_0.4.3_amd64.snap.sha256
-unsquashfs -cat busymax_0.4.3_amd64.snap meta/snap.yaml
+sha256sum --check busymax_0.5.0_amd64.snap.sha256
+unsquashfs -cat busymax_0.5.0_amd64.snap meta/snap.yaml
 ```
 
-Confirm `0.4.3`, `core24`, `devel`, `strict`, the BusyMax launcher, its autostart
+Confirm `0.5.0`, `core24`, `devel`, `strict`, the BusyMax launcher, its autostart
 entry, desktop file, icon and AppStream history. Investigate library warnings
 using [the library investigation record](snap_runtime_libraries.md); do not add
 broad linter suppression. The VM evidence must show no unresolved runtime ELF
@@ -126,7 +126,7 @@ preferences, contacts settings, conflicts and pending offline work. Back up
 that test state. Quit BusyMax and upgrade using the exact candidate:
 
 ```bash
-sudo snap install --dangerous /absolute/path/busymax_0.4.3_amd64.snap
+sudo snap install --dangerous /absolute/path/busymax_0.5.0_amd64.snap
 snap connections busymax
 snap run busymax
 ```
@@ -146,6 +146,12 @@ tray, Secret portal storage and notifications on X11 and Wayland sessions.
 Record version/revision/checksum and results without tokens or personal content.
 Review the [Google production prerequisites](desktop_oauth_release_checklist.md).
 
+For the 0.5.0 package, also upgrade an isolated 0.4.3 profile. Exercise journal
+creation, local edits while offline, restart and conditional replay against both
+providers, using native pickers to import and export an entry and attachment.
+Record each supported provider workflow separately from strict Nextcloud
+storage admission. [Journal qualification](journal_qualification.md)
+
 ## Owner-performed upload
 
 After interactive acceptance and provider prerequisite review, the owner uploads
@@ -154,7 +160,7 @@ only the verified checksum. The build command never publishes:
 ```bash
 snapcraft login
 snapcraft whoami
-snapcraft upload --release=beta /absolute/path/busymax_0.4.3_amd64.snap
+snapcraft upload --release=beta /absolute/path/busymax_0.5.0_amd64.snap
 snapcraft revisions busymax --arch amd64
 snapcraft status busymax --arch amd64
 ```
