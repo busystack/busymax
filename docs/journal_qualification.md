@@ -40,6 +40,30 @@ diagnostics appear in the [local upstream drafts](journal_nextcloud_upstream_dra
 The supported Nextcloud workflow profile requires its own complete native and
 installed-package results.
 
+### Current runtime and artifact evidence
+
+The application build and deterministic verification used BusyMax source
+`2f4239bcc72e20782eaf1b5a6fa1f62fb011b2ac`. The original two-provider native
+matrix ran at `278bdbf68b8cea0aa63e4cf610e855f433bb496b`. Its per-case manifest
+is `build/qualification/vjournal-cae1a1899601/manifest.json`. The consolidated
+record is in `build/qualification/vjournal-completion-20261127`.
+
+| Runtime or gate | Observed result |
+| --- | --- |
+| Linux production window | The release bundle built from `2f4239b` opened a mapped X11 window in an isolated profile. The executable SHA-256 is `4386e9dbaa87edeb6be0bb9e5d1c54ec0a59b7d63038b3d0c706cb54faf6ad07` and the AOT library SHA-256 is `b1a2cf10e6421f4843a2f44ac3ec41c024b7387390017d6471a5bd6ba06020fe`. |
+| Linux two-process journal replay | Both providers passed queued create, edit and delete through a process restart, SQLite and the isolated native keyring. The same run's separate Nextcloud editor test hit an HTTPS connection close during refresh. |
+| Android API 35 | The two named editor smoke tests passed using their separate installed QA APKs and independent HTTPS checks. The fixed minimum marker set remains incomplete. |
+| Android API 37 | The Nextcloud LAN smoke passed the system permission dialog and journal creation, GET and cleanup over HTTPS. The first BusyStack test passed the system grant and encountered the server's configured loopback origin in the principal response. The disposable LAN fixture now advertises its LAN origin for the retry. |
+| Android test-signed release | Both APK and AAB passed inspection, including 16 KB alignment. The APK opened on both API 35 and API 37, and both installed copies matched its SHA-256 `8b7ab03664a42c9b257beff7abc8d523829ab48eb4b3046b753768d42db7877e`. The AAB SHA-256 is `497323e21827306cb4d800469af34d8d3d6e6157d17ebcd5037afe2fede8c09f`. Production provider registration, signing and the distribution build code remain required. |
+| Windows and strict Snap | The Windows launcher requires an authorized healthy desktop host. The local VM booted into Automatic Repair. The canonical Snap builder requires the owner’s desktop OAuth configuration. The installed-package gates remain open. |
+
+The final-source journal HTTPS suite passed four named cases, including
+recovery after downstream denial and historical queue repair. The follow-up
+event and task regression used the official Calendar 6.7.0 and Tasks 0.18.1
+apps. Its exact-version test encountered an unknown HTTP mutation outcome
+and the large-collection test also failed. These results are separate from
+the eleven-fixture journal admission corpus.
+
 ## Property and behavior checklist
 
 | Properties and applicable clause | Authoring and preservation | Evidence available |

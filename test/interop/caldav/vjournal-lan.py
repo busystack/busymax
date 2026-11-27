@@ -121,6 +121,7 @@ def main():
         settings_file.write_text(lan_settings)
         candidate['compose'](state, 'up', '-d', '--no-build', 'application')
         candidate['wait_for_readiness'](state)
+        candidate['compose'](state, 'up', '-d', '--no-build', '--wait', 'https')
         for server in servers:
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
@@ -137,6 +138,7 @@ def main():
                 settings_file.write_text(ordinary_settings)
                 candidate['compose'](state, 'up', '-d', '--no-build', 'application')
                 candidate['wait_for_readiness'](state)
+                candidate['compose'](state, 'up', '-d', '--no-build', '--wait', 'https')
         finally:
             if (trust_added and official['occ'](
                     nextcloud.name, 'config:system:get', 'trusted_domains', trust_key) == trusted_domain):
