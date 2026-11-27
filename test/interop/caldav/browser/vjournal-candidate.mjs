@@ -154,8 +154,22 @@ async function execute([action, ...args]) {
       const [owner, title, username, permission] = args;
       await withSession(owner, async (page) => {
         const collection = await openCollection(page, base, title);
-        if (permission === 'REVOKE') await revokeDirect(page, base, collection, username);
-        else await grantDirect(page, base, collection, username, permission);
+        if (permission === 'REVOKE') {
+          await revokeDirect(page, base, collection, username);
+        } else {
+          const url = base + '/collections/' + collection + '/sharing';
+          await page.goto(url);
+          const row = page.locator('table').filter({
+            has: page.locator('caption').filter({ hasText: 'Accounts with direct grants' }),
+          }).locator('tbody tr').filter({ has: page.getByText(username, { exact: true }) });
+          if (await row.count()) {
+            await row.locator('select[name=permission]').selectOption(permission);
+            await Promise.all([page.waitForURL(url),
+              row.getByRole('button', { name: 'Save direct grant', exact: true }).click()]);
+          } else {
+            await grantDirect(page, base, collection, username, permission);
+          }
+        }
       });
       break;
     }
