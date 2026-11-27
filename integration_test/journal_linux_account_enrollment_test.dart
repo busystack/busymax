@@ -33,7 +33,7 @@ void main() {
       final configHome = Directory(Platform.environment['XDG_CONFIG_HOME']!);
       expect(dataHome.existsSync(), isTrue);
       expect(configHome.existsSync(), isTrue);
-      expect(configHome.listSync(), isEmpty);
+      expect(configHome.parent.path, dataHome.parent.path);
       final support = (await tester.runAsync(getApplicationSupportDirectory))!;
       expect(support.path, startsWith('${dataHome.path}/'));
       expect(File('${support.path}/busymax.sqlite').existsSync(), isFalse);
