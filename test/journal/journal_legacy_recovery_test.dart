@@ -292,6 +292,60 @@ void main() {
     }
   }
 
+  test(
+    'a historical journal move candidate is quarantined before dispatch',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'journal-move-recovery',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/journal.db');
+      await file.writeAsBytes(
+        gzip.decode(
+          File('test/journal/fixtures/legacy-range-v28.sqlite.gz')
+              .readAsBytesSync(),
+        ),
+      );
+      final db = AppDatabase(NativeDatabase(file));
+      addTearDown(db.close);
+      await db
+          .update(db.accounts)
+          .write(const AccountsCompanion(authState: Value('signed_in')));
+      await db
+          .update(db.pendingOps)
+          .write(
+            const PendingOpsCompanion(
+              operation: Value('dav_move'),
+              operationType: Value('dav.move'),
+              requestJson: Value('{"isEvent":false}'),
+            ),
+          );
+      final replayer = DavPendingOperationsReplayer(
+        database: db,
+        accountId: 'account',
+        serviceFactory: ({required account, required collection}) async =>
+            throw TestFailure(
+              'Invalid journal move reached the mutation service.',
+            ),
+      );
+      expect((await replayer.replayDueOperations()).appliedCount, 0);
+      final blocked = await db.select(db.pendingOps).getSingle();
+      expect(blocked.state, 'failed');
+      expect(blocked.lastErrorCode, duplicateJournalPositionCode);
+      final repository = JournalRepository(db);
+      final selected = (await repository.watchEntries().first).singleWhere(
+        (entry) => entry.uid == 'legacy' && entry.recurrenceIdKey == null,
+      );
+      final recovery = (await repository.read(selected)).pendingRecovery!;
+      expect(recovery.canReplace, isFalse);
+      expect(recovery.toJson()['operationType'], 'dav.move');
+      expect(
+        recovery.invalidCandidate,
+        contains('SUMMARY:Offline future edit'),
+      );
+    },
+  );
+
   test('the Nextcloud controller exports valid siblings and a separate recovery bundle', () async {
     final directory = await Directory.systemTemp.createTemp('journal-export');
     addTearDown(() => directory.delete(recursive: true));
