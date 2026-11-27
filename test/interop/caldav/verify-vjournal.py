@@ -31,6 +31,10 @@ def commit(path):
     return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=path, text=True).strip()
 
 
+def clean(path):
+    return not subprocess.check_output(['git', 'status', '--porcelain'], cwd=path)
+
+
 def utc():
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
@@ -57,6 +61,8 @@ def main():
     nextcloud = args.nextcloud.resolve()
     if fixture.stat().st_mode & 0o077:
         raise SystemExit('The fixture contains app passwords and must be private.')
+    if not clean(BUSYMAX) or not clean(server):
+        raise SystemExit('Qualification requires clean BusyMax and server source checkouts.')
     profiles = json.loads(fixture.read_text())
     candidate_info = json.loads((candidate / 'candidate.json').read_text())
     nextcloud_info = json.loads((nextcloud / 'identity.json').read_text())
@@ -321,8 +327,12 @@ done
                 result = 'not run: supply --windows-runner'
             evidence['nativeMatrix'][f'{platform}/{provider}'] = result
     evidence['finished'] = utc()
+    evidence['sourceUnchanged'] = (clean(BUSYMAX) and clean(server)
+                                   and commit(BUSYMAX) == evidence['busymax']
+                                   and commit(server) == evidence['server'])
     (artifact / 'manifest.json').write_text(json.dumps(evidence, indent=2) + '\n')
-    complete = (all(isinstance(outcome, dict) and outcome['status'] == 'pass'
+    complete = (evidence['sourceUnchanged']
+                and all(isinstance(outcome, dict) and outcome['status'] == 'pass'
                     for outcome in evidence['nativeMatrix'].values())
                 and all(gate.get('exitCode', 0) == 0 and not gate.get('missing')
                         for gate in results.values()))
