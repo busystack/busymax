@@ -1,8 +1,9 @@
 # Journal follow-up qualification
 
-The Windows, Android and strict Snap journal qualification remains open.
-The Linux and DAV results below cover the named scenarios. The complete
-two-provider matrix remains blocked by stock Nextcloud storage admission.
+The first-party and supported Nextcloud acceptance matrices remain open,
+including Windows, Android and strict Snap package qualification. The Linux
+and DAV results below cover the named scenarios. Strict Nextcloud storage
+conformance is upstream-blocked for the recorded representations.
 Use the [fixture and runner instructions](../test/interop/caldav/README.md#journal-candidate-qualification)
 to repeat the run.
 
@@ -52,6 +53,7 @@ record is in `build/qualification/vjournal-completion-20261127`.
 | --- | --- |
 | Linux production window | The release bundle built from `2f4239b` opened a mapped X11 window in an isolated profile. The executable SHA-256 is `4386e9dbaa87edeb6be0bb9e5d1c54ec0a59b7d63038b3d0c706cb54faf6ad07` and the AOT library SHA-256 is `b1a2cf10e6421f4843a2f44ac3ec41c024b7387390017d6471a5bd6ba06020fe`. |
 | Linux journal workflows | Both providers passed queued create, edit and delete through a process restart, SQLite and the isolated native keyring. The same run's separate Nextcloud editor test hit an HTTPS connection close during refresh. The subsequent final-source Linux editor smoke passed for both providers. |
+| Linux BusyStack account enrollment | The separate native test at `c394fc596402dd8a62ea553728e17544f29a204c` started the production entry point with an empty database, imported the private CA through the GTK chooser, enrolled through Settings, discovered and selected the independently created journal, and reconnected with the same account identity and a new credential generation. It emitted `account-connect-and-discover` for BusyStack. Nextcloud's browser enrollment remains open. |
 | Android API 35 | The two named editor smoke tests passed using their separate installed QA APKs and independent HTTPS checks. The fixed minimum marker set remains incomplete. |
 | Android API 37 | Both routed LAN smoke cases passed the system permission dialog and journal creation, GET and cleanup over trusted HTTPS. The first BusyStack test encountered a principal on its configured loopback origin. The successful retry used an explicitly configured LAN origin and the same verified server JAR. |
 | Android test-signed release | Both APK and AAB passed inspection, including 16 KB alignment. The APK opened on both API 35 and API 37, and both installed copies matched its SHA-256 `8b7ab03664a42c9b257beff7abc8d523829ab48eb4b3046b753768d42db7877e`. The AAB SHA-256 is `497323e21827306cb4d800469af34d8d3d6e6157d17ebcd5037afe2fede8c09f`. Production provider registration, signing and the distribution build code remain required. |
@@ -64,13 +66,31 @@ apps. Its exact-version test encountered an unknown HTTP mutation outcome
 and large-collection rediscovery timed out. The separate user and group
 sharing test passed.
 
-The final-source Flutter gate first reported 5,531 passes, 125 skips and two
-failures. A bounded rerun with the unmodified runner's `--timeout 90s` option
-reported 5,532 passes, 125 skips and one five-second tray timeout. The failed
-TLS, activation and tray cases passed in isolated reruns. Both journal
-migration tests also passed in isolation. Android platform unit tests and
-lint, SDK and package integrity, formatting, analysis, platform boundaries
-and the five CalDAV Python harness tests passed.
+The final deterministic rerun passed 5,533 tests with 125 skips and no
+failures at `4fbf75aef35b19c78df3630c871cd89d44d5ffe1`, which carries the
+tested application code plus the extended live date-mode suite. It used
+`flutter test --no-pub --concurrency 4 --timeout 90s --reporter expanded`.
+Earlier runs surfaced TLS, activation and tray timeouts. Each affected case
+also passed in isolation, as did both journal migrations. Android platform
+unit tests and lint, SDK and package integrity, formatting, analysis,
+platform boundaries and the five CalDAV Python harness tests passed.
+Credential-gated or native skips are tracked separately.
+
+The server candidate in this continuation uses JAR SHA-256
+`8fc37a17246761a3c654866b41bca30bd5ae595bd4db2769e3dc1b7fdd061bfe` and
+image ID
+`sha256:38152c13f99345ed98eab4a99b5e56b88dfaf99094c2a86d6783e190064726b8`.
+The preceding verification of this exact server and JAR passed 649 unit
+and 272 integration tests. This continuation's fresh Maven run passed all
+649 unit tests, then reported five integration errors across 227 executed
+cases. The targeted verification passed 53 of 54, with PostgreSQL startup
+failing for the remaining class. A serial retry of that class passed its four
+identity cases. Protocol and OAuth companion tests passed all ten. The
+distribution and operations gates, including V9-to-V17 archive restore, passed
+on the candidate image. All six browser profiles passed, including strict DAV
+Depth, reverse proxy, OpenID Connect and both restore variants. The OpenID
+Connect restore retry ran after other fixtures had shut down, following an
+earlier Chromium network-change error.
 
 The candidate-aware BusyStack lifecycle suite passed five of its six named
 cases, including direct and group permissions, strict paged sync, and

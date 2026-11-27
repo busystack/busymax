@@ -8,7 +8,6 @@ import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
-import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -300,8 +299,9 @@ Future<void> _pickFixtureCa(String path) async {
     }
     await Future<void>.delayed(const Duration(milliseconds: 100));
   }
-  if (window == null)
+  if (window == null) {
     throw TestFailure('The native CA file chooser did not open.');
+  }
   for (final arguments in [
     ['windowfocus', '--sync', window],
     ['key', '--clearmodifiers', 'ctrl+l'],
