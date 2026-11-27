@@ -202,6 +202,9 @@ final class DavDiscoveryRepository {
                     'accountPrincipalHref': service.principalHref.toString(),
                     'calendarHomeHref': discovered.calendarHomeHref?.toString(),
                     'delegated': discovered.delegated,
+                    'providerAllowsCollectionMutation': discovered
+                        .capabilities
+                        .providerAllowsCollectionMutation,
                     'parentPrivileges': discovered.parentPrivileges.toList()
                       ..sort(),
                   }),

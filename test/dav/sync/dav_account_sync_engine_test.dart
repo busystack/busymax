@@ -22,6 +22,7 @@ import 'package:busymax/src/dav/mutation/dav_conflict_repository.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
+import 'package:busymax/src/dav/storage/dav_collection_capabilities.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -131,6 +132,13 @@ void main() {
       expect(row.rawIcsBody, expectedBody);
       expect(row.etag, etag);
       expect(fetched, expectedReads);
+      final stored = await (database.select(
+        database.davCollections,
+      )..where((row) => row.id.equals('collection'))).getSingle();
+      expect(
+        collectionCapabilitiesFromStored(stored).canMutateCollection,
+        privileges.isNotEmpty,
+      );
     }
 
     await pull('', 1, redacted);

@@ -66,6 +66,8 @@ CollectionCapabilities collectionCapabilitiesFromStored(
     canSendInvitations: contentResource && metadata['canInvite'] == true,
     canSendReplies: contentResource && metadata['canReply'] == true,
     canSendFreeBusy: contentResource && metadata['canQueryFreeBusy'] == true,
+    providerAllowsCollectionMutation:
+        contentResource && metadata['providerAllowsCollectionMutation'] == true,
     providerAllowsSchedulingMutation: metadata['calendarUserAddresses'] is List,
     supportsEvents: collection.supportedComponentMask & davComponentEvent != 0,
     supportsTasks: collection.supportedComponentMask & davComponentTodo != 0,
