@@ -179,7 +179,10 @@ Future<void> _transferJournalFiles(
   const importedUid = 'linux-journal-file-roundtrip@example.invalid';
   final imported = File('${profile.path}/import-journal.ics')
     ..writeAsStringSync(
-      content.replaceAll(RegExp(r'(?m)^UID:[^\r\n]+'), 'UID:$importedUid'),
+      content.replaceAll(
+        RegExp(r'^UID:[^\r\n]+', multiLine: true),
+        'UID:$importedUid',
+      ),
     );
   await _tapEditorAction(tester, find.text('Close'));
   await _tap(tester, find.text('Import .ics file'));
