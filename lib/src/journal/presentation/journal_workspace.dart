@@ -1969,6 +1969,8 @@ class _JournalEditorState extends State<_JournalEditor> {
     final knownStatuses = ['', 'DRAFT', 'FINAL', 'CANCELLED'];
     if (_loadingDraft) return const SizedBox.shrink();
     final locked = _saving || widget.busy || _draftLeaving;
+    final draftNeedsRecovery =
+        _draftFailed || _draftLoadFailed || (_hasDraft && !_draftDurable);
     return BusyMaxWindowCloseGuard(
       onCloseRequested: _flushDraft,
       navigationCoordinator: widget.navigationCoordinator,
@@ -2020,7 +2022,14 @@ class _JournalEditorState extends State<_JournalEditor> {
                         ? l10n.journalDraftStale
                         : l10n.journalDraftSaved,
                   ),
-                if (widget.conflict case final conflict?) conflict,
+                if (widget.conflict case final conflict?)
+                  ExcludeFocus(
+                    excluding: draftNeedsRecovery,
+                    child: AbsorbPointer(
+                      absorbing: draftNeedsRecovery,
+                      child: conflict,
+                    ),
+                  ),
                 if (canEdit) ...[
                   if (isDerivedJournalProperty(title))
                     Text(title!.decodedTextValue)
@@ -2258,12 +2267,12 @@ class _JournalEditorState extends State<_JournalEditor> {
                     if (widget.duplicate != null)
                       ui.button(
                         l10n.journalDuplicate,
-                        widget.busy ? null : widget.duplicate,
+                        locked || draftNeedsRecovery ? null : widget.duplicate,
                       ),
                     if (widget.delete != null)
                       ui.button(
                         _confirmDelete ? l10n.journalDeleteSeries : l10n.delete,
-                        widget.busy
+                        locked || draftNeedsRecovery
                             ? null
                             : _confirmDelete
                             ? widget.delete

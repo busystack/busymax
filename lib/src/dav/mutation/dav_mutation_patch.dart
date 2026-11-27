@@ -566,7 +566,7 @@ Map<String, int> _derivedJournalProperties(IcalDocument document) {
               .map((property) => property.serializeLogicalLine())
               .toList()
             ..sort();
-      final identity = jsonEncode(uid == null ? derived : uid);
+      final identity = jsonEncode(uid ?? derived);
       collect(child, '$path\u0000${child.name}\u0000$identity');
     }
   }

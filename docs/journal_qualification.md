@@ -16,9 +16,10 @@ on `release/v0.2.0`. The BusyStack candidate is
 The local image ID is `sha256:38152c13f99345ed98eab4a99b5e56b88dfaf99094c2a86d6783e190064726b8`.
 `clean verify` passed 649 unit and 272 integration tests. The protocol and
 OAuth companion suites passed six and four tests. The distribution gate and
-reverse-proxy browser restore passed on that image. The first operations run
-hit Docker’s exhausted default subnet pool when creating a nested restore
-test network. Use the run manifest for the outcome of the sequential retry.
+all four browser profiles passed on that image. The first operations run hit
+Docker’s exhausted default subnet pool when creating a nested restore test
+network. The sequential retry passed both the current-version and V9-to-V17
+restore profiles.
 BusyMax remains at schema 28. Recurrence-position comparison ignores RANGE,
 while the durable event/task and journal editing keys retain their previous
 representation. The draft document carries its own format version.
@@ -32,7 +33,7 @@ representation. The draft document carries its own format version.
 | F05, RFC 9073 §5.3 and RFC 10051 §8 | Reordering or removing unrelated UID-less children preserves each derived child. A change to protected data is rejected. | `DavMutationPatch.applyTo`. `journal_repository_test.dart` passed durable JSON replay for direct VSTATUS and VSTATUS under PARTICIPANT. |
 | F06, RFC 5545 §3.8.4.4 and RFC 4791 §4.1 | An incompatible detached identity yields HTTP 403 with `valid-calendar-data` and leaves the old representation, ETag, membership, history and sync token unchanged. Valid adjacent objects remain queryable. | `CalendarContent` and `CalendarConstraints`. `DavHttpIT#mismatchedRecurrenceIdentityFailsBeforeWritingOrIndexing` passed for VJOURNAL, VEVENT and VTODO in server `clean verify`. BusyMax whole-resource validation also rejects incompatible authored data. |
 | F07, RFC 5546 §3.5 | A mixed PUBLISH review keeps the organizer failure and the queued sibling separately. Closing, reopening and retrying preserves the review without requeuing the successful sibling. | `JournalImportReview`, `DavNativeImportService` and `JournalWorkspace`. `journal_workspace_test.dart` passed the partial PUBLISH review and retry. Provider rejection remains a queue outcome, and a full native import matrix remains open. |
-| F08, RFC 5545 §3.6.3 and provider validation behavior | BusyStack rejects the unstamped create with HTTP 403 and unchanged inventory. Nextcloud accepts it and GET returns a valid single UTC DTSTAMP with the remaining semantics preserved. | `test/interop/caldav/journal-provider-reports.py` passed the named default-repair and strict replacement assertions on both fixtures. BusyStack passed all 15 report probes. Other stock Nextcloud REPORT results retain their separate outcomes. |
+| F08, RFC 5545 §3.6.3 and provider validation behavior | BusyStack rejects the unstamped create with HTTP 403, `valid-calendar-data` and unchanged inventory. Nextcloud accepts it and GET returns a valid single UTC DTSTAMP on the journal with the remaining semantics preserved. | `test/interop/caldav/journal-provider-reports.py` passed the named default-repair and strict replacement assertions on both fixtures. BusyStack passed all 15 report probes. `python3 -m unittest discover -s test/interop/caldav -p test_journal_provider_reports.py` checks missing, misplaced, invalid and repeated repaired stamps. Other stock Nextcloud REPORT results retain their separate outcomes. |
 
 The [matrix runner](../test/interop/caldav/README.md#journal-candidate-qualification)
 records the candidate’s running JAR hash, provider versions, raw outcomes,

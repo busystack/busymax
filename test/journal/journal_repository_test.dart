@@ -510,6 +510,49 @@ void main() {
     );
   });
 
+  test('authored journals reject a different detached identity form and duplicate scopes', () {
+    const ordinary = 'RECURRENCE-ID;VALUE=DATE:20261127';
+    final master = journal([
+      'DTSTART;VALUE=DATE:20261126',
+      'RRULE:FREQ=DAILY;COUNT=3',
+    ]);
+    String detached(String id, String start) => [
+      'BEGIN:VJOURNAL',
+      'UID:journal-fixture',
+      'DTSTAMP:20261125T080000Z',
+      id,
+      start,
+      'END:VJOURNAL',
+      '',
+    ].join('\r\n');
+    final ordinaryEntry = detached(ordinary, 'DTSTART;VALUE=DATE:20261129');
+    for (final (exceptions, allowed) in [
+      (ordinaryEntry, true),
+      (
+        detached('RECURRENCE-ID:20261127T090000Z', 'DTSTART:20261128T090000Z'),
+        false,
+      ),
+      (
+        detached('RECURRENCE-ID:20261127T090000', 'DTSTART:20261128T090000'),
+        false,
+      ),
+      (
+        '$ordinaryEntry${detached('RECURRENCE-ID;VALUE=DATE;RANGE=THISANDFUTURE:20261127', 'DTSTART;VALUE=DATE:20261129')}',
+        false,
+      ),
+    ]) {
+      final raw = master.replaceFirst(
+        'END:VCALENDAR',
+        '${exceptions}END:VCALENDAR',
+      );
+      final preview = NextcloudNativeImportPreview.parse(
+        IcalDocument.parse(raw),
+      );
+      expect(preview.resources.length, allowed ? 1 : 0);
+      expect(preview.rejected.length, allowed ? 0 : 1);
+    }
+  });
+
   test('typed journal mutation rejects derived changes and unsafe date conversions', () {
     const target = IcalComponentKey(
       componentType: 'VJOURNAL',

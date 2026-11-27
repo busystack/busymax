@@ -11,6 +11,24 @@ from uuid import uuid4
 from xml.etree import ElementTree as ET
 
 
+def repaired_journal_stamp(readback):
+    """Return the repaired representation with its direct journal stamp removed."""
+    unfolded = re.sub(rb'\r?\n[ \t]', b'', readback)
+    journals = re.findall(rb'^BEGIN:VJOURNAL\r?\n(.*?)^END:VJOURNAL\r?$',
+                          unfolded, re.M | re.S)
+    if len(journals) != 1 or b'BEGIN:' in journals[0]:
+        return None  # The minimal repair fixture contains no child components.
+    stamp_pattern = rb'^DTSTAMP:(\d{8}T\d{6}Z)\r?$'
+    stamps = re.findall(stamp_pattern, unfolded, re.M)
+    if len(stamps) != 1 or re.findall(stamp_pattern, journals[0], re.M) != stamps:
+        return None
+    try:
+        datetime.strptime(stamps[0].decode('ascii'), '%Y%m%dT%H%M%SZ')
+    except ValueError:
+        return None
+    return re.sub(rb'^DTSTAMP:[^\r\n]*\r?\n', b'', unfolded, flags=re.M)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('server_checkout', type=Path)
@@ -120,29 +138,26 @@ def main():
                     for href, props in dav.properties(collection, fields, 1).items()}
 
         before = inventory()
-        status, _, _ = dav.request('PUT', collection + 'repair.ics', malformed_new,
-                                   {**ICAL, 'If-None-Match': '*'})
+        status, _, rejection = dav.request('PUT', collection + 'repair.ics', malformed_new,
+                                           {**ICAL, 'If-None-Match': '*'})
         read_status, headers, read = dav.request('GET', collection + 'repair.ics')
         if args.provider == 'nextcloud':
-            stamps = re.findall(rb'^DTSTAMP:(\d{8}T\d{6}Z)\r?$', read, re.M)
-            valid_stamp = False
-            if len(stamps) == 1:
-                try:
-                    datetime.strptime(stamps[0].decode('ascii'), '%Y%m%dT%H%M%SZ')
-                    valid_stamp = True
-                except ValueError:
-                    pass
-            repaired = re.sub(rb'^DTSTAMP:[^\r\n]*\r?\n', b'', read, flags=re.M)
+            repaired = repaired_journal_stamp(read)
             record('default-missing-dtstamp-create', status, {
                 'put': status,
                 'get': read_status,
-                'authoritativeRepair': bool(headers.get('ETag')) and valid_stamp
+                'authoritativeRepair': bool(headers.get('ETag')) and repaired is not None
                 and support['semantic_lines'](repaired) == support['semantic_lines'](malformed_new),
             }, {'put': 201, 'get': 200, 'authoritativeRepair': True})
         else:
+            try:
+                invalid = ET.fromstring(rejection).find(C + 'valid-calendar-data') is not None
+            except ET.ParseError:
+                invalid = False
             record('default-missing-dtstamp-create', status, {
-                'put': status, 'get': read_status, 'inventoryUnchanged': inventory() == before,
-            }, {'put': 403, 'get': 404, 'inventoryUnchanged': True})
+                'put': status, 'get': read_status, 'validCalendarDataError': invalid,
+                'inventoryUnchanged': inventory() == before,
+            }, {'put': 403, 'get': 404, 'validCalendarDataError': True, 'inventoryUnchanged': True})
         corpus = json.loads((args.server_checkout / 'qualification/fixtures/vjournal/admission-v1.json').read_text())
         periods = [case for case in corpus['cases'] if case['id'].startswith('J15-')]
         for case in periods:

@@ -140,6 +140,7 @@ final class NextcloudNativeImportPreview {
             type,
             NativeImportItemStatus.unsupported,
             error.code,
+            error.safeMessage,
           ),
         );
       }

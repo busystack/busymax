@@ -282,6 +282,35 @@ void main() {
       );
       expect(jsonEncode(editor['DESCRIPTION']), contains('Retained body'));
       expect(jsonEncode(editor['ATTACH']), contains('draft-attachment'));
+      await tester.ensureVisible(find.text('Close'));
+      await tester.tap(find.text('Close'));
+      await _wait(tester, saved);
+      const unknownDraft =
+          '{"version":9000,"unrecognized":{"early":"keep",'
+          '"later":["keep", "\\n"]}}';
+      final id = await tester.runAsync(() async {
+        final row = (await repository.watchEntries().first).single;
+        final id = 'entry:${row.componentId}';
+        await repository.saveDraft(
+          id: id,
+          collectionId: 'source',
+          baselineDigest: 'prior-digest',
+          contentJson: unknownDraft,
+        );
+        return id;
+      });
+      await tester.tap(saved);
+      await _wait(
+        tester,
+        find.text('The journal draft could not be saved on this device.'),
+      );
+      expect(field('Title'), findsNothing);
+      await tester.ensureVisible(export);
+      await tester.tap(export);
+      await _settle(tester);
+      expect((jsonDecode(exported!) as Map)['editorStateJson'], unknownDraft);
+      final untouched = await tester.runAsync(() => repository.readDraft(id!));
+      expect(untouched!.contentJson, unknownDraft);
       await tester.pumpWidget(const SizedBox());
     },
   );
