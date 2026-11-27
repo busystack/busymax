@@ -868,7 +868,24 @@ void main() {
                     .where((item) => item.recurrenceId.rawValue == id),
                 hasLength(1),
               );
-              expect((await replay()).appliedCount, 1);
+              final promotedReplay = await replay();
+              if (promotedReplay.appliedCount != 1) {
+                final pending = await database
+                    .select(database.pendingOps)
+                    .get();
+                final outcomes = pending
+                    .map(
+                      (op) =>
+                          '${op.operationType}/${op.state}/${op.lastErrorCode}',
+                    )
+                    .join(', ');
+                fail(
+                  'Replay of range promotion did not apply for '
+                  '${parameters.isEmpty ? 'UTC' : parameters}, '
+                  'unsent=$unsent, cancel=$cancel. '
+                  'Pending outcomes $outcomes.',
+                );
+              }
               final persisted = await request(
                 'GET',
                 Uri.parse(
