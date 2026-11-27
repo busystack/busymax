@@ -313,6 +313,15 @@ The first queues a creation, edit and deletion in a private SQLite profile.
 The second opens the same profile, unlocks access through the isolated native
 keyring, reconciles those operations and checks the result with HTTPS GETs.
 
+Use `--linux-account-enrollment` for the additional BusyStack native setup
+case. It requires `xvfb-run`, `xauth`, GNOME Keyring and `xdotool` in the
+test host's executable path. The runner creates a private X11 display and
+keyring. The case starts the production Linux entry point with a fresh
+database, adds the CalDAV account through Settings, imports the fixture CA
+through the GTK picker and verifies journal discovery, selection and account
+reconnection. It exercises the CalDAV credential flow. Nextcloud's browser
+enrollment requires its own scenario.
+
 ### Routed Android API 37 smoke
 
 Use a private routed IPv4 address belonging to the QA host and a disposable

@@ -139,8 +139,11 @@ void main() {
         Future<void> tap(Finder finder) async {
           await waitJournalWidget(tester, finder);
           await tester.ensureVisible(finder);
-          await tester.tap(finder);
-          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 300));
+          final hit = finder.hitTestable();
+          await waitJournalWidget(tester, hit);
+          await tester.tap(hit);
+          await tester.pump(const Duration(milliseconds: 300));
         }
 
         Future<void> submit({required bool reconnect}) async {
