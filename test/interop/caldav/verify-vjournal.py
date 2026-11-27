@@ -26,6 +26,14 @@ NATIVE_CASES = {
     'draft-reopen', 'offline-process-restart', 'conditional-conflict-resolution',
     'permissions-and-scoped-sync-recovery', 'delete-tombstone-and-reopen',
 }
+NEXTCLOUD_35_0_3 = (
+    'nextcloud:35.0.3-apache@'
+    'sha256:f44180601f18e7664557232b4c5edb0eb4a82d649c05b93313f4e15909553d42'
+)
+NEXTCLOUD_35_0_3_REJECTIONS = {
+    'J15-start-end', 'J15-start-duration', 'J12-link-uid',
+    'J12-link-xml', 'J12-related-uid',
+}
 
 
 def commit(path):
@@ -43,6 +51,42 @@ def apk_signer_digests(output):
         r'^(?:Signer #\d+|V[1-4](?:\.\d+)? Signer(?: #\d+)?):? '
         r'certificate SHA-256 digest: ([a-fA-F0-9]{64})$', output, re.M,
     )}
+
+
+def classify_nextcloud_admission(records, fixture, fixture_sha, identity, exit_code):
+    """Classify the exact stock-provider exceptions independently of client tests."""
+    identity_matches = (identity['image'] == NEXTCLOUD_35_0_3 and
+                        identity['nextcloud'] == '35.0.3.2')
+    if (len(records) < 2 or records[0].get('fixture_sha256') != fixture_sha or
+            records[0].get('fixture_version') != fixture['version']):
+        return 'fail'
+    pairs = {(row['id'], operation) for row in fixture['cases']
+             for operation in ('create', 'update')}
+    operations = records[1:-1]
+    actual = {(row.get('case'), row.get('operation')) for row in operations}
+    if len(operations) != len(pairs) or actual != pairs:
+        return 'fail'
+    rejected = set()
+    for row in operations:
+        case, operation = row['case'], row['operation']
+        created = operation == 'create'
+        if row.get('issue') is None and row.get('get') == 200 and row.get('put') == (201 if created else 204):
+            continue
+        if (identity_matches and case in NEXTCLOUD_35_0_3_REJECTIONS and row.get('put') == 500
+                and row.get('get') == (404 if created else 200)
+                and row.get('issue') == 'admission rejected; original state unchanged'):
+            rejected.add((case, operation))
+        else:
+            return 'fail'
+    if not rejected and exit_code == 0 and records[-1] == {
+            'executed': len(pairs), 'passed': len(pairs), 'failed': 0}:
+        return 'pass'
+    known = {(case, operation) for case in NEXTCLOUD_35_0_3_REJECTIONS
+             for operation in ('create', 'update')}
+    if (rejected == known and exit_code == 1 and records[-1] == {
+            'executed': len(pairs), 'passed': len(pairs) - len(known), 'failed': len(known)}):
+        return 'upstream-blocked'
+    return 'fail'
 
 
 def utc():
@@ -346,6 +390,15 @@ done
     evidence['sourceUnchanged'] = (clean(BUSYMAX) and clean(server)
                                    and commit(BUSYMAX) == evidence['busymax']
                                    and commit(server) == evidence['server'])
+    try:
+        nextcloud_records = [json.loads(line) for line in
+                             (artifact / results['nextcloud-admission']['log']).read_text().splitlines()]
+    except (ValueError, OSError):
+        nextcloud_records = []
+    evidence['nextcloudRawAdmission'] = classify_nextcloud_admission(
+        nextcloud_records, json.loads(corpus.read_bytes()), evidence['admissionCorpusSha256'],
+        nextcloud_info, results['nextcloud-admission']['exitCode'],
+    )
     (artifact / 'manifest.json').write_text(json.dumps(evidence, indent=2) + '\n')
     complete = (evidence['sourceUnchanged']
                 and all(isinstance(outcome, dict) and outcome['status'] == 'pass'

@@ -30,17 +30,38 @@ import 'support/caldav_fixture.dart';
 import 'support/caldav_qa_targets.dart';
 import 'support/ical_observance_fixture.dart';
 
+final _candidateDirectory = Platform.environment['BUSYMAX_CALDAV_CANDIDATE'];
+final _lifecycleLabel = _candidateDirectory == null
+    ? 'BusyStack 0.1.0'
+    : 'BusyStack journal candidate';
+late final Uri _lifecycleEndpoint = _candidateDirectory == null
+    ? Uri.parse('https://localhost:18448/dav/')
+    : Uri.parse(
+        (jsonDecode(
+              File('$_candidateDirectory/candidate.json').readAsStringSync(),
+            ) as Map)['endpoint']
+            as String,
+      );
+final _lifecycleFixtureDirectory = _candidateDirectory == null
+    ? Platform.environment['BUSYMAX_CALDAV_FIXTURE_DIR'] ??
+          'test/interop/caldav/.runtime'
+    : '$_candidateDirectory/.runtime';
+
 void main() {
   final enabled =
       Platform.environment['BUSYMAX_CALDAV_LIVE'] == '1' &&
       Platform.environment['BUSYMAX_CALDAV_LIFECYCLE'] == '1';
+  if (enabled && _candidateDirectory != null) {
+    setUpAll(() => manage(['identity']));
+  }
   sharingTests(enabled);
   test(
-    'BusyStack 0.1.0: oversized queued resource is rejected atomically and retained locally',
+    '$_lifecycleLabel: oversized queued resource is rejected atomically and retained locally',
     () async {
       final wire = _PutWire();
       final f = CalDavFixture(
-        Uri.parse('https://localhost:18448/dav/'),
+        _lifecycleEndpoint,
+        fixtureDirectory: _lifecycleFixtureDirectory,
         wrapAccountClient: (client) => _PutWireClient(client, wire),
       );
       await f.open();
@@ -110,18 +131,19 @@ void main() {
         : 'Requires isolated BusyStack resource-limit fixture.',
   );
   test(
-    'BusyStack 0.1.0: configured installation prefix, origin well-known and duplicate verified identity',
+    '$_lifecycleLabel: configured installation prefix, origin well-known and duplicate verified identity',
     () async {
       await control('profile', 'subpath');
       final f = CalDavFixture(
-        Uri.parse('https://localhost:18448/calendar/dav/'),
+        _lifecycleEndpoint.resolve('/calendar/dav/'),
+        fixtureDirectory: _lifecycleFixtureDirectory,
       );
       try {
         await f.open();
         final generation = await f.persistence.generation(f.id);
         await expectLater(
           f.onboarding.connectCalDav(
-            serverUrl: 'https://localhost:18448/',
+            serverUrl: _lifecycleEndpoint.origin + '/',
             username: f.username,
             password: f.password,
           ),
@@ -176,12 +198,13 @@ void main() {
         : 'Requires isolated BusyStack public-URL/context-path profile.',
   );
   test(
-    'BusyStack 0.1.0: strict Depth, real 507 pages, restart, interruption and concurrent changes converge',
+    '$_lifecycleLabel: strict Depth, real 507 pages, restart, interruption and concurrent changes converge',
     () async {
       await control('profile', 'strict');
       final wire = _SyncWire();
       final f = CalDavFixture(
-        Uri.parse('https://localhost:18448/dav/'),
+        _lifecycleEndpoint,
+        fixtureDirectory: _lifecycleFixtureDirectory,
         wrapAccountClient: (client) => _SyncWireClient(client, wire),
       );
       try {
@@ -370,11 +393,12 @@ void main() {
     skip: enabled ? false : 'Requires isolated BusyStack release and BUSYMAX_CALDAV_LIVE/BUSYMAX_CALDAV_LIFECYCLE=1; run alone.',
   );
   test(
-    'BusyStack 0.1.0: transformed timezone PUT retrieves canonical ETag before conditional editing; strict rejection is atomic',
+    '$_lifecycleLabel: transformed timezone PUT retrieves canonical ETag before conditional editing; strict rejection is atomic',
     () async {
       final wire = _PutWire();
       final f = CalDavFixture(
-        Uri.parse('https://localhost:18448/dav/'),
+        _lifecycleEndpoint,
+        fixtureDirectory: _lifecycleFixtureDirectory,
         wrapAccountClient: (client) => _PutWireClient(client, wire),
       );
       try {
@@ -538,12 +562,15 @@ void main() {
         : 'Requires isolated BusyStack live lifecycle fixture.',
   );
   test(
-    'BusyStack 0.1.0: revocation, expiry and disabling reject held leases and retain queued work',
+    '$_lifecycleLabel: revocation, expiry and disabling reject held leases and retain queued work',
     () async {
-      final f = CalDavFixture(Uri.parse('https://localhost:18448/dav/'));
+      final f = CalDavFixture(
+        _lifecycleEndpoint,
+        fixtureDirectory: _lifecycleFixtureDirectory,
+      );
       final lifecycle = jsonDecode(
         await File(
-          'test/interop/caldav/.runtime/busystack-lifecycle-account.json',
+          '$_lifecycleFixtureDirectory/busystack-lifecycle-account.json',
         ).readAsString(),
       ) as Map;
       final lifecycleUser = lifecycle['username'] as String;
@@ -688,10 +715,16 @@ void main() {
 
 void sharingTests(bool enabled) {
   test(
-    'BusyStack 0.1.0: direct and group permissions change without losing queued edits',
+    '$_lifecycleLabel: direct and group permissions change without losing queued edits',
     () async {
-      final owner = CalDavFixture(Uri.parse('https://localhost:18448/dav/'));
-      final reader = CalDavFixture(owner.uri);
+      final owner = CalDavFixture(
+        _lifecycleEndpoint,
+        fixtureDirectory: _lifecycleFixtureDirectory,
+      );
+      final reader = CalDavFixture(
+        owner.uri,
+        fixtureDirectory: owner.fixtureDirectory,
+      );
       await owner.open(username: 'bob');
       await reader.open();
       final group = 'BusyMax QA group ${DateTime.now().microsecondsSinceEpoch}';
@@ -969,6 +1002,7 @@ Future<void> control(String action, [String? argument]) async {
 Future<void> manage(List<String> arguments) async {
   final result = await Process.run('python3', [
     'test/interop/caldav/busystack-fixture.py',
+    if (_candidateDirectory != null) ...['--candidate', _candidateDirectory],
     ...arguments,
   ]);
   expect(

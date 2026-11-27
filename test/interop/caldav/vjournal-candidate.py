@@ -87,20 +87,28 @@ def prepare(server, runtime):
     return candidate
 
 
-def compose(state, *args, **kwargs):
+def compose_command(state, *args):
     candidate = Path(state['candidate'])
-    return subprocess.run(
-        ['docker', 'compose', '-p', state['project'], '--env-file',
-         str(candidate / '.runtime/busystack-qa.env'),
-         '-f', str(Path(state['server']) / 'compose.yaml'),
-         '-f', str(candidate / 'compose.json'),
-         '-f', str(candidate / 'compose-no-http.yaml'), *args],
-        check=True, **kwargs,
-    )
+    return ['docker', 'compose', '-p', state['project'], '--env-file',
+            str(candidate / '.runtime/busystack-qa.env'),
+            '-f', str(Path(state['server']) / 'compose.yaml'),
+            '-f', str(candidate / 'compose.json'),
+            '-f', str(candidate / 'compose-no-http.yaml'), *args]
+
+
+def compose(state, *args, **kwargs):
+    return subprocess.run(compose_command(state, *args), check=True, **kwargs)
+
+
+def candidate_state(candidate):
+    state = json.loads((candidate / 'candidate.json').read_text())
+    if state['candidate'] != str(candidate.resolve()) or not state['project'].startswith('busymax-vjournal-'):
+        raise RuntimeError('The directory is not an isolated journal candidate fixture')
+    return state
 
 
 def start(candidate):
-    state = json.loads((candidate / 'candidate.json').read_text())
+    state = candidate_state(candidate)
     private = candidate / 'private'
     tls = candidate / '.runtime'
     compose(state, 'up', '-d', '--no-build', '--wait')
@@ -111,10 +119,22 @@ def start(candidate):
             '--busystack.bootstrap-username=administrator',
             '--busystack.bootstrap-password-file=/bootstrap-password')
     compose(state, 'up', '-d', '--no-build', '--wait', 'application')
+    schema = verify_running_identity(state)
+    state['schema'] = schema
+    (candidate / 'candidate.json').write_text(json.dumps(state, indent=2) + '\n')
+    print(json.dumps({key: state[key] for key in ('sourceCommit', 'imageId', 'schema', 'endpoint')}))
+
+
+def verify_running_identity(state):
+    if capture('git', '-C', state['server'], 'rev-parse', 'HEAD') != state['sourceCommit']:
+        raise RuntimeError('Server checkout differs from the candidate source')
     verified = capture('docker', 'ps', '--filter', f'label=com.docker.compose.project={state["project"]}',
                        '--filter', 'label=com.docker.compose.service=application', '--format', '{{.ID}}')
     if capture('docker', 'inspect', '--format', '{{.Image}}', verified) != state['imageId']:
         raise RuntimeError('Running application image differs from the verified image')
+    if capture('docker', 'inspect', '--format',
+               '{{index .Config.Labels "org.opencontainers.image.revision"}}', verified) != state['sourceCommit']:
+        raise RuntimeError('Running image has the wrong source label')
     running_sha = compose(
         state, 'exec', '-T', 'application', 'sha256sum', '/opt/busystack/application.jar',
         stdout=subprocess.PIPE, text=True,
@@ -132,13 +152,11 @@ def start(candidate):
     ).stdout.strip()
     if schema != '17':
         raise RuntimeError(f'Unexpected candidate schema: {schema}')
-    state['schema'] = int(schema)
-    (candidate / 'candidate.json').write_text(json.dumps(state, indent=2) + '\n')
-    print(json.dumps({key: state[key] for key in ('sourceCommit', 'imageId', 'schema', 'endpoint')}))
+    return int(schema)
 
 
-def provision(candidate):
-    state = json.loads((candidate / 'candidate.json').read_text())
+def browser_action(state, *args):
+    candidate = Path(state['candidate'])
     private = candidate / 'private'
     tls = candidate / '.runtime'
     helpers = Path(state['server']) / 'qualification/passkeys'
@@ -153,14 +171,25 @@ def provision(candidate):
         'mkdir -p "$HOME/.pki/nssdb"; '
         'certutil -N --empty-password -d "sql:$HOME/.pki/nssdb"; '
         'certutil -A -d "sql:$HOME/.pki/nssdb" -n journal-qa -t "C,," -i /fixture/ca.pem; '
-        'exec node /qa/vjournal-candidate.mjs',
+        'exec node /qa/vjournal-candidate.mjs "$@"', 'browser', *args,
     ], check=True)
-    credentials = tls / 'busystack-credentials.json'
+    output_names = ('busystack-credentials.json', 'busystack-authenticators.json',
+                    'busystack-lifecycle-account.json')
+    # The isolated browser writes these files under its container UID.
     subprocess.run([
         'docker', 'run', '--rm', '--user', '0', '-v', f'{tls}:/fixture',
-        '--entrypoint', 'chown', BROWSER,
-        f'{tls.stat().st_uid}:{tls.stat().st_gid}', '/fixture/busystack-credentials.json',
+        '--entrypoint', '/bin/sh', BROWSER, '-ec',
+        'owner="$1"; shift; for path do [ ! -f "$path" ] || chown "$owner" "$path"; done',
+        'files', f'{tls.stat().st_uid}:{tls.stat().st_gid}',
+        *(f'/fixture/{name}' for name in output_names),
     ], check=True)
+
+
+def provision(candidate):
+    state = candidate_state(candidate)
+    browser_action(state, 'provision')
+    tls = candidate / '.runtime'
+    credentials = tls / 'busystack-credentials.json'
     if not credentials.is_file():
         raise RuntimeError('Candidate credentials were not written')
     owner = json.loads(credentials.read_text())['alice']
@@ -190,9 +219,7 @@ def main():
     elif args.action == 'provision':
         provision(path)
     else:
-        state = json.loads((path / 'candidate.json').read_text())
-        if not state['project'].startswith('busymax-vjournal-') or state['candidate'] != str(path):
-            raise SystemExit('Refusing to stop a deployment unrelated to this fixture')
+        state = candidate_state(path)
         compose(state, 'down', '--volumes')
 
 
