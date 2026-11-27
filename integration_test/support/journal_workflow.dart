@@ -10,6 +10,7 @@ import 'package:busymax/src/features/accounts/domain/account_connection_state.da
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 import 'package:busymax/src/features/sync/sync_request.dart';
+import 'package:busymax/src/journal/presentation/journal_workspace.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
@@ -23,6 +24,7 @@ import 'package:uuid/uuid.dart';
 import 'package:xml/xml.dart';
 
 import '../../test/support/memory_settings_store.dart';
+import '../../test/support/journal_http_trace.dart';
 import 'caldav_native_secret_store.dart';
 
 typedef JournalTestButton = Finder Function(String label, bool primary);
@@ -691,8 +693,27 @@ void runJournalWorkflow({
             : 'Permanently delete this collection and all its contents?',
       );
       await waitJournalWidget(tester, confirmation);
+      accountClient.trace.clear();
       await _tapVisible(tester, button('Delete', false));
-      await waitJournalWidget(tester, confirmation, absent: true);
+      await waitJournalWidget(
+        tester,
+        confirmation,
+        absent: true,
+        failureContext: () {
+          final statuses = find.descendant(
+            of: find.byType(JournalWorkspace),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Semantics && widget.properties.liveRegion == true,
+            ),
+          );
+          final messages = statuses.evaluate().map((element) {
+            final child = (element.widget as Semantics).child;
+            return child is Text ? child.data : null;
+          }).whereType<String>();
+          return 'Journal status ${messages.join(', ')}. DAV requests ${accountClient.trace}.';
+        },
+      );
       await waitJournalWidget(tester, enabledRefresh());
       const nc = 'http://nextcloud.com/ns';
       final removed = (await tester.runAsync(
@@ -761,10 +782,11 @@ final class _JournalAccountClient extends http.BaseClient {
 
   final http.Client delegate;
   final preconditionFailures = <({Uri uri, String etag})>[];
+  final trace = JournalHttpTrace();
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    final response = await delegate.send(request);
+    final response = await trace.send(delegate, request);
     if (request.method == 'PUT' && response.statusCode == 412) {
       final etag = request.headers.entries
           .where((entry) => entry.key.toLowerCase() == 'if-match')
@@ -851,6 +873,7 @@ Future<void> waitJournalWidget(
   WidgetTester tester,
   Finder finder, {
   bool absent = false,
+  String Function()? failureContext,
 }) async {
   for (var attempt = 0; attempt < 240; attempt++) {
     await tester.pump(const Duration(milliseconds: 100));
@@ -859,5 +882,9 @@ Future<void> waitJournalWidget(
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
   }
-  expect(finder, absent ? findsNothing : findsWidgets);
+  expect(
+    finder,
+    absent ? findsNothing : findsWidgets,
+    reason: failureContext?.call(),
+  );
 }

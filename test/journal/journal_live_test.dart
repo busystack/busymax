@@ -26,6 +26,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:uuid/uuid.dart';
 
+import '../support/journal_http_trace.dart';
+
 void main() {
   final fixture = Platform.environment['BUSYMAX_JOURNAL_LIVE_FIXTURE'];
   final cases = [
@@ -868,6 +870,7 @@ void main() {
                     .where((item) => item.recurrenceId.rawValue == id),
                 hasLength(1),
               );
+              accountClient.trace.clear();
               final promotedReplay = await replay();
               if (promotedReplay.appliedCount != 1) {
                 final pending = await database
@@ -883,7 +886,8 @@ void main() {
                   'Replay of range promotion did not apply for '
                   '${parameters.isEmpty ? 'UTC' : parameters}, '
                   'unsent=$unsent, cancel=$cancel. '
-                  'Pending outcomes $outcomes.',
+                  'Pending outcomes $outcomes. '
+                  'DAV requests ${accountClient.trace}.',
                 );
               }
               final persisted = await request(
@@ -1171,13 +1175,14 @@ final class _JournalMutationClient extends http.BaseClient {
 
   final http.Client inner;
   final List<(String, Uri, Map<String, String>)> mutations;
+  final trace = JournalHttpTrace();
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     if (const {'PUT', 'DELETE', 'MOVE', 'COPY'}.contains(request.method)) {
       mutations.add((request.method, request.url, Map.of(request.headers)));
     }
-    return inner.send(request);
+    return trace.send(inner, request);
   }
 
   @override
