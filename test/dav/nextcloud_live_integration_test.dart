@@ -1327,6 +1327,7 @@ void _expectEventPreservation(String rawIcs) {
   expect(rawIcs, contains('X-BUSYMAX-QA;X-PARAM="alpha,beta":opaque'));
   expect('BEGIN:VALARM'.allMatches(rawIcs), hasLength(2));
   expect(rawIcs, contains('ACTION:AUDIO'));
+  expect(rawIcs, contains('ATTACH:https://example.invalid/Glass.oga'));
   expect(rawIcs, contains('STATUS:CANCELLED'));
 }
 
@@ -1380,7 +1381,7 @@ END:VALARM\r
 BEGIN:VALARM\r
 ACTION:AUDIO\r
 TRIGGER:-PT5M\r
-ATTACH:Glass\r
+ATTACH:https://example.invalid/Glass.oga\r
 X-ALARM-QA:opaque\r
 END:VALARM\r
 END:VEVENT\r

@@ -38,8 +38,11 @@ void main() {
       final menu = find.byKey(const ValueKey('android-workspace-menu'));
       await waitJournalWidget(tester, menu);
       await tester.tap(menu);
-      await waitJournalWidget(tester, find.text('Journals'));
-      await tester.tap(find.text('Journals'));
+      final journals = find
+          .widgetWithText(PopupMenuItem<String>, 'Journals')
+          .hitTestable();
+      await waitJournalWidget(tester, journals);
+      await tester.tap(journals);
     },
     input: journalMaterialInput,
     button: (label, primary) =>
