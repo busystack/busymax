@@ -20,6 +20,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:xml/xml.dart';
 
 import '../../test/support/memory_settings_store.dart';
 import 'caldav_native_secret_store.dart';
@@ -465,6 +466,24 @@ void runJournalWorkflow({
         return;
       }
 
+      const dav = 'DAV:';
+      final target = collection!.requestUri;
+      final beforeDelete = (await tester.runAsync(
+        () => request(
+          'PROPFIND',
+          target,
+          headers: const {'Depth': '0', 'Content-Type': 'application/xml'},
+          body:
+              '<d:propfind xmlns:d="$dav"><d:prop><d:sync-token/></d:prop></d:propfind>',
+        ),
+      ))!;
+      expect(beforeDelete.statusCode, 207);
+      final syncToken = XmlDocument.parse(beforeDelete.body)
+          .findAllElements('sync-token', namespaceUri: dav)
+          .single
+          .innerText;
+      expect(syncToken, isNotEmpty);
+
       await tester.tap(find.textContaining('Local edit'));
       await waitJournalWidget(tester, input('Title'));
       await _editorAction(tester, button('Delete', false));
@@ -484,6 +503,81 @@ void runJournalWorkflow({
       ))!;
       expect(deleted.statusCode, 404);
       debugPrint('JOURNAL_WORKFLOW_CASE $provider delete-readback PASS');
+      final delta = (await tester.runAsync(
+        () => request(
+          'REPORT',
+          target,
+          headers: const {'Depth': '0', 'Content-Type': 'application/xml'},
+          body:
+              '<d:sync-collection xmlns:d="$dav">'
+              '<d:sync-token>${XmlText(syncToken).toXmlString()}</d:sync-token>'
+              '<d:sync-level>1</d:sync-level><d:prop><d:getetag/></d:prop></d:sync-collection>',
+        ),
+      ))!;
+      expect(delta.statusCode, 207);
+      final deletedPath = Uri.parse(object.requestUri).path;
+      final tombstone = XmlDocument.parse(delta.body)
+          .findAllElements('response', namespaceUri: dav)
+          .singleWhere(
+            (member) =>
+                Uri.parse(
+                  member
+                      .findElements('href', namespaceUri: dav)
+                      .single
+                      .innerText,
+                ).path ==
+                deletedPath,
+          );
+      expect(
+        tombstone.findElements('status', namespaceUri: dav).single.innerText,
+        matches(RegExp(r'^HTTP/\S+ 404\b')),
+      );
+      debugPrint('JOURNAL_WORKFLOW_CASE $provider delete-sync-tombstone PASS');
+
+      await _editorAction(tester, button('Rename', false));
+      await waitJournalWidget(tester, input('Title'));
+      final renamed = '$collectionName renamed';
+      await tester.enterText(input('Title'), renamed);
+      await _editorAction(tester, button('Save', true));
+      await waitJournalWidget(tester, button('Save', true), absent: true);
+      final renamedRemote = (await tester.runAsync(
+        () => request(
+          'PROPFIND',
+          target,
+          headers: const {'Depth': '0', 'Content-Type': 'application/xml'},
+          body:
+              '<d:propfind xmlns:d="$dav"><d:prop><d:displayname/></d:prop></d:propfind>',
+        ),
+      ))!;
+      expect(renamedRemote.statusCode, 207);
+      expect(
+        XmlDocument.parse(renamedRemote.body)
+            .findAllElements('displayname', namespaceUri: dav)
+            .single
+            .innerText,
+        renamed,
+      );
+      await _editorAction(tester, button('Delete collection', false));
+      await waitJournalWidget(
+        tester,
+        find.text('Permanently delete this collection and all its contents?'),
+      );
+      await _editorAction(tester, button('Delete', false));
+      await waitJournalWidget(
+        tester,
+        find.text('Permanently delete this collection and all its contents?'),
+        absent: true,
+      );
+      expect(
+        (await tester.runAsync(
+          () => request('PROPFIND', target, headers: const {'Depth': '0'}),
+        ))!.statusCode,
+        404,
+      );
+      collection = null;
+      debugPrint(
+        'JOURNAL_WORKFLOW_CASE $provider collection-rename-delete-readback PASS',
+      );
     } finally {
       await tester.pumpWidget(const SizedBox());
       tester.testTextInput.unregister();

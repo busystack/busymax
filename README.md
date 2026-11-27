@@ -68,9 +68,17 @@ A journal can use a calendar date, floating wall time, UTC, a named time
 zone, or no date. Edit its title, status and description blocks separately.
 Each block can carry its own language and alternate representation URI.
 You can attach web links or files, save inline attachments and export an
-entry as an iCalendar file. The workspace previews journal files before
-queueing an import. Local saves remain visible while uploads are pending.
-Full provider and native workflow qualification remains in progress.
+entry as an iCalendar file. The workspace previews each journal import and
+keeps failed entries available for review. Local saves remain visible while
+uploads are pending. Use **Journal details** for recurring dates, properties
+and nested components. The workspace opens journal links when BusyMax can
+identify the target in its local sources.
+
+Close an editor to resume its draft later. If the saved entry changes while
+you are editing, you can inspect the draft or export it as JSON alongside the
+saved iCalendar entry. The provider and native qualification record lists
+the scenarios exercised and the five representations that stock Nextcloud
+35.0.3 rejects.
 [Journal qualification](test/interop/caldav/README.md#journal-candidate-qualification)
 
 <table>
