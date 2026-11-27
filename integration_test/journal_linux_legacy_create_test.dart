@@ -22,7 +22,7 @@ void main() {
     (tester) async {
       expect(Platform.isLinux, isTrue);
       expect(Platform.environment['GDK_BACKEND'], 'x11');
-      expect(stage, anyOf('export', 'repair'));
+      expect(stage, anyOf('export', 'repair', 'transfer'));
       final profile = Directory(Platform.environment['XDG_DATA_HOME']!);
       final support = (await tester.runAsync(getApplicationSupportDirectory))!;
       expect(support.path, startsWith('${profile.path}/'));
@@ -62,25 +62,18 @@ void main() {
       await waitJournalWidget(tester, label);
       await tester.tap(label);
 
+      if (stage == 'transfer') {
+        await _transferJournalFiles(tester, profile);
+        debugPrint('JOURNAL_LINUX_LEGACY_CREATE transfer PASS');
+        await tester.pumpWidget(const SizedBox.shrink());
+        return;
+      }
+
       if (stage == 'export') {
         final save = find.text('Export recovery bundle (JSON)');
         await _tap(tester, save);
         await tester.runAsync(() => _saveInGtk(exported));
-        for (
-          var attempt = 0;
-          attempt < 100 && !exported.existsSync();
-          attempt++
-        ) {
-          await tester.pump(const Duration(milliseconds: 100));
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 100)),
-          );
-        }
-        expect(
-          exported.existsSync(),
-          isTrue,
-          reason: 'GTK must save the selected recovery file.',
-        );
+        await _waitForFile(tester, exported);
       }
       final recovery = jsonDecode(exported.readAsStringSync()) as Map;
       expect(recovery['operationId'], operation.id);
@@ -139,14 +132,99 @@ Future<void> _tap(WidgetTester tester, Finder control) async {
   await tester.pump();
 }
 
-Future<void> _saveInGtk(File result) async {
+Future<void> _transferJournalFiles(
+  WidgetTester tester,
+  Directory profile,
+) async {
+  const expectedBytes = [0, 1, 128, 255, 10, 13, 42];
+  final input = File('${profile.path}/fixture.bin')
+    ..writeAsBytesSync(expectedBytes);
+  await _tapEditorAction(tester, find.text('Choose file…'));
+  await tester.runAsync(() => _selectInGtk(input, saving: false));
+  await waitJournalWidget(tester, find.text('fixture.bin'));
+
+  final saved = File('${profile.path}/saved-fixture.bin');
+  final attachmentRow = find
+      .ancestor(of: find.text('fixture.bin'), matching: find.byType(Wrap))
+      .first;
+  await _tapEditorAction(
+    tester,
+    find.descendant(of: attachmentRow, matching: find.text('Save')),
+  );
+  await tester.runAsync(() => _selectInGtk(saved, saving: true));
+  await _waitForFile(tester, saved);
+  expect(saved.readAsBytesSync(), expectedBytes);
+
+  await _tapEditorAction(tester, find.widgetWithText(ElevatedButton, 'Save'));
+  final label = find.textContaining(RegExp(r'^Series ·'));
+  await waitJournalWidget(tester, label);
+  await _tap(tester, label);
+  await _tapEditorAction(tester, find.text('Export'));
+  final exported = File('${profile.path}/roundtrip.ics');
+  await tester.runAsync(() => _selectInGtk(exported, saving: true));
+  await _waitForFile(tester, exported);
+  final content = exported.readAsStringSync().replaceAll(
+    RegExp(r'\r?\n[ \t]'),
+    '',
+  );
+  expect(content, contains('BEGIN:VJOURNAL'));
+  final attachment = const LineSplitter()
+      .convert(content)
+      .singleWhere((line) => line.startsWith('ATTACH;'));
+  final valueStart = attachment.indexOf(':');
+  expect(attachment.substring(0, valueStart), contains('VALUE=BINARY'));
+  expect(attachment.substring(0, valueStart), contains('ENCODING=BASE64'));
+  expect(base64Decode(attachment.substring(valueStart + 1)), expectedBytes);
+
+  const importedUid = 'linux-journal-file-roundtrip@example.invalid';
+  final imported = File('${profile.path}/import-journal.ics')
+    ..writeAsStringSync(
+      content.replaceAll(RegExp(r'(?m)^UID:[^\r\n]+'), 'UID:$importedUid'),
+    );
+  await _tapEditorAction(tester, find.text('Close'));
+  await _tap(tester, find.text('Import .ics file'));
+  await tester.runAsync(() => _selectInGtk(imported, saving: false));
+  await _tap(tester, find.text('Save'));
+  await waitJournalWidget(tester, find.text(importedUid));
+  await _tap(tester, find.text('Close'));
+  expect(find.textContaining(RegExp(r'^Series ·')), findsNWidgets(2));
+}
+
+Future<void> _tapEditorAction(WidgetTester tester, Finder control) async {
+  await tester.scrollUntilVisible(
+    control,
+    210,
+    scrollable: find
+        .descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await _tap(tester, control);
+}
+
+Future<void> _waitForFile(WidgetTester tester, File file) async {
+  for (var attempt = 0; attempt < 100 && !file.existsSync(); attempt++) {
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+  }
+  expect(file.existsSync(), isTrue, reason: file.path);
+}
+
+Future<void> _saveInGtk(File result) => _selectInGtk(result, saving: true);
+
+Future<void> _selectInGtk(File result, {required bool saving}) async {
   final deadline = DateTime.now().add(const Duration(seconds: 20));
+  final title = saving ? r'^Save File$' : r'^Open File$';
   while (DateTime.now().isBefore(deadline)) {
     final search = await Process.run('xdotool', [
       'search',
       '--onlyvisible',
       '--name',
-      r'^Save File$',
+      title,
     ]);
     if (search.exitCode != 0) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -168,19 +246,19 @@ Future<void> _saveInGtk(File result) async {
       'search',
       '--onlyvisible',
       '--name',
-      r'^Save File$',
+      title,
     ]);
     if (visible.exitCode == 0 && (visible.stdout as String).trim() == window) {
       expect(
         (await Process.run('xdotool', [
           'key',
           '--clearmodifiers',
-          'alt+s',
+          saving ? 'alt+s' : 'alt+o',
         ])).exitCode,
         0,
       );
     }
     return;
   }
-  throw TestFailure('The native GTK save picker did not open.');
+  throw TestFailure('The native GTK file picker did not open.');
 }
