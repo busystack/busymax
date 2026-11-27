@@ -6,6 +6,38 @@ two-provider matrix remains blocked by stock Nextcloud storage admission.
 Use the [fixture and runner instructions](../test/interop/caldav/README.md#journal-candidate-qualification)
 to repeat the run.
 
+## November 27 continuation
+
+This continuation started from BusyMax `759b971580f23d451f0eef57c67cc62b336a99b8`
+and BusyStack `75685be70c48a776322f957a17d937b5352a279b`. Both starting commits
+matched the fetched release refs. The client schema stays at 28 and the server
+schema stays at 17. The server changes from the previous run remain in the
+same candidate. A fresh build reproduced the verified JAR digest shown below.
+
+| Requirement | Expected result and evidence | Scope remaining |
+| --- | --- | --- |
+| A1 and J16–J18, RFC 5545 §3.8.4.4 and RFC 5546 §3.5.3 | An individual cancellation at the start of a range changes that occurrence only. The next unoccupied original position carries the prior range. `JournalMessage.update` and `IcalRecurrenceExpander` passed the UTC, DATE, floating and embedded-DST tests in `journal_itip_test.dart`. The UTC case also passed pending export, database reopen, conditional replay and independent HTTPS readback on both services in `journal_live_test.dart`. | Provider replay of all date forms, combined multi-component messages and full native occurrence editing. |
+| A2 and O09, RFC 4791 §5.3 | The historical SQLite fixture from `df88856c2ec98aae37152f5cdc887c99de3bf6b3` stays inspectable, and the invalid candidate never reaches the mutation transport. The file database regression passes pending and failed reopen, exact JSON export, unaffected collection export, access gating and conditional reapply after choosing the range. The workspace regression exercises export and explicit selection. Use `flutter test test/journal/journal_legacy_recovery_test.dart test/journal/journal_workspace_test.dart`. | Complete native package recovery with each platform's real file adapter and dependent queue scenarios beyond the file database regression. |
+| A3 and J23, RFC 5545 §§3.6.3 and 3.8.7.2 | The oracle counts malformed, floating, grouped and parameterized duplicates before validating the only direct stamp. Both real providers passed the default repair assertion under their own expected policy. BusyStack rejected the unstamped object with HTTP 403 and unchanged state. Nextcloud returned 201, then GET 200 with one valid UTC stamp and unchanged remaining content. | Stock Nextcloud's separate query and storage failures remain visible. |
+| B1 and J12, RFC 9253 §§2, 7 and 9.1 | The repository resolves projected journals, events and tasks using collection-local UID or an exact same-account resource URI. It uses the existing schedule detail routes and sends XML URI references to the external handler with their fragment intact. `journal_repository_test.dart` passes mixed target lookup, account boundaries, event hiding and task deselection. | Native route exercise, ambiguous recurring event projections and complete cross-server transfer qualification. |
+| B2 and J13–J21, RFC 5545 §§3.3.5, 3.3.10 and 3.8.5 | Switching a supported series time mode preserves civil dates and clock times. An all-day to timed edit uses the chosen clock time on every original date. `convertJournalSeriesDate` updates detached identities, moved starts, RDATE, EXDATE and UNTIL together. The repository regression verifies independent DATE, UTC, floating and embedded +05:30 expectations. | A timed-to-DATE conversion, a civil reanchor that would change recurrence positions, and PERIOD or incompatible forms are rejected before queueing. Complete native and real-provider conversion qualification remains open. |
+
+An invalid historical update appears in its ordinary journal list. Open the
+entry to review the competing occurrences and optionally save the recovery
+bundle. The bundle contains the baseline, saved patch, and invalid candidate
+as JSON. Choose the occurrence to keep at each duplicate position, then
+select **Queue reviewed update**. Normal conditional replay still applies.
+A changed remote baseline requires reconciliation before using the bundle to
+recover the edit. A collection export includes the unaffected journals and
+reports excluded entries separately.
+
+The new independent storage run passed 22 of 22 operations on BusyStack.
+Unmodified Nextcloud 35.0.3 passed 12 and reproduced 10 rejections with
+unchanged prior state. The five blocked forms and the reduced parser and server
+diagnostics appear in the [local upstream drafts](journal_nextcloud_upstream_drafts.md).
+The supported Nextcloud workflow profile requires its own complete native and
+installed-package results.
+
 ## Range, draft and admission corrections
 
 This follow-up started from BusyMax `df88856c2ec98aae37152f5cdc887c99de3bf6b3`

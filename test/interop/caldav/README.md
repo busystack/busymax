@@ -322,7 +322,7 @@ python3 test/interop/caldav/vjournal-nextcloud.py stop "$nextcloud"
 | --- | --- | --- | --- |
 | RFC 5545 journal properties | Authoritative lines, property parameters, multiple descriptions and retained opaque fields | Title, status, date mode, description blocks, language, ALTREP and attachments | J01, J07 and J09 subsets in `test/journal` and admission J01 |
 | RFC 7986 and RFC 9073 extensions | Wrapper and journal fields, nested components and property parameters retained on unrelated edits | Details can edit COLOR, IMAGE, styled descriptions, structured data, participants, locations and resources. DERIVED values are read-only | Admission J10 and J11, nested draft and mutation regressions |
-| RFC 9253 relationships | URI, UID and XML-reference forms retained in raw resources | Advanced fields support editing typed references. Open a uniquely resolved journal by same-collection UID or exact same-account resource URI | Admission J12, scoped lookup and Nextcloud rejected-write recovery. Event/task resolution and XML-reference navigation are open |
+| RFC 9253 relationships | URI, UID and XML-reference forms retained in raw resources | Open a uniquely resolved journal, event or task by same-collection UID or exact same-account resource URI. XML references open explicitly in the external handler with the fragment intact | Admission J12, repository target lookup, visibility checks and Nextcloud rejected-write recovery. Native navigation and transfer scope still require qualification |
 | RFC 10051 status components | A journal can contain VSTATUS and must retain its parent STATUS | Advanced details expose status components. Top-level journal status values stay within RFC 5545 | VSTATUS storage/readback, nested draft and retained-child edit regressions |
 | Recurrence and dates | Period values retained. Bounded expansion uses period starts and journal point/day matching | Browse occurrences by month. Edit or delete an occurrence or future range. Trimming a range that exceeds the recurrence work limit leaves the resource unchanged | J15 and J19 subsets in `test/journal`, J20 REPORT probes |
 | Offline and conflicts | Conditional queue and effective export. Overlapping reordered descriptions require conflict resolution | Pending or failed operations appear in the journal list. Journal details offer server, reapply and duplicate choices where available | O04, O06 and O09 subsets in `test/journal`. Native restart and conflict acceptance are outstanding |
@@ -346,9 +346,19 @@ REPORT results cannot provide a complete journal inventory.
 Run the additional cases **sequentially** after the shared live suite:
 
 ```bash
+python3 test/interop/caldav/busystack-fixture.py \
+  --candidate "$VJOURNAL_CANDIDATE" prepare-lifecycle
 BUSYMAX_CALDAV_LIVE=1 BUSYMAX_CALDAV_LIFECYCLE=1 \
+BUSYMAX_CALDAV_CANDIDATE="$VJOURNAL_CANDIDATE" \
 flutter test test/dav/busystack_live_integration_test.dart --reporter expanded
 ```
+
+Use a candidate provisioned with the current browser script so its disposable
+passkeys are available for repeated portal actions. The candidate controller
+reads that deployment's endpoint and private runtime directory, verifies the
+running image, source label, JAR and schema, and applies profiles only in that
+Compose project. Leaving `BUSYMAX_CALDAV_CANDIDATE` unset selects the separately
+provisioned 0.1.0 regression deployment.
 
 The extra suite changes only this deployment's profiles, groups and disposable
 users. It tests real 507 paging and continuation, strict sync Depth, configured installation

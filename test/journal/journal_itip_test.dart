@@ -266,6 +266,52 @@ void main() {
       );
       expect(raw, isNot(contains('METHOD:')));
       expect(cancel.update(raw), isNull);
+
+      final anchorOnly = message('CANCEL', 3, [
+        'RECURRENCE-ID:20261127T090000Z',
+      ]);
+      final inside = message('CANCEL', 3, ['RECURRENCE-ID:20261128T090000Z']);
+      final combined = IcalDocument.parse(anchorOnly);
+      combined.root.children.add(
+        IcalDocument.parse(inside).calendarComponents.single.deepCopy(),
+      );
+      combined.root.structurallyDirty = true;
+      final multiple = JournalMessage.parse(combined);
+      final afterMultiple = multiple.update(baseline)!;
+      expect(multiple.update(afterMultiple), isNull);
+      final multipleRows = IcalRecurrenceExpander().expand(
+        IcalSemanticDocument.parse(afterMultiple),
+        rangeStartUtc: DateTime.utc(2026, 11, 26),
+        rangeEndUtc: DateTime.utc(2026, 12),
+      );
+      expect(multipleRows.map((row) => (row.start.rawValue, row.isCancelled)), [
+        ('20261126T090000Z', false),
+        ('20261127T110000Z', true),
+        ('20261128T110000Z', true),
+        ('20261129T110000Z', false),
+        ('20261130T110000Z', false),
+      ]);
+      final publish = JournalMessage.parse(
+        IcalDocument.parse(
+          message('PUBLISH', 2, [
+            'RECURRENCE-ID:20261127T090000Z',
+            'DTSTART:20261127T080000Z',
+            'DESCRIPTION:New anchor body',
+          ]),
+        ),
+      );
+      final published = IcalRecurrenceExpander().expand(
+        IcalSemanticDocument.parse(publish.update(baseline)!),
+        rangeStartUtc: DateTime.utc(2026, 11, 26),
+        rangeEndUtc: DateTime.utc(2026, 12),
+      );
+      expect(published.map((row) => (row.start.rawValue, row.description)), [
+        ('20261126T090000Z', 'Original body'),
+        ('20261127T080000Z', 'New anchor body'),
+        ('20261128T110000Z', 'Later body'),
+        ('20261129T110000Z', 'Later body'),
+        ('20261130T110000Z', 'Later body'),
+      ]);
     },
   );
 
