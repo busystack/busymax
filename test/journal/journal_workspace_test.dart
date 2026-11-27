@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
@@ -12,6 +13,7 @@ import 'package:busymax/src/journal/presentation/journal_workspace.dart';
 import 'package:busymax/src/journal/presentation/material_journal_controls.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -55,6 +57,117 @@ Future<void> setupSource(AppDatabase db) async {
 }
 
 void main() {
+  testWidgets(
+    'historical journal updates offer bundle export and reviewed reapply',
+    (tester) async {
+      final directory = Directory.systemTemp.createTempSync(
+        'journal-workspace-recovery',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/legacy.db');
+      file.writeAsBytesSync(
+        gzip.decode(
+          File('test/journal/fixtures/legacy-range-v28.sqlite.gz')
+              .readAsBytesSync(),
+        ),
+      );
+      final database = AppDatabase.memoryForTests();
+      addTearDown(database.close);
+      final baseline = await tester.runAsync(() async {
+        final fixture = AppDatabase(NativeDatabase(file));
+        try {
+          await database
+              .into(database.accounts)
+              .insert(await fixture.select(fixture.accounts).getSingle());
+          await database
+              .into(database.davCollections)
+              .insert(await fixture.select(fixture.davCollections).getSingle());
+          for (final row in await fixture.select(fixture.davObjects).get()) {
+            await database.into(database.davObjects).insert(row);
+          }
+          for (final row
+              in await fixture.select(fixture.davObjectComponents).get()) {
+            await database.into(database.davObjectComponents).insert(row);
+          }
+          for (final row
+              in await fixture.select(fixture.davJournalEntries).get()) {
+            await database.into(database.davJournalEntries).insert(row);
+          }
+          final operation = await fixture
+              .select(fixture.pendingOps)
+              .getSingle();
+          await database.into(database.pendingOps).insert(operation);
+          return operation;
+        } finally {
+          await fixture.close();
+        }
+      });
+      String? recoveryFile;
+      await tester.binding.setSurfaceSize(const Size(1100, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [databaseProvider.overrideWithValue(database)],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: JournalWorkspace(
+                controls: const MaterialJournalControls(),
+                files: JournalFileActions(
+                  read: () async => null,
+                  export: (_) async {},
+                  pickAttachment: () async => null,
+                  saveAttachment: (_) async => null,
+                  exportDraft: (raw) async => recoveryFile = raw,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final note = find.textContaining(RegExp(r'^Series ·'));
+      await _wait(tester, note);
+      await tester.tap(note);
+      final recovery = find.text('Export recovery bundle (JSON)');
+      await _wait(tester, recovery);
+      await tester.ensureVisible(recovery);
+      await tester.tap(recovery);
+      await _settle(tester);
+      final exported = jsonDecode(recoveryFile!) as Map;
+      expect(exported['mutationPatchJson'], baseline!.mutationPatchJson);
+      expect(exported['baselineIcs'], baseline.baselineRawIcs);
+      expect(
+        exported['invalidCandidateIcs'],
+        contains('SUMMARY:Offline future edit'),
+      );
+      expect(
+        exported['invalidCandidateIcs'],
+        contains('SUMMARY:Original detached entry'),
+      );
+      final apply = find.widgetWithText(FilledButton, 'Queue reviewed update');
+      expect(tester.widget<FilledButton>(apply).onPressed, isNull);
+      final choice = find.text('2. Offline future edit');
+      await tester.ensureVisible(choice);
+      await tester.tap(choice);
+      await tester.pump();
+      expect(tester.widget<FilledButton>(apply).onPressed, isNotNull);
+      await tester.ensureVisible(apply);
+      await tester.tap(apply);
+      await _wait(tester, note);
+      final repaired = await tester.runAsync(
+        () => database.select(database.pendingOps).getSingle(),
+      );
+      expect(repaired!.id, baseline.id);
+      expect(repaired.mutationPatchJson, contains('Offline future edit'));
+      expect(
+        repaired.mutationPatchJson,
+        isNot(contains('Original detached entry')),
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets(
     'journal collection controls remain reachable with a narrow keyboard viewport',
     (tester) async {

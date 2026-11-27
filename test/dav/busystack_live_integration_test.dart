@@ -655,7 +655,11 @@ void main() {
         Future<void> reconnect() async {
           final generation = await f.persistence.generation(f.id);
           f.password =
-              (await calDavQaCredentials(f.uri))[lifecycleUser] as String;
+              (await calDavQaCredentials(
+                    f.uri,
+                    directory: f.fixtureDirectory,
+                  ))[lifecycleUser]
+                  as String;
           final result = await f.onboarding.replaceCalDavPassword(
             accountId: f.id,
             password: f.password,
