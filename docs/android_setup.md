@@ -1,7 +1,7 @@
 # Android setup and provider registration
 
 BusyMax Android is a beta application with package ID
-`io.busystack.busymax`, version `0.4.3`, minimum API 24, and compile/target
+`io.busystack.busymax`, version `0.5.0`, minimum API 24, and compile/target
 API 37. The supported toolchain is Flutter 3.50.1, its bundled Dart 3.14.0,
 JDK 17, Android platform 37, and Build Tools 37.x.
 

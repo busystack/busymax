@@ -13,7 +13,7 @@ person/date responsible for each result.
 - [ ] The release PR matches its source version, has consistent application,
       Snap, AppStream and Windows resource metadata, and incorporates current
       `main`; follow [Development](development.md).
-- [ ] v0.4.3 application resources report `0.4.3`. The owner supplies a separate
+- [ ] v0.5.0 application resources report `0.5.0`. The owner supplies a separate
       four-part MSIX version greater than the previous distributed version;
       the CI-only `1.0.0.0` identity is not a production Store version.
 - [ ] A clean checkout uses Flutter 3.50.1 and its bundled Dart 3.14.0.
