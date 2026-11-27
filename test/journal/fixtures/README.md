@@ -15,6 +15,17 @@ closed database with `gzip -n -c`. Generated identifiers may differ across runs.
 The retained uncompressed fixture has SHA-256
 `744428d027bd9f98f16b9d7dbd9947886e0758115cfc619a1eac316378868562`.
 
-The current regression opens a copy, checks recovery while pending, verifies
-that replay fails before sending a request, reopens the failed state, and
-requires an explicit choice before a conditional replacement can replay.
+`legacy-create-range-v28.sqlite.gz` uses the same historical checkout. Set
+`BUSYMAX_LEGACY_JOURNAL_CREATE=1` in addition to the output path to generate
+it. The old repository creates the series, edits one occurrence, then
+promotes it while still offline. The duplicate is stored in the original
+`dav.create` request. The fixture has zero attempts and no baseline ETag.
+Its uncompressed SHA-256 is
+`6d7ef3bbd1dbc7dfe9a2df364b17747bbddcc6a709a0a8b916defffec9e31534`.
+
+The current regression opens each fixture, checks the recovery bundle and
+verifies that no mutation leaves the client before review. It tests an
+interrupted attempt separately with read-only reconciliation. It then
+reopens the file database, repairs the duplicate and verifies a conditional
+creation or replacement without changing the original operation identity or
+its dependents.

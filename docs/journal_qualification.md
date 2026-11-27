@@ -7,6 +7,44 @@ conformance is upstream-blocked for the recorded representations.
 Use the [fixture and runner instructions](../test/interop/caldav/README.md#journal-candidate-qualification)
 to repeat the run.
 
+## Pending journal and collection export follow-up
+
+The historical database coverage includes unsent creations as well as
+updates. The original request JSON, patch and rendered payload are available
+in the JSON recovery bundle. The queue validates persisted journal creates,
+updates and move candidates before dispatch. A create that may have reached
+the server becomes repairable only after the original href is confirmed
+absent. For an attempted update, the current representation must still match
+the original bytes and strong ETag. **Check server before repair** performs
+that read-only reconciliation. An existing create target or changed update
+baseline keeps the operation locked and exportable for review.
+
+The collection-management and source export actions now warn when they omit
+journals awaiting recovery. The desktop collection exporter writes each
+permitted recovery bundle as a separate JSON file alongside the valid
+calendar files. On Android, the message directs the user to the affected
+entry in Journals to export its bundle. Without permission to view the full
+representation, the warning remains visible and the bundle contents stay
+private.
+
+Changing a recurring journal's date form revises each changed component
+using one captured instant. The converted master and detached exceptions
+each get an eligible DTSTAMP and existing LAST-MODIFIED. An organizer-owned
+sequence is advanced for a significant change, with the master organizer
+used when an exception inherits it. A derived field stays protected.
+Regressions check multiple exceptions with different sequences, file
+database reopen, a conditional write and independent HTTPS readback.
+[RFC 5545 revision properties](https://www.rfc-editor.org/rfc/rfc5545.html#section-3.8.7)
+[RFC 5546 component revisions](https://www.rfc-editor.org/rfc/rfc5546.html#section-2.1.4)
+
+Follow-up evidence is under `build/qualification/vjournal-recovery-followup`.
+The portable evidence archive contains the manifest, coverage, sanitized logs,
+artifact hashes and Git tree comparisons. Earlier source and binary identities
+remain separately identified. The shared DAV lifecycle tests use calendar
+and task fixtures. The earlier API 37 LAN smoke exercised the system
+permission and direct HTTPS. The full native journal matrix and installed
+release package qualification remain open.
+
 ## November 27 continuation
 
 This continuation started from BusyMax `759b971580f23d451f0eef57c67cc62b336a99b8`
@@ -29,7 +67,7 @@ An invalid historical update appears in its ordinary journal list. Open the
 entry to review the competing occurrences and optionally save the recovery
 bundle. The bundle contains the baseline, saved patch, and invalid candidate
 as JSON. Choose the occurrence to keep at each duplicate position, then
-select **Queue reviewed update**. Normal conditional replay still applies.
+select **Queue reviewed journal**. Normal conditional replay still applies.
 A changed remote baseline requires reconciliation before using the bundle to
 recover the edit. A collection export includes the unaffected journals and
 reports excluded entries separately.
