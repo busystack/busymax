@@ -110,6 +110,8 @@ def main():
     parser.add_argument('--android-aapt', type=Path, help='Official Android build-tools aapt executable')
     parser.add_argument('--windows-runner', type=Path,
                         help='Authorized executable that runs the Windows native journal suite')
+    parser.add_argument('--native-platform', action='append', choices=('linux', 'windows', 'android'),
+                        help='Run only the selected native runtime(s) for diagnosis. Omitted cells remain incomplete.')
     parser.add_argument('--linux-process-restart', action='store_true',
                         help='Run the Linux offline workflow in two native processes using an isolated keyring')
     parser.add_argument('--linux-account-enrollment', action='store_true',
@@ -419,6 +421,8 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
                for provider in profiles
                for scenario in ('journal durable CRUD', 'journal range and historical queue recovery')])
     for platform in ('linux', 'windows', 'android'):
+        if args.native_platform and platform not in args.native_platform:
+            continue
         for provider in ('caldav', 'nextcloud'):
             if platform == 'linux':
                 name = f'Linux journal collection and editor on {provider}'
