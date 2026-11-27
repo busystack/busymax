@@ -667,6 +667,11 @@ Finder journalMaterialInput(String label) => find.byWidgetPredicate(
 );
 
 Future<void> _editorAction(WidgetTester tester, Finder action) async {
+  if (Platform.isAndroid) {
+    // Release the editor's text focus before moving to a footer control.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump(const Duration(milliseconds: 250));
+  }
   await _scrollEditorTo(tester, action);
   await _tapVisible(tester, action);
 }
@@ -689,7 +694,7 @@ Future<void> _scrollEditorTo(
 }
 
 Future<void> _tapVisible(WidgetTester tester, Finder target) async {
-  await tester.ensureVisible(target);
+  await Scrollable.ensureVisible(tester.element(target), alignment: 0.5);
   await tester.pump();
   final visible = target.hitTestable();
   await waitJournalWidget(tester, visible);
