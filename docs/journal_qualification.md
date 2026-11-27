@@ -39,14 +39,25 @@ database reopen, a conditional write and independent HTTPS readback.
 
 Follow-up evidence is under `build/qualification/vjournal-recovery-followup`.
 The portable evidence archive contains the manifest, coverage, sanitized logs,
-artifact hashes and Git tree comparisons. Earlier source and binary identities
-remain separately identified. The Linux production entry point passed a
-two-process recovery scenario on the historical create fixture. Its native
-GTK picker saved the exact request and the next process queued the reviewed
-repair. The shared DAV lifecycle tests use calendar
-and task fixtures. The earlier API 37 LAN smoke exercised the system
-permission and direct HTTPS. The full native journal matrix and installed
-release package qualification remain open.
+artifact hashes and Git tree comparisons. Earlier source and binary
+identities remain separately identified. The follow-up began at BusyMax
+`ac6397d158838ac08d52f324e3e4f35535bc372d`. Its application build inputs
+through `ba8753a00db011d62af51f4922d223530607f30a` include all three
+corrections and their translated messages.
+
+| Follow-up gate | Observed result and scope |
+| --- | --- |
+| Historical create recovery | The genuine old-version fixture reached the queue as a pending create with no ETag. Both HTTPS providers saw zero mutations before repair and independently read back one chosen exception after conditional creation with the original operation ID. File database tests cover attempted, interrupted-first-dispatch and queued-dependent states. |
+| Production collection export | The Nextcloud controller and desktop writer regression checks that a mixed collection exports valid event and journal siblings, discloses the omission, and produces a separate JSON recovery file when the collection allows it. A restricted view still signals the omission and exposes no recovery payload. |
+| Converted component revisions | The BusyMax repository and real HTTPS cases checked one revision instant for the master and both changed detached exceptions. Queue reopen and conditional readback retained the resulting timestamps and organizer sequence values. |
+| Linux GTK files | Three production processes passed the recovery export, reviewed repair, and byte-for-byte attachment save. The third process exported ICS with the binary attachment and imported it under a distinct UID. This scenario uses one private offline profile. |
+| Linux native journal conflicts | Both providers returned HTTP 412 for each competing write. The journal UI displayed the local and remote versions, and the test verified all three stored versions. Independent readback confirmed keep-server, reapply and duplicate results. This case covers competing title changes. |
+| BusyStack and Nextcloud raw admission | BusyStack passed all 22 operations. The official Nextcloud 35.0.3 image passed 12 and rejected 10 across the two dated PERIOD forms and three typed relationship forms. The independent admission runner checked prior bytes, ETag and collection state after the rejected writes. |
+
+The shared DAV lifecycle tests use calendar and task fixtures. The earlier
+API 37 LAN smoke exercised system permission and direct HTTPS. The full
+native journal matrix and installed release packages still require their
+own acceptance results.
 
 ## November 27 continuation
 
