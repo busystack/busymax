@@ -281,14 +281,20 @@ void runJournalWorkflow({
       await _tapVisible(tester, find.text('New entry'));
       await waitJournalWidget(tester, input('Title'));
       await tester.enterText(input('Title'), 'Journal café');
-      await tester.tap(find.text('Add description'));
+      final addDescription = find.text('Add description');
+      await _editorAction(tester, addDescription);
       await tester.pump();
-      await tester.enterText(input('Description').first, 'First body');
-      await tester.ensureVisible(find.text('Add description'));
-      await tester.tap(find.text('Add description'));
+      await _scrollEditorTo(tester, addDescription);
+      final firstDescription = input('Description').last;
+      await _scrollEditorTo(tester, firstDescription, delta: -160);
+      await tester.enterText(firstDescription, 'First body');
+      await _editorAction(tester, addDescription);
       await tester.pump();
-      await tester.ensureVisible(input('Description').last);
-      await tester.enterText(input('Description').last, 'Second body');
+      await _scrollEditorTo(tester, addDescription);
+      final secondDescription = input('Description').last;
+      await _scrollEditorTo(tester, secondDescription, delta: -160);
+      expect(inputValue(tester, secondDescription), isEmpty);
+      await tester.enterText(secondDescription, 'Second body');
       await _editorAction(tester, button('Save', true));
       await waitJournalWidget(tester, find.textContaining('Journal café'));
       await _refresh(tester, enabledRefresh());
@@ -661,9 +667,18 @@ Finder journalMaterialInput(String label) => find.byWidgetPredicate(
 );
 
 Future<void> _editorAction(WidgetTester tester, Finder action) async {
+  await _scrollEditorTo(tester, action);
+  await _tapVisible(tester, action);
+}
+
+Future<void> _scrollEditorTo(
+  WidgetTester tester,
+  Finder target, {
+  double delta = 300,
+}) async {
   await tester.scrollUntilVisible(
-    action,
-    300,
+    target,
+    delta,
     scrollable: find
         .descendant(
           of: find.byType(ListView),
@@ -671,7 +686,6 @@ Future<void> _editorAction(WidgetTester tester, Finder action) async {
         )
         .first,
   );
-  await tester.tap(action);
 }
 
 Future<void> _tapVisible(WidgetTester tester, Finder target) async {
