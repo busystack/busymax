@@ -11,7 +11,6 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
-import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/journal/presentation/journal_pane.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
@@ -504,9 +503,18 @@ void runJournalWorkflow({
       await tester.enterText(input('Search'), '');
       await waitJournalWidget(tester, journalResultTitle('Local edit'));
       await refresh();
-      final edited = (await tester.runAsync(
-        () => request('GET', object.requestUri),
-      ))!;
+      final edited = await _waitForJournalState(
+        tester,
+        () async {
+          final result = await request('GET', object.requestUri);
+          return result.statusCode == 200 &&
+                  result.body.contains('SUMMARY:Local edit')
+              ? result
+              : null;
+        },
+        () =>
+            'The provider did not confirm the edited journal. DAV ${accountClient.trace}',
+      );
       expect(edited.statusCode, 200);
       expect(edited.body, contains('SUMMARY:Local edit'));
       expect(edited.body, contains('DESCRIPTION:First body'));
@@ -1603,14 +1611,14 @@ Future<void> _refresh(
   }
   final activity = container.read(accountSyncActivityProvider);
   final deadline = Stopwatch()..start();
-  while (activity.busy(allSyncScope) &&
+  while (activity.anyRunning &&
       deadline.elapsed < const Duration(seconds: 90)) {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
   }
-  expect(activity.busy(allSyncScope), isFalse, reason: failureContext?.call());
+  expect(activity.anyRunning, isFalse, reason: failureContext?.call());
 }
 
 Future<void> _dismissSourcesSheet(WidgetTester tester) async {
