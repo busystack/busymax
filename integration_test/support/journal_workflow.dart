@@ -165,6 +165,7 @@ void runJournalWorkflow({
     final offlineDraft = 'Offline unsubmitted draft $marker';
     const accountId = 'native-journal-fixture';
     DavCollection? collection;
+    Uri? moveDestinationForCleanup;
     var savedForRestart = false;
     Future<http.Response> request(
       String method,
@@ -784,70 +785,58 @@ void runJournalWorkflow({
           );
           expect(createdCollection.statusCode, 201);
         });
-        try {
-          final original = (await tester.runAsync(() async {
-            final createdEntry = await request(
-              'PUT',
-              sourceEntry,
-              headers: {'Content-Type': 'text/calendar', 'If-None-Match': '*'},
-              body: [
-                'BEGIN:VCALENDAR',
-                'VERSION:2.0',
-                'PRODID:-//BusyMax//Native journal MOVE QA//EN',
-                'BEGIN:VJOURNAL',
-                'UID:journal-move-$marker@example.invalid',
-                'DTSTAMP:20261126T000000Z',
-                'SUMMARY:$moveTitle',
-                'DESCRIPTION:Moved from the journal editor',
-                'END:VJOURNAL',
-                'END:VCALENDAR',
-                '',
-              ].join('\r\n'),
-            );
-            expect(createdEntry.statusCode, 201);
-            final fetched = await request('GET', sourceEntry);
-            expect(fetched.statusCode, 200);
-            await sync(full: true);
-            return fetched;
-          }))!;
-          await searchFor(moveTitle);
-          await _tapVisible(tester, journalResultTitle(moveTitle));
-          await enterJournalEditor(tester);
-          await waitJournalWidget(tester, input('Title'));
-          await _selectMoveDestination(tester, destinationTitle);
-          await waitJournalWidget(tester, find.text(destinationTitle));
-          await _editorAction(tester, button('Move journal entry', false));
-          await waitJournalWidget(tester, input('Title'), absent: true);
-          await refresh();
-          final moved = await _waitForJournalState(
-            tester,
-            () async {
-              final source = await request('GET', sourceEntry);
-              final destination = await request('GET', destinationEntry);
-              if (source.statusCode == 404 && destination.statusCode == 200) {
-                return destination;
-              }
-              return null;
-            },
-            () => 'MOVE did not leave a destination copy and source tombstone',
+        moveDestinationForCleanup = destinationUri;
+        final original = (await tester.runAsync(() async {
+          final createdEntry = await request(
+            'PUT',
+            sourceEntry,
+            headers: {'Content-Type': 'text/calendar', 'If-None-Match': '*'},
+            body: [
+              'BEGIN:VCALENDAR',
+              'VERSION:2.0',
+              'PRODID:-//BusyMax//Native journal MOVE QA//EN',
+              'BEGIN:VJOURNAL',
+              'UID:journal-move-$marker@example.invalid',
+              'DTSTAMP:20261126T000000Z',
+              'SUMMARY:$moveTitle',
+              'DESCRIPTION:Moved from the journal editor',
+              'END:VJOURNAL',
+              'END:VCALENDAR',
+              '',
+            ].join('\r\n'),
           );
-          expect(moved.bodyBytes, original.bodyBytes);
-          await tester.runAsync(() async {
-            final projected = await database
-                .select(database.davJournalEntries)
-                .get();
-            final entry = projected.singleWhere(
-              (row) => row.title == moveTitle,
-            );
-            expect(entry.collectionId, isNot(collection!.id));
-          });
-          record('journal-move-readback');
-        } finally {
-          await tester.runAsync(() async {
-            final removed = await request('DELETE', destinationUri.toString());
-            expect(removed.statusCode, anyOf(200, 204));
-          });
-        }
+          expect(createdEntry.statusCode, 201);
+          final fetched = await request('GET', sourceEntry);
+          expect(fetched.statusCode, 200);
+          await sync(full: true);
+          return fetched;
+        }))!;
+        await searchFor(moveTitle);
+        await _tapVisible(tester, journalResultTitle(moveTitle));
+        await enterJournalEditor(tester);
+        await waitJournalWidget(tester, input('Title'));
+        await _selectMoveDestination(tester, destinationTitle);
+        await waitJournalWidget(tester, find.text(destinationTitle));
+        await _editorAction(tester, button('Move journal entry', false));
+        await waitJournalWidget(tester, input('Title'), absent: true);
+        await refresh();
+        final moved = await _waitForJournalState(tester, () async {
+          final source = await request('GET', sourceEntry);
+          final destination = await request('GET', destinationEntry);
+          if (source.statusCode == 404 && destination.statusCode == 200) {
+            return destination;
+          }
+          return null;
+        }, () => 'MOVE did not leave a destination copy and source tombstone');
+        expect(moved.bodyBytes, original.bodyBytes);
+        await tester.runAsync(() async {
+          final projected = await database
+              .select(database.davJournalEntries)
+              .get();
+          final entry = projected.singleWhere((row) => row.title == moveTitle);
+          expect(entry.collectionId, isNot(collection!.id));
+        });
+        record('journal-move-readback');
         await searchFor(localEditTitle);
       }
 
@@ -1249,6 +1238,12 @@ void runJournalWorkflow({
       container.dispose();
       await tester.runAsync(() async {
         try {
+          // The recurrence and delete scenarios use the same account. Keep the
+          // Move destination reachable until those checks have completed.
+          if (moveDestinationForCleanup case final destination?) {
+            final removed = await request('DELETE', destination.toString());
+            expect(removed.statusCode, anyOf(200, 204));
+          }
           collection ??= (await database.select(database.davCollections).get())
               .where((row) => row.displayName == collectionName)
               .firstOrNull;
