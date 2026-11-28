@@ -49,7 +49,7 @@ void runJournalWorkflow({
   Future<Directory> Function()? persistentProfile,
   bool checkConflictChoices = false,
   bool slowCollectionRemoval = false,
-  bool checkLinuxMove = false,
+  bool checkMove = false,
 }) {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final description = restart == null
@@ -141,6 +141,7 @@ void runJournalWorkflow({
     final offlineCreation = 'Offline new entry $marker';
     final offlineEdit = 'Offline edited entry $marker';
     final offlineDeletion = 'Offline delete control $marker';
+    final offlineDraft = 'Offline unsubmitted draft $marker';
     const accountId = 'native-journal-fixture';
     DavCollection? collection;
     var savedForRestart = false;
@@ -231,6 +232,17 @@ void runJournalWorkflow({
         await openJournals(tester, container);
         await searchFor(offlineCreation);
         await searchFor(offlineEdit);
+        await _tapVisible(tester, find.textContaining('$offlineEdit ·'));
+        await waitJournalWidget(
+          tester,
+          find.text('Draft saved on this device'),
+        );
+        expect(inputValue(tester, input('Title')), offlineDraft);
+        expect(
+          inputValue(tester, input('Description').last),
+          'Unsaved description $marker',
+        );
+        await _editorAction(tester, button('Close', false));
         await searchFor(offlineDeletion, absent: true);
         await tester.enterText(input('Search'), '');
         final editedHref = previous['editedHref'] as String;
@@ -267,7 +279,15 @@ void runJournalWorkflow({
           expect(created.statusCode, 200);
           expect(created.body, contains('SUMMARY:$offlineCreation'));
           expect(await database.select(database.pendingOps).get(), isEmpty);
+          final draft = await database
+              .select(database.davJournalDrafts)
+              .getSingle();
+          expect(draft.contentJson, contains(offlineDraft));
+          expect(draft.contentJson, contains('Unsaved description $marker'));
         });
+        debugPrint(
+          'JOURNAL_WORKFLOW_CASE $provider offline-journal-draft-process-restart PASS',
+        );
         debugPrint(
           'JOURNAL_WORKFLOW_CASE $provider offline-process-restart PASS',
         );
@@ -498,11 +518,24 @@ void runJournalWorkflow({
           button('Delete the entire entry and its recurrence?', false),
         );
         await searchFor(offlineDeletion, absent: true);
+        await searchFor(offlineEdit);
+        await _tapVisible(tester, find.textContaining('$offlineEdit ·'));
+        await waitJournalWidget(tester, input('Title'));
+        await tester.enterText(input('Title'), offlineDraft);
+        final description = input('Description').last;
+        await _scrollEditorTo(tester, description);
+        await tester.enterText(description, 'Unsaved description $marker');
+        await _editorAction(tester, button('Close', false));
+        await waitJournalWidget(tester, input('Search'));
         await tester.runAsync(() async {
           expect(
             await database.select(database.pendingOps).get(),
             hasLength(3),
           );
+          final draft = await database
+              .select(database.davJournalDrafts)
+              .getSingle();
+          expect(draft.contentJson, contains(offlineDraft));
           await receipt!.writeAsString(
             jsonEncode({
               'pid': pid,
@@ -634,7 +667,7 @@ void runJournalWorkflow({
         );
       }
 
-      if (checkLinuxMove) {
+      if (checkMove) {
         // Keep the existing entry in place for the subsequent tombstone check.
         final sourceUri = Uri.parse(collection.requestUri);
         final destinationUri = sourceUri.resolve('../journal-move-$marker/');
@@ -681,39 +714,7 @@ void runJournalWorkflow({
           await searchFor(moveTitle);
           await _tapVisible(tester, find.textContaining('$moveTitle ·'));
           await waitJournalWidget(tester, input('Title'));
-          final moveDestinationPicker = find.byWidgetPredicate(
-            (widget) =>
-                widget is BusyMaxComboRow<String> &&
-                widget.title == 'Move journal entry',
-          );
-          await _scrollEditorTo(tester, moveDestinationPicker);
-          final menu = tester.widget<BusyMaxMenuButton<String>>(
-            find.descendant(
-              of: moveDestinationPicker,
-              matching: find.byType(BusyMaxMenuButton<String>),
-            ),
-          );
-          final index = menu.entries.indexWhere(
-            (entry) => entry.label == destinationTitle,
-          );
-          expect(index, greaterThan(0));
-          await _tapVisible(tester, moveDestinationPicker);
-          await tester.pump();
-          await tester.runAsync(() async {
-            // The destination picker creates a native GTK menu. Deliver real
-            // X11 keys to that menu rather than searching Flutter widgets.
-            await Future<void>.delayed(const Duration(milliseconds: 200));
-            final keys = await Process.run('xdotool', [
-              'key',
-              '--clearmodifiers',
-              '--delay',
-              '100',
-              'Home',
-              for (var item = 0; item < index; item++) 'Down',
-              'Return',
-            ]);
-            expect(keys.exitCode, 0);
-          });
+          await _selectMoveDestination(tester, destinationTitle);
           await waitJournalWidget(tester, find.text(destinationTitle));
           await _editorAction(tester, button('Move journal entry', false));
           await waitJournalWidget(tester, input('Title'), absent: true);
@@ -1142,6 +1143,45 @@ Future<void> _editorAction(WidgetTester tester, Finder action) async {
   }
   await _scrollEditorTo(tester, action);
   await _tapVisible(tester, action);
+}
+
+Future<void> _selectMoveDestination(WidgetTester tester, String title) async {
+  const label = 'Move journal entry';
+  if (Platform.isAndroid) {
+    await _editorAction(tester, find.byKey(const ValueKey((label, ''))));
+    final choice = find.text(title).hitTestable();
+    await waitJournalWidget(tester, choice);
+    await _tapVisible(tester, choice);
+    return;
+  }
+  final picker = find.byWidgetPredicate(
+    (widget) => widget is BusyMaxComboRow<String> && widget.title == label,
+  );
+  await _scrollEditorTo(tester, picker);
+  final menu = tester.widget<BusyMaxMenuButton<String>>(
+    find.descendant(
+      of: picker,
+      matching: find.byType(BusyMaxMenuButton<String>),
+    ),
+  );
+  final index = menu.entries.indexWhere((entry) => entry.label == title);
+  expect(index, greaterThan(0));
+  await _tapVisible(tester, picker);
+  await tester.pump();
+  await tester.runAsync(() async {
+    // The Linux picker uses a GTK menu outside the Flutter widget tree.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final keys = await Process.run('xdotool', [
+      'key',
+      '--clearmodifiers',
+      '--delay',
+      '100',
+      'Home',
+      for (var item = 0; item < index; item++) 'Down',
+      'Return',
+    ]);
+    expect(keys.exitCode, 0);
+  });
 }
 
 Future<void> _scrollEditorTo(

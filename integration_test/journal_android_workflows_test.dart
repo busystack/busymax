@@ -33,6 +33,8 @@ void main() {
     fixture: () async => (jsonDecode(utf8.decode(base64Decode(encoded))) as Map)
         .cast<String, Object?>(),
     restart: restart,
+    checkConflictChoices: true,
+    checkMove: true,
     persistentProfile: restart == null
         ? null
         : () async => Directory(
