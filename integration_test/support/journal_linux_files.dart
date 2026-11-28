@@ -72,7 +72,12 @@ Future<void> transferLinuxJournalFiles(
             'SUMMARY:$importedTitle',
           ),
     );
-  await tapLinuxJournalControl(tester, find.byTooltip('Close'));
+  final pane = find.byType(JournalPane);
+  await tapLinuxJournalControl(
+    tester,
+    find.descendant(of: pane, matching: find.byTooltip('Close')),
+  );
+  await waitJournalWidget(tester, pane, absent: true);
   await journalCollectionAction(
     tester,
     'Import .ics file',
@@ -80,9 +85,21 @@ Future<void> transferLinuxJournalFiles(
     source: source,
   );
   await tester.runAsync(() => selectLinuxJournalFile(imported, saving: false));
-  await tapLinuxJournalControl(tester, find.text('Save'));
+  await tapLinuxJournalControl(
+    tester,
+    find.descendant(
+      of: pane,
+      matching: find.widgetWithText(ElevatedButton, 'Save'),
+    ),
+  );
   await waitJournalWidget(tester, find.text(importedUid));
-  await tapLinuxJournalControl(tester, find.text('Close'));
+  await tapLinuxJournalControl(
+    tester,
+    find.descendant(
+      of: pane,
+      matching: find.widgetWithText(FilledButton, 'Close'),
+    ),
+  );
   await openJournalSearch(tester);
   await tester.enterText(journalScheduleSearchInput(), importedTitle);
   await waitJournalWidget(tester, journalResultTitle(importedTitle));
@@ -158,6 +175,8 @@ Future<void> selectLinuxJournalFile(File result, {required bool saving}) async {
 Future<void> tapLinuxJournalControl(WidgetTester tester, Finder control) async {
   await waitJournalWidget(tester, control);
   await tester.ensureVisible(control);
-  await tester.tap(control.hitTestable());
+  final visible = control.hitTestable();
+  await waitJournalWidget(tester, visible);
+  await tester.tap(visible);
   await tester.pump();
 }

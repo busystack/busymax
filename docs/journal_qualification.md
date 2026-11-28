@@ -7,6 +7,59 @@ Nextcloud storage conformance is upstream-blocked for the recorded representatio
 Use the [fixture and runner instructions](../test/interop/caldav/README.md#journal-candidate-qualification)
 to repeat the run.
 
+## Journals in Schedule
+
+The integrated Schedule UI was built from BusyMax
+`b6970dcaf33c65836b8492274c51e84280dd13fd`. Formatting, analysis and the
+platform import checks passed with Flutter 3.50.1 and Dart 3.14.0.
+The Linux schedule smoke exercised all five views, light and dark themes,
+source visibility, and journal creation, editing and deletion. The Android
+API 35 debug QA APK exercised the integrated Agenda, editor and creation
+menu in light and dark modes. The APK identifier, signer and installed-file
+hash are recorded alongside the logs.
+
+The configured Linux workflow passed on both providers. It used the Schedule
+controls for collection creation, rename and deletion, repeated descriptions,
+draft recovery, peer refresh and search, recurrence promotion and relationship
+navigation. Independent readback verified the edited entry and recurrence
+identities, deletion and its sync tombstone.
+
+Six separately configured HTTPS tests exercised durable CRUD, range
+recovery and MOVE on the verified BusyStack `75685be70c48` image and
+stock Nextcloud 35.0.3, using BusyMax `516facab2d58`. The previously recorded
+Nextcloud admission failures remain part of the provider limits.
+
+The complete deterministic sweep at `b6970dcaf33c` passed with 5,544 passes
+and 127 skips. Follow-up `64a2768b7c67` restores access to signed-out
+accounts' pending journals through Schedule Search. Pending local work is
+available for recovery and ordinary signed-out cache entries stay hidden.
+Formatting, analysis and platform boundaries passed on that revision.
+The affected suite passed with 592 tests and six credential-gated skips.
+The full deterministic rerun passed with 5,545 tests and 127 skips.
+Three separate GTK processes verified recovery-bundle
+export, reviewed repair after reopen, and binary attachment pick and save
+with ICS export and reimport. Those file tests used a historical local
+database with an isolated offline account. The seven fixture-tool tests
+also passed.
+
+The unconfigured Linux release bundle at `64a2768b7c67` passed SDK and
+package integrity checks before and after compilation. All 20 Yaru glyphs
+used by the affected panels survived font subsetting, including Location,
+Edit, Information and the details actions. The bundle rendered Agenda,
+Search with the Location marker, and journal details with the native
+actions in both themes on an isolated Wayland compositor. The direct Xvfb
+OpenGL attempt timed out waiting for its first frame.
+
+Run `integration_test/journal_schedule_linux_test.dart` for the integrated
+Linux smoke. The configured Linux and Android journal workflows use the
+existing fixture instructions and the Schedule controls. The Android live
+BusyStack run installed the isolated APK, then lost the Dart VM service
+connection before executing a scenario. The Nextcloud Android run did not
+start. Windows widget tests ran on Linux. Native Windows and installed
+release-package qualification remain open. The scope and source identities
+for this update are recorded in
+`build/qualification/journal-schedule-ui/ui-verification.json`.
+
 ## November 28 platform qualification
 
 This run started at BusyMax `975c0149b297106ff4352fb45a9c8881dc9aed98`.

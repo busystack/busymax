@@ -5,8 +5,11 @@ import 'package:busymax/main_linux.dart' as linux;
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_app.dart';
+import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -58,6 +61,25 @@ void main() {
       expect(operation.operationType, 'dav.create');
       expect(operation.attemptCount, 0);
       expect(operation.baselineEtag, isNull);
+      if (stage == 'transfer') {
+        // Exercise ordinary source actions on an active, offline account.
+        // Export and repair use the original signed-out fixture.
+        await tester.runAsync(
+          () =>
+              (database.update(
+                    database.accounts,
+                  )..where((account) => account.id.equals(operation.accountId)))
+                  .write(
+                    AccountsCompanion(
+                      authState: Value(
+                        AccountConnectionState
+                            .temporarilyUnavailable
+                            .storageValue,
+                      ),
+                    ),
+                  ),
+        );
+      }
       container.read(appRouterProvider).go('/schedule');
       await openJournalSearch(tester);
       await tester.enterText(journalScheduleSearchInput(), 'Series');
