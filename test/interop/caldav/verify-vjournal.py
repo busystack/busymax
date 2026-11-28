@@ -467,7 +467,10 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
         sys.executable, str(FIXTURES / 'journal-nextcloud-views.py'),
         str(server), str(nextcloud),
     ])
-    run('busymax-live', ['flutter', 'test', 'test/journal', '--reporter', 'expanded'],
+    # These tests share the provider fixture accounts and enable real HTTPS
+    # traffic. Keep migration and replay checks reproducible on slower hosts.
+    run('busymax-live', ['flutter', 'test', '--concurrency', '1', '--timeout', '90s',
+                        'test/journal', '--reporter', 'expanded'],
         named=[f'{scenario} with independent HTTPS readback on {provider}'
                for provider in profiles
                for scenario in ('journal durable CRUD', 'journal range and historical queue recovery')])
