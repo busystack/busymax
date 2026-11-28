@@ -1,6 +1,7 @@
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
+import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_filters.dart';
@@ -10,6 +11,7 @@ import 'package:busymax/src/schedule/schedule_search_criteria.dart';
 import 'package:busymax/src/ui/common/schedule/schedule_planner_events.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart' show Value;
 
 import '../support/local_journal_fixture.dart';
 
@@ -28,6 +30,49 @@ IcalProperty _dateProperty(String name, String value, {bool date = false}) =>
     );
 
 void main() {
+  test(
+    'search retains pending journal recovery after account sign-out',
+    () async {
+      final database = AppDatabase.memoryForTests();
+      addTearDown(database.close);
+      final source = await seedLocalJournalCollection(database);
+      final journals = JournalRepository(database);
+      await journals.create(source, title: 'Local journal change');
+      await journals.create(source, title: 'Previously cached journal');
+      final cached = (await journals.listEntries()).singleWhere(
+        (entry) => entry.title == 'Previously cached journal',
+      );
+      await (database.delete(database.pendingOps)..where(
+            (operation) => operation.davObjectId.equals(cached.davObjectId),
+          ))
+          .go();
+      await (database.update(
+        database.accounts,
+      )..where((account) => account.id.equals(source.accountId))).write(
+        AccountsCompanion(
+          authState: Value(AccountConnectionState.signedOut.storageValue),
+        ),
+      );
+
+      final repository = ScheduleRepository(database);
+      final range = ScheduleRange.day(DateTime(2026, 11, 28));
+      const filters = ScheduleFilters(
+        includeJournals: true,
+        ignoreDateRange: true,
+      );
+      final result = await repository.listItems(range: range, filters: filters);
+      expect(result.single.title, 'Local journal change');
+      expect(result.single.accountId, source.accountId);
+      expect(
+        await repository.listItems(
+          range: range,
+          filters: const ScheduleFilters(includeJournals: true),
+        ),
+        isEmpty,
+      );
+    },
+  );
+
   test(
     'schedule keeps journal occurrences, points and undated search distinct',
     () async {

@@ -43,6 +43,8 @@ Pending entries can be exported as ICS before synchronizing. A failed write
 keeps its local changes, and conflict resolution shows the source and local
 versions. Choosing **Refresh** checks the selected source and attempts to
 send its queued changes when the server permits it.
+Schedule Search can also locate retained pending journals for a signed-out
+account so you can review or export those changes.
 
 Use a journal source's Options menu to import or export ICS. Import previews
 both stored journal entries and PUBLISH, ADD and CANCEL messages. Confirm

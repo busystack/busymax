@@ -19,6 +19,7 @@ import '../dav/ical/ical_timezone.dart';
 import '../dav/storage/dav_collection_capabilities.dart';
 import '../db/app_database.dart';
 import '../features/accounts/data/accounts_repository.dart';
+import '../features/accounts/domain/account_connection_state.dart';
 import '../features/calendar/data/calendar_event_detail.dart';
 import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/calendar/domain/google_status_event.dart';
@@ -314,13 +315,10 @@ class ScheduleRepository {
       await _ensureProjectionCoverage?.call(range, filters);
     }
     final context = await _accountContext(filters);
-    if (context == null) {
-      return const [];
-    }
     final ignoreDateRange = filters.ignoreDateRange;
 
     final items = <ScheduleItem>[
-      if (filters.includeCalendarEvents)
+      if (filters.includeCalendarEvents && context != null)
         ...await _calendarItems(
           range,
           filters,
@@ -330,7 +328,7 @@ class ScheduleRepository {
           context.accountDisplayNames,
           context.accountEmails,
         ),
-      if (filters.includeTasks)
+      if (filters.includeTasks && context != null)
         ...await _taskItems(
           range,
           filters,
@@ -353,26 +351,37 @@ class ScheduleRepository {
   Future<List<JournalScheduleItem>> _journalItems(
     ScheduleRange range,
     ScheduleFilters filters,
-    _ScheduleAccountContext context,
+    _ScheduleAccountContext? context,
   ) async {
     if (filters.journalSourceFilterActive && filters.journalSourceIds.isEmpty) {
       return const [];
     }
-    bool visible(String account, String source) =>
-        context.providers.containsKey(account) &&
-        (!filters.journalSourceFilterActive ||
-            filters.journalSourceIds.contains(source));
+    bool visibleSource(String source) =>
+        !filters.journalSourceFilterActive ||
+        filters.journalSourceIds.contains(source);
 
     final journals = JournalRepository(_database);
+    final retainedLocalOwners = filters.ignoreDateRange
+        ? await _signedOutJournalOwners(filters.accountIds)
+        : const <String, Account>{};
+    final retainedAccountIds = retainedLocalOwners.values
+        .map((owner) => owner.id)
+        .toSet();
     final sources = {
       for (final source in await journals.listSources())
-        if (visible(source.accountId, source.id)) source.id: source,
+        if (visibleSource(source.id) &&
+            (context?.providers.containsKey(source.accountId) == true ||
+                retainedAccountIds.contains(source.accountId)))
+          source.id: source,
     };
     final byObject = <String, List<DavJournalEntry>>{};
     for (final entry in await journals.listEntries(
       collectionIds: sources.keys.toSet(),
     )) {
-      byObject.putIfAbsent(entry.davObjectId, () => []).add(entry);
+      if (context?.providers.containsKey(entry.accountId) == true ||
+          retainedLocalOwners.containsKey(entry.davObjectId)) {
+        byObject.putIfAbsent(entry.davObjectId, () => []).add(entry);
+      }
     }
     final items = <JournalScheduleItem>[];
     for (final entries in byObject.values) {
@@ -381,6 +390,7 @@ class ScheduleRepository {
         orElse: () => entries.first,
       );
       final source = sources[seed.collectionId]!;
+      final localOwner = retainedLocalOwners[seed.davObjectId];
       final capabilities = collectionCapabilitiesFromStored(source);
       List<_JournalOccurrence> occurrences;
       try {
@@ -407,11 +417,16 @@ class ScheduleRepository {
             entry: entry,
             occurrence: occurrence.occurrence,
             accountId: source.accountId,
-            provider: context.providers[source.accountId]!,
+            provider:
+                context?.providers[source.accountId] ??
+                BusyProviderCodec.requireStorageValue(localOwner!.provider),
             sourceId: source.id,
             sourceName: source.displayName,
-            accountDisplayName: context.accountDisplayNames[source.accountId],
-            accountEmail: context.accountEmails[source.accountId],
+            accountDisplayName:
+                context?.accountDisplayNames[source.accountId] ??
+                localOwner?.displayName,
+            accountEmail:
+                context?.accountEmails[source.accountId] ?? localOwner?.email,
             title: occurrence.title,
             searchText: occurrence.searchText,
             start: occurrence.start,
@@ -428,7 +443,7 @@ class ScheduleRepository {
     }
 
     final subscriptionEntries =
-        context.providers.containsValue(BusyProvider.webCal)
+        context?.providers.containsValue(BusyProvider.webCal) == true
         ? await listJournalSubscriptions(
             _database,
             sourceIds: filters.journalSourceFilterActive
@@ -438,7 +453,10 @@ class ScheduleRepository {
         : const <JournalSubscriptionEntry>[];
     final subscriptions = <(String, String), JournalSubscriptionEntry>{};
     for (final entry in subscriptionEntries) {
-      if (!visible(entry.source.accountId, entry.source.id)) continue;
+      if (!visibleSource(entry.source.id) ||
+          context?.providers.containsKey(entry.source.accountId) != true) {
+        continue;
+      }
       final uid = entry.journal.component.firstProperty('UID')?.rawValue;
       if (uid != null) {
         subscriptions.putIfAbsent((entry.source.id, uid), () => entry);
@@ -467,8 +485,8 @@ class ScheduleRepository {
               sourceId: sourceId,
               sourceName: entry.source.summary,
               accountDisplayName:
-                  context.accountDisplayNames[entry.source.accountId],
-              accountEmail: context.accountEmails[entry.source.accountId],
+                  context?.accountDisplayNames[entry.source.accountId],
+              accountEmail: context?.accountEmails[entry.source.accountId],
               title: occurrence.title,
               searchText: occurrence.searchText,
               start: occurrence.start,
@@ -483,6 +501,31 @@ class ScheduleRepository {
       }
     }
     return items;
+  }
+
+  // A signed-out account's local intent still needs a route to recovery.
+  // Search can expose those specific pending journal objects.
+  Future<Map<String, Account>> _signedOutJournalOwners(
+    Set<String> accountIds,
+  ) async {
+    final accounts = _database.accounts;
+    final pending = _database.pendingOps;
+    final query =
+        _database.select(pending).join([
+            innerJoin(accounts, accounts.id.equalsExp(pending.accountId)),
+          ])
+          ..where(pending.entityType.equals('journal'))
+          ..where(pending.davObjectId.isNotNull())
+          ..where(
+            accounts.authState.equals(
+              AccountConnectionState.signedOut.storageValue,
+            ),
+          );
+    if (accountIds.isNotEmpty) query.where(accounts.id.isIn(accountIds));
+    return {
+      for (final row in await query.get())
+        row.read(pending.davObjectId)!: row.readTable(accounts),
+    };
   }
 
   /// Lists every visible task without applying a calendar date window.
