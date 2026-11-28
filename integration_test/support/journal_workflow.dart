@@ -763,7 +763,7 @@ void runJournalWorkflow({
           .innerText;
       expect(syncToken, isNotEmpty);
 
-      await _tapVisible(tester, find.textContaining('Local edit'));
+      await _tapVisible(tester, find.textContaining('Local edit ·'));
       await waitJournalWidget(tester, input('Title'));
       await _editorAction(tester, button('Delete', false));
       await _editorAction(
@@ -773,7 +773,7 @@ void runJournalWorkflow({
       await waitJournalWidget(tester, input('Search'));
       await waitJournalWidget(
         tester,
-        find.textContaining('Local edit'),
+        find.textContaining('Local edit ·'),
         absent: true,
       );
       await _refresh(tester, enabledRefresh());
