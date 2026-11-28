@@ -1683,11 +1683,9 @@ Future<void> _refresh(
     await tester.pump();
     await awaitIdle();
   }
-  if (dialog.evaluate().isNotEmpty) {
-    await _tapVisible(
-      tester,
-      find.descendant(of: dialog, matching: find.text('Cancel')),
-    );
+  final cancel = find.descendant(of: dialog, matching: find.text('Cancel'));
+  if (cancel.hitTestable().evaluate().isNotEmpty) {
+    await _tapVisible(tester, cancel);
     await waitJournalWidget(tester, dialog, absent: true);
   }
 }
