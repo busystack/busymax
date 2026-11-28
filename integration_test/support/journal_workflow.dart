@@ -702,6 +702,11 @@ void runJournalWorkflow({
           expect(find.text(localTitle), findsWidgets);
           expect(find.text(remoteTitle), findsWidgets);
           await _editorAction(tester, button(action, false));
+          await waitJournalWidget(
+            tester,
+            find.byType(JournalPane),
+            absent: true,
+          );
           currentTitle = preserveLocal ? localTitle : remoteTitle;
           if (number == 1) {
             // Keep server adopts the confirmed snapshot locally and sends no write.
@@ -987,10 +992,7 @@ void runJournalWorkflow({
         );
         await _editorAction(
           tester,
-          find.descendant(
-            of: occurrenceHeader,
-            matching: find.text('Close'),
-          ),
+          find.descendant(of: occurrenceHeader, matching: find.text('Close')),
         );
         await _editorAction(tester, button('Close', false));
         await searchFor(localEditTitle);
