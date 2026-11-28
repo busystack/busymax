@@ -596,6 +596,108 @@ void runJournalWorkflow({
 
       const dav = 'DAV:';
       final target = collection.requestUri;
+      if (!slowCollectionRemoval) {
+        // A peer supplies a known series and a link to the journal created
+        // above. The native UI opens the link and edits the recurrence.
+        final seriesUri = Uri.parse(target).resolve('native-series.ics');
+        final month = DateTime.now().toIso8601String().substring(0, 7);
+        final prefix = month.replaceAll('-', '');
+        final dayOne = '${prefix}01';
+        final dayTwo = '${prefix}02';
+        const seriesTitle = 'Native recurring journal';
+        const occurrenceTitle = 'Native single override';
+        const futureTitle = 'Native future override';
+        final createdSeries = (await tester.runAsync(
+          () => request(
+            'PUT',
+            seriesUri.toString(),
+            headers: const {
+              'If-None-Match': '*',
+              'Content-Type': 'text/calendar; charset=utf-8',
+            },
+            body: [
+              'BEGIN:VCALENDAR',
+              'VERSION:2.0',
+              'PRODID:-//BusyMax QA//Native journal recurrence//EN',
+              'BEGIN:VJOURNAL',
+              'UID:native-series-$marker',
+              'DTSTAMP:${dayOne}T090000Z',
+              'DTSTART;VALUE=DATE:$dayOne',
+              'RRULE:FREQ=DAILY;COUNT=3',
+              'SUMMARY:$seriesTitle',
+              'RELATED-TO:${object.primaryUid}',
+              'END:VJOURNAL',
+              'END:VCALENDAR',
+              '',
+            ].join('\r\n'),
+          ),
+        ))!;
+        expect(createdSeries.statusCode, 201);
+        await _refresh(tester, enabledRefresh());
+        final series = find.textContaining('$seriesTitle ·');
+        await waitJournalWidget(tester, series);
+        await _tapVisible(tester, series);
+        final link = find.text('Open link · Local edit');
+        await waitJournalWidget(tester, link);
+        await _editorAction(tester, link);
+        await waitJournalWidget(tester, find.text('First body'));
+        expect(inputValue(tester, input('Title')), 'Local edit');
+        await _editorAction(tester, button('Close', false));
+
+        for (final (currentTitle, action, newTitle) in [
+          (seriesTitle, 'Edit this occurrence', occurrenceTitle),
+          (occurrenceTitle, 'Edit this and future occurrences', futureTitle),
+        ]) {
+          await waitJournalWidget(tester, series);
+          await _tapVisible(tester, series);
+          await waitJournalWidget(tester, find.text('Repeat'));
+          await _editorAction(tester, find.text('Repeat'));
+          final occurrence = find.byWidgetPredicate(
+            (widget) =>
+                widget is Wrap &&
+                widget.children.whereType<Text>().any(
+                  (label) => label.data == '$dayTwo · $currentTitle',
+                ),
+          );
+          await waitJournalWidget(tester, occurrence);
+          await _tapVisible(
+            tester,
+            find.descendant(of: occurrence, matching: find.text(action)),
+          );
+          await waitJournalWidget(tester, input('Title'));
+          expect(inputValue(tester, input('Title')), currentTitle);
+          await tester.enterText(input('Title'), newTitle);
+          await _editorAction(tester, button('Save', true));
+          await waitJournalWidget(tester, series);
+          await _refresh(tester, enabledRefresh());
+          final savedSeries = (await tester.runAsync(
+            () => request('GET', seriesUri.toString()),
+          ))!;
+          expect(savedSeries.statusCode, 200);
+          expect(savedSeries.body, contains('SUMMARY:$newTitle'));
+          expect(savedSeries.body, contains('RELATED-TO:${object.primaryUid}'));
+          final identifiers = savedSeries.body
+              .split(RegExp(r'\r?\n'))
+              .where((line) => line.startsWith('RECURRENCE-ID'));
+          expect(identifiers.single.split(':').last, dayTwo);
+          expect(
+            identifiers.single.contains('RANGE=THISANDFUTURE'),
+            newTitle == futureTitle,
+          );
+        }
+        await _tapVisible(tester, series);
+        await waitJournalWidget(tester, find.text('Repeat'));
+        await _editorAction(tester, find.text('Repeat'));
+        await waitJournalWidget(tester, find.text('$dayOne · $seriesTitle'));
+        await waitJournalWidget(
+          tester,
+          find.text('${prefix}03 · $futureTitle'),
+        );
+        await _editorAction(tester, button('Close', false).last);
+        debugPrint(
+          'JOURNAL_WORKFLOW_CASE $provider recurrence-and-journal-link-readback PASS',
+        );
+      }
       final beforeDelete = (await tester.runAsync(
         () => request(
           'PROPFIND',
