@@ -22,10 +22,15 @@ import 'support/journal_workflow.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final provider =
+      Platform.environment['BUSYMAX_JOURNAL_LINUX_ENROLLMENT_PROVIDER'] ??
+      'caldav';
+  final nextcloud = provider == 'nextcloud';
 
   testWidgets(
-    'Linux production CalDAV enrollment discovers a journal source',
+    'Linux production ${nextcloud ? 'Nextcloud' : 'CalDAV'} enrollment discovers a journal source',
     (tester) async {
+      expect(provider, anyOf('caldav', 'nextcloud'));
       expect(Platform.isLinux, isTrue);
       expect(Platform.environment['GDK_BACKEND'], 'x11');
       final dataHome = Directory(Platform.environment['XDG_DATA_HOME']!);
@@ -37,7 +42,7 @@ void main() {
       expect(support.path, startsWith('${dataHome.path}/'));
       expect(File('${support.path}/busymax.sqlite').existsSync(), isFalse);
       final profile = (await tester.runAsync(
-        () => desktopJournalFixture('caldav'),
+        () => desktopJournalFixture(provider),
       ))!;
       final authority = Uri.parse(profile['authority'] as String);
       final username = profile['username'] as String;
@@ -94,7 +99,7 @@ void main() {
           }
 
           final principal = await discover(
-            authority.resolve('dav/'),
+            authority.resolve(nextcloud ? 'remote.php/dav/' : 'dav/'),
             'current-user-principal',
             'DAV:',
           );
@@ -146,6 +151,20 @@ void main() {
         }
 
         Future<void> submit({required bool reconnect}) async {
+          if (nextcloud) {
+            final server = find.byKey(const Key('nextcloud-server-field'));
+            await waitJournalWidget(tester, server);
+            if (!reconnect) {
+              await tester.enterText(server, authority.toString());
+            } else {
+              expect(
+                Uri.parse(inputValue(tester, server)).origin,
+                authority.origin,
+              );
+            }
+            await tap(find.text('Connect').last);
+            return;
+          }
           final server = find.byKey(const Key('caldav-server-field'));
           final user = find.byKey(const Key('caldav-username-field'));
           final secret = find.byKey(const Key('caldav-password-field'));
@@ -169,7 +188,7 @@ void main() {
 
         tester.testTextInput.register();
         addTearDown(tester.testTextInput.unregister);
-        await tap(find.byKey(const ValueKey('add-account-caldav')));
+        await tap(find.byKey(ValueKey('add-account-$provider')));
         await submit(reconnect: false);
         await tap(find.text('Import private CA'));
         await tester.runAsync(() async {
@@ -177,7 +196,7 @@ void main() {
               Platform.environment['BUSYMAX_JOURNAL_LIVE_FIXTURE']!;
           final fixture =
               jsonDecode(await File(profilePath).readAsString()) as Map;
-          final ca = (fixture['caldav'] as Map)['caFile'] as String;
+          final ca = (fixture[provider] as Map)['caFile'] as String;
           await _pickFixtureCa(ca);
         });
         await tap(find.text('Approve this certificate policy'));
@@ -196,12 +215,17 @@ void main() {
             account.id,
           );
           if (credential == null) return null;
-          expect(credential, isA<CalDavSecretRecord>());
+          expect(
+            credential,
+            nextcloud
+                ? isA<NextcloudSecretRecord>()
+                : isA<CalDavSecretRecord>(),
+          );
           return (account: account, collection: collection);
         });
         final account = discovered.account;
         final collection = discovered.collection;
-        expect(account.provider, 'caldav');
+        expect(account.provider, provider);
         expect(account.providerAccountId, username);
         expect(collection.supportedComponentMask, davComponentJournal);
         expect(Uri.parse(collection.requestUri), collectionUri);
@@ -250,9 +274,10 @@ void main() {
           final credential = await persistence.readCurrentCredential(
             account.id,
           );
-          return generation != before && credential is CalDavSecretRecord
-              ? generation
-              : null;
+          final correctType = nextcloud
+              ? credential is NextcloudSecretRecord
+              : credential is CalDavSecretRecord;
+          return generation != before && correctType ? generation : null;
         });
         expect(
           (await tester.runAsync(
@@ -263,7 +288,7 @@ void main() {
         router.go('/journals');
         await waitJournalWidget(tester, find.text(title));
         debugPrint(
-          'JOURNAL_WORKFLOW_CASE caldav account-connect-and-discover PASS',
+          'JOURNAL_WORKFLOW_CASE $provider account-connect-and-discover PASS',
         );
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());

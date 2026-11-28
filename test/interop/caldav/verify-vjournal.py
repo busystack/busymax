@@ -148,7 +148,7 @@ def main():
     parser.add_argument('--linux-process-restart', action='store_true',
                         help='Run the Linux offline workflow in two native processes using an isolated keyring')
     parser.add_argument('--linux-account-enrollment', action='store_true',
-                        help='Run BusyStack enrollment via the real Linux Settings UI on isolated X11')
+                        help='Run provider enrollment via the real Linux Settings UI on isolated X11')
     args = parser.parse_args()
     artifact = args.artifacts.resolve() / ('vjournal-' + uuid.uuid4().hex[:12])
     artifact.mkdir(parents=True, mode=0o700)
@@ -249,7 +249,7 @@ def main():
         return dict(status='fail' if not smoke_passed else 'partial' if missing else 'pass',
                     executed=sorted(executed), missing=missing)
 
-    def linux_profile(label, command, named, *, restart=False, enrollment=False):
+    def linux_profile(label, command, named, *, restart=False, enrollment=None):
         root = Path(tempfile.mkdtemp(prefix='journal-native-profile-'))
         runtime = root / 'runtime'
         runtime.mkdir(mode=0o700)
@@ -263,8 +263,21 @@ def main():
         if enrollment:
             for directory in (root / 'config', root / 'data'):
                 directory.mkdir(mode=0o700)
-            extra_env.update(GDK_BACKEND='x11', BUSYMAX_JOURNAL_LINUX_NATIVE_ENROLLMENT='1')
+            extra_env.update(GDK_BACKEND='x11', BUSYMAX_JOURNAL_LINUX_NATIVE_ENROLLMENT='1',
+                             BUSYMAX_JOURNAL_LINUX_ENROLLMENT_PROVIDER=enrollment)
             launcher = ['xvfb-run', '-a', '-s', '-screen 0 1280x1024x24', *launcher]
+            if enrollment == 'nextcloud':
+                applications = root / 'data' / 'applications'
+                applications.mkdir(mode=0o700)
+                handler = FIXTURES / 'browser/nextcloud-journal-open.sh'
+                desktop = 'busymax-journal-nextcloud-qa.desktop'
+                (applications / desktop).write_text(
+                    '[Desktop Entry]\nType=Application\nName=BusyMax Nextcloud QA browser\n'
+                    f'Exec="{handler}" %u\nMimeType=x-scheme-handler/https;\nNoDisplay=true\n',
+                )
+                (root / 'config' / 'mimeapps.list').write_text(
+                    f'[Default Applications]\nx-scheme-handler/https={desktop}\n',
+                )
         passed = run(label, [*launcher, *command],
                      named=named, extra_env=extra_env)
         binary = BUSYMAX / 'build/linux/x64/debug/bundle/busymax'
@@ -302,8 +315,9 @@ done
         )
         return label, passed
 
-    def linux_account_enrollment():
-        label = 'linux-caldav-account-enrollment'
+    def linux_account_enrollment(provider):
+        label = f'linux-{provider}-account-enrollment'
+        display = 'Nextcloud' if provider == 'nextcloud' else 'CalDAV'
         command = '''
 set -eu
 printf %s busymax-journal-test-keyring | gnome-keyring-daemon --unlock --components=secrets
@@ -311,8 +325,8 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
 '''
         passed = linux_profile(
             label, ['bash', '-c', command],
-            named=['Linux production CalDAV enrollment discovers a journal source'],
-            enrollment=True,
+            named=[f'Linux production {display} enrollment discovers a journal source'],
+            enrollment=provider,
         )
         return label, passed
 
@@ -495,8 +509,8 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
                     restart_label, restart_passed = linux_restart(provider)
                     labels.append(restart_label)
                     passed = passed and restart_passed
-                if provider == 'caldav' and args.linux_account_enrollment:
-                    enrollment_label, enrollment_passed = linux_account_enrollment()
+                if args.linux_account_enrollment:
+                    enrollment_label, enrollment_passed = linux_account_enrollment(provider)
                     labels.append(enrollment_label)
                     passed = passed and enrollment_passed
                 result = native_result(platform, provider, labels, passed)
