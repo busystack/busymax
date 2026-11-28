@@ -12,6 +12,8 @@ import 'package:busymax/src/dav/nextcloud/nextcloud_collection_controller.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/journal/journal_component.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -94,10 +96,12 @@ void main() {
             expect(request.url.path, original.davMemberHref);
             if (remoteMatches && creating) return http.Response('', 404);
             return http.Response(
-              remoteMatches ? original.baselineRawIcs! : siblingRaw,
+              remoteMatches
+                  ? original.baselineRawIcs!.replaceAll('\r\n', '\n')
+                  : siblingRaw,
               200,
               headers: {
-                'etag': remoteMatches ? original.baselineEtag! : '"different"',
+                'etag': original.baselineEtag ?? '"unknown-create"',
                 'content-type': 'text/calendar',
               },
             );
@@ -133,11 +137,22 @@ void main() {
             expect(result.appliedCount, 0);
           }
 
+          var replayDuringSync = true;
           final diagnostics = PendingOpResolutionService(
             database: db,
             accountId: 'account',
             syncCalendar: () async {},
-            syncTasks: replaySelected,
+            syncTasks: () async =>
+                fail('Journal recovery must not sync tasks.'),
+            syncJournal: (scope) async {
+              expect(scope, davCollectionSyncScope('account', source.id));
+              if (replayDuringSync) await replaySelected();
+              return SyncOutcome((
+                scope: scope,
+                origin: SyncTrigger.manual,
+                strategy: SyncStrategy.ordinary,
+              ), SyncDisposition.completed);
+            },
           );
           await replaySelected();
           expect(requests, attempt ? ['GET'] : isEmpty);
@@ -152,15 +167,17 @@ void main() {
             );
             expect(await db.pendingOpsDao.getOp(original.id), parked);
             remoteMatches = true;
-            await DavPendingOperationQueue(database: db).retryBlockedOperation(
-              accountId: 'account',
-              operationId: original.id,
+            replayDuringSync = false;
+            await expectLater(
+              diagnostics.retryNow(original.id),
+              throwsStateError,
             );
             await expectLater(
               diagnostics.discard(original.id),
               throwsStateError,
             );
-            await replaySelected();
+            replayDuringSync = true;
+            await diagnostics.retryNow(original.id);
           }
           final quarantined = (await db.pendingOpsDao.getOp(original.id))!;
           expect(

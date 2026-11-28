@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_repository.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_service.dart';
@@ -17,10 +20,15 @@ import 'package:busymax/src/dav/sync/dav_collection_remote_client.dart';
 import 'package:busymax/src/dav/sync/dav_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:busymax/src/features/notifications/notification_reconciler.dart';
+import 'package:busymax/src/features/sync/sync_auth_error.dart';
+import 'package:busymax/src/journal/journal_component.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
@@ -47,6 +55,19 @@ void main() {
         final principal = spec['username'] as String;
         final password = spec['password'] as String;
         final ca = spec['caFile'] as String;
+        final SecretRecord secret = provider == BusyProvider.caldav
+            ? CalDavSecretRecord(
+                serviceAuthority: authority,
+                username: principal,
+                password: password,
+              )
+            : NextcloudSecretRecord(
+                canonicalServer: authority,
+                loginName: principal,
+                appPassword: password,
+              );
+        final credentialAuthority =
+            (secret as DavCertificateCredential).certificateAuthority;
         http.Client client() => IOClient(
           HttpClient(
             context: SecurityContext(withTrustedRoots: true)
@@ -87,12 +108,14 @@ void main() {
               AccountsCompanion.insert(
                 id: accountId,
                 provider: provider.storageValue,
-                authority: authority.toString(),
+                authority: credentialAuthority.toString(),
                 providerAccountId: principal,
                 credentialKind: provider == BusyProvider.caldav
                     ? 'caldav_password'
                     : 'nextcloud_app_password',
                 authState: Value(AccountConnectionState.connected.storageValue),
+                calendarsEnabled: Value(!recurrenceRecovery),
+                tasksEnabled: Value(!recurrenceRecovery),
                 createdAtUtc: '2026-11-26T00:00:00Z',
                 updatedAtUtc: '2026-11-26T00:00:00Z',
               ),
@@ -230,6 +253,12 @@ void main() {
                     (row) => row.requestUri.equals(legacyHref.toString()),
                   ))
                   .getSingle();
+          expect(replayedObject.etag, beforeRecovery.headers['etag']);
+          expect(
+            replayedObject.rawIcsBody?.replaceAll('\r\n', '\n'),
+            beforeRecovery.body.replaceAll('\r\n', '\n'),
+            reason: 'GET and REPORT must agree apart from XML line endings.',
+          );
           await database
               .into(database.pendingOps)
               .insert(
@@ -248,13 +277,96 @@ void main() {
           final afterBlocked = await request('GET', legacyHref);
           expect(afterBlocked.bodyBytes, beforeRecovery.bodyBytes);
           expect(afterBlocked.headers['etag'], beforeRecovery.headers['etag']);
+          // Model a durable failure from a previous attempt whose outcome
+          // had been unknown. Diagnostics must use real DAV readback.
+          await (database.update(
+            database.pendingOps,
+          )..where((row) => row.id.equals(legacy.id))).write(
+            const PendingOpsCompanion(
+              attemptCount: Value(1),
+              retryClassification: Value('permanent'),
+              lastErrorCode: Value(duplicateJournalPositionCode),
+            ),
+          );
           await database.close();
           database = AppDatabase(NativeDatabase(file));
           journals = JournalRepository(database);
           final legacyEntry = (await journals.watchEntries().first).singleWhere(
             (row) => row.uid == 'legacy' && row.recurrenceIdKey == null,
           );
+          final secrets = InMemorySecretStore();
+          await secrets.saveCredential(accountId, secret);
+          Future<void> retryInDiagnostics({bool disabled = false}) async {
+            final container = ProviderContainer(
+              overrides: [
+                databaseProvider.overrideWithValue(database),
+                secretStoreProvider.overrideWithValue(secrets),
+                davAccountHttpClientProvider(accountId)
+                    .overrideWithValue(accountClient),
+                networkConnectivityMonitorProvider.overrideWith((ref) {
+                  final monitor =
+                      NetworkConnectivityMonitor.withoutPlatformObservation();
+                  ref.onDispose(monitor.dispose);
+                  return monitor;
+                }),
+                notificationReconcilerProvider.overrideWithValue(
+                  CallbackNotificationReconciler(() async {}),
+                ),
+              ],
+            );
+            try {
+              await container
+                  .read(pendingOpResolutionServiceForAccountProvider(accountId))
+                  .retryNow(legacy.id);
+            } on AuthorizationScopedFailure catch (error) {
+              fail(
+                'Diagnostics retry failed with ${syncFailureDiagnostic(error)}. '
+                'DAV requests ${accountClient.trace}.',
+              );
+            } on StateError {
+              if (disabled) rethrow;
+              final pending = await database.pendingOpsDao.getOp(legacy.id);
+              fail(
+                'Diagnostics retry did not finish. Queue state '
+                '${pending?.state}, ${pending?.retryClassification}, '
+                '${pending?.lastErrorCode}. DAV requests '
+                '${accountClient.trace}.',
+              );
+            } finally {
+              container.dispose();
+            }
+          }
+
+          final source = database.update(database.davCollections)
+            ..where((row) => row.id.equals(collection.id));
+          mutations.clear();
+          accountClient.trace.clear();
+          await source.write(
+            const DavCollectionsCompanion(journalsSelected: Value(false)),
+          );
+          await expectLater(
+            retryInDiagnostics(disabled: true),
+            throwsA(
+              isA<StateError>().having(
+                (error) => error.message,
+                'message',
+                'The journal retry did not complete.',
+              ),
+            ),
+          );
+          expect(accountClient.trace.toString(), isEmpty);
+          expect(await database.pendingOpsDao.getOp(legacy.id), isNotNull);
+
+          await source.write(
+            const DavCollectionsCompanion(journalsSelected: Value(true)),
+          );
+          await retryInDiagnostics();
           final recovery = (await journals.read(legacyEntry)).pendingRecovery!;
+          expect(recovery.canReplace, isTrue);
+          expect(mutations, isEmpty);
+          final reconciled = await request('GET', legacyHref);
+          expect(reconciled.bodyBytes, beforeRecovery.bodyBytes);
+          expect(reconciled.headers['etag'], beforeRecovery.headers['etag']);
           expect(recovery.operation.state, 'failed');
           expect(
             recovery.operation.mutationPatchJson,
@@ -273,7 +385,8 @@ void main() {
               (item) => item.recurrenceRange == 'THISANDFUTURE',
             ),
           });
-          expect((await replay()).appliedCount, 1);
+          await retryInDiagnostics();
+          expect(await database.pendingOpsDao.getOp(legacy.id), isNull);
           final corrected = await request('GET', legacyHref);
           expect(corrected.statusCode, 200);
           expect(

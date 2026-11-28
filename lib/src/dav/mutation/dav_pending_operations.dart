@@ -83,6 +83,14 @@ final class DavJournalPendingRecovery {
   final PendingOp operation;
   final String invalidCandidate;
 
+  /// The retry confirmed an absent create target or the unchanged server
+  /// baseline. The row stays available for reviewed repair or discard.
+  static bool isReconciled(PendingOp operation) =>
+      operation.entityType == 'journal' &&
+      operation.state == DavPendingState.failed.storageValue &&
+      operation.retryClassification == _reconciledJournalRecovery &&
+      operation.lastErrorCode == duplicateJournalPositionCode;
+
   static Map<String?, List<IcalSemanticComponent>> competingComponents(
     IcalSemanticDocument candidate,
   ) {
@@ -1862,7 +1870,10 @@ final class DavPendingOperationsReplayer {
                   op.baselineEtag != null &&
                   !op.baselineEtag!.startsWith('W/') &&
                   remote.etag == op.baselineEtag &&
-                  remote.rawIcsBody == op.baselineRawIcs) {
+                  _sameJournalRecoveryBaseline(
+                    remote.rawIcsBody,
+                    op.baselineRawIcs,
+                  )) {
           classification = _reconciledJournalRecovery;
         }
       }
@@ -1880,6 +1891,15 @@ final class DavPendingOperationsReplayer {
       error: error,
     );
     await _reportPermanentFailure(op, error);
+  }
+
+  bool _sameJournalRecoveryBaseline(String? fetched, String? baseline) {
+    if (fetched == null || baseline == null) return false;
+    // XML normalizes line endings in REPORT calendar-data. GET delivers
+    // the resource directly. Require exact content after this normalization.
+    final lineEnd = RegExp(r'\r\n?');
+    return fetched.replaceAll(lineEnd, '\n') ==
+        baseline.replaceAll(lineEnd, '\n');
   }
 
   Future<DavMutationResult?> _replay(PendingOp op) async {

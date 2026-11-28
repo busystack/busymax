@@ -2143,6 +2143,7 @@ final pendingOpResolutionServiceForAccountProvider =
           accountId,
           (operations) => operations.syncCalendar(accountId, full: false),
         ),
+        syncJournal: (scope) => ref.read(manualSyncRunnerProvider)(scope),
         onNotificationScheduleChanged: () =>
             ref.read(notificationReconcilerProvider).reconcile(),
       );

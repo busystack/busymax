@@ -19,6 +19,7 @@ import '../tasks/domain/task_checklist_item.dart';
 import '../tasks/domain/task_remote_models.dart';
 import 'pending_ops_replay_coordinator.dart';
 import 'sync_auth_error.dart';
+import 'sync_request.dart';
 
 class PendingOpResolutionService {
   PendingOpResolutionService({
@@ -28,6 +29,7 @@ class PendingOpResolutionService {
     required String accountId,
     required Future<void> Function() syncTasks,
     required Future<void> Function() syncCalendar,
+    Future<SyncOutcome> Function(SyncScope)? syncJournal,
     Future<void> Function()? onNotificationScheduleChanged,
     DateTime Function()? nowUtc,
   }) : _database = database,
@@ -36,6 +38,7 @@ class PendingOpResolutionService {
        _accountId = accountId,
        _syncTasks = syncTasks,
        _syncCalendar = syncCalendar,
+       _syncJournal = syncJournal,
        _onNotificationScheduleChanged = onNotificationScheduleChanged,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
@@ -45,6 +48,7 @@ class PendingOpResolutionService {
   final String _accountId;
   final Future<void> Function() _syncTasks;
   final Future<void> Function() _syncCalendar;
+  final Future<SyncOutcome> Function(SyncScope)? _syncJournal;
   final Future<void> Function()? _onNotificationScheduleChanged;
   final DateTime Function() _nowUtc;
 
@@ -75,7 +79,16 @@ class PendingOpResolutionService {
     } else {
       await _database.pendingOpsDao.retryNow(opId, _nowUtc());
     }
-    await _syncAfterResolution(op);
+    final outcome = await _syncAfterResolution(op);
+    if (outcome != null) {
+      final remaining = await _database.pendingOpsDao.getOp(op.id);
+      if ((outcome.disposition != SyncDisposition.completed &&
+              outcome.disposition != SyncDisposition.partial) ||
+          (remaining != null &&
+              !DavJournalPendingRecovery.isReconciled(remaining))) {
+        throw StateError('The journal retry did not complete.');
+      }
+    }
   }
 
   bool _isCreationOperation(PendingOp op) {
@@ -1038,12 +1051,26 @@ class PendingOpResolutionService {
     return false;
   }
 
-  Future<void> _syncAfterResolution(PendingOp op) async {
+  Future<SyncOutcome?> _syncAfterResolution(PendingOp op) async {
+    if (op.entityType == 'journal' && isDavPendingOperation(op)) {
+      final sync = _syncJournal;
+      if (sync == null) {
+        throw StateError('Journal synchronization is unavailable.');
+      }
+      final collectionId = op.davCollectionId;
+      final scope = collectionId == null || op.operationType == 'dav.move'
+          ? accountSyncScope(op.accountId)
+          : davCollectionSyncScope(op.accountId, collectionId);
+      final outcome = await sync(scope);
+      if (outcome.error case final error?) throw error;
+      return outcome;
+    }
     if (op.entityType == 'calendar' || op.entityType == 'event') {
       await _syncCalendar();
-      return;
+    } else {
+      await _syncTasks();
     }
-    await _syncTasks();
+    return null;
   }
 
   Future<void> _requireAccountSyncEligible({
