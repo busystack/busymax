@@ -60,6 +60,76 @@ release-package qualification remain open. The scope and source identities
 for this update are recorded in
 `build/qualification/journal-schedule-ui/ui-verification.json`.
 
+## Schedule editor and planner follow-up
+
+Linux uses the Schedule details popover for journal entries and the shared
+editor scaffold, grouped rows, date picker, and native time controls for
+editing. The ordinary editor keeps descriptions separate from their RFC
+parameters. Conflict review remains accessible by opening a blocked entry.
+The planner reserves visual space for timed journal markers through the
+overlap arranger. Journal timestamps and event durations retain their
+original meanings. Android Month overflow uses the shared Schedule icons
+and its leading task completion checkbox.
+
+The affected Flutter suite passed at `2c48c35` with 743 tests and six
+credential-gated skips. The application at `94279b4` then passed analysis
+and 12 focused tests, including journal collisions and import with a
+missing or read-only collection. Those import cases use a writable
+collection on a second account and verify that creating the queued
+operation requires an explicit destination selection. The permission
+change during file selection also retains the selected file. The separate
+native UI audit and layout run passed 38 tests. The subsequent Linux draft
+fix at `0a32748` passed analysis, the focused regressions and a native test
+that verifies delete with an existing draft reopens the modal editor with
+the retained text. The Android APKs predate this Linux-only route
+correction. The manifest records the input differences.
+
+The native Linux UI run verified a rendered journal indicator on its date
+in Year view, the anchored details popover, the native editor and its
+advanced date field, and source visibility. The API 35 Android QA app
+passed in light and dark themes, including Month overflow for events,
+tasks and journals. Its installed file matched the recorded APK hash.
+Native Windows remains open. The authorized VM is saved at its earlier
+repair state, and the alternate SSH alias could not be resolved.
+
+Linux passed the configured journal and GTK file workflow with both the
+verified BusyStack candidate and stock Nextcloud 35.0.3. The checks covered
+draft reopen, recurrence promotion, journal links, binary attachments,
+ICS import and export, and deletion with independent HTTPS readback and
+sync tombstones. The final two-provider Linux run at `557e28d` used the
+same application tree as `0a32748` and passed both workflows, with PostgreSQL
+on the Nextcloud fixture. Reproduce these workflows with the Linux GTK file
+steps in the [interop instructions](../test/interop/caldav/README.md#journal-coverage).
+The expanded Linux BusyStack conflict retry at `65d9e2f` passed all three
+choices and their independent readbacks. The earlier run requested a
+refresh before the conflict editor had closed and recorded no subsequent
+PUT for Reapply. The test now waits for the editor to close before
+triggering refresh.
+
+The Android API 35 BusyStack run passed the configured live journal
+workflow with independent readback of both recurrence edits, all three
+conflict choices, Move, and deletion. The driver ran with `--no-dds` after
+earlier runs lost the Dart VM connection. The same workflow passed on
+stock Nextcloud 35.0.3 with PostgreSQL 17.11. A recurrence PUT had failed
+on the SQLite fixture with HTTP 500 and a matching `SQLSTATE[HY000]`
+SQLite lock in the stock server log. The PostgreSQL rerun used the same
+Nextcloud image. The five established data-admission limitations remain
+separate from these workflow results. The matrix records both database
+fixtures and the covered scenarios.
+
+The four follow-up regressions can also be checked with
+`flutter test test/journal/journal_workspace_test.dart test/schedule/schedule_journal_projection_test.dart test/platform/android/android_adaptive_app_test.dart`,
+`flutter test -d linux integration_test/journal_schedule_linux_test.dart`,
+and the isolated Android QA run of `integration_test/journal_schedule_android_test.dart`.
+The Linux test requires the Year indicator to be rendered and hit-testable
+on the fixture journal's date. The Android test taps the leading task
+checkbox and verifies its new persisted status.
+
+Execution logs and source and artifact identities for this follow-up are
+in `build/qualification/journal-ui-followup/manifest.json` and the logs it
+references. The stock Nextcloud storage limitations recorded below still
+apply. Installed release package verification remains open for these changes.
+
 ## November 28 platform qualification
 
 This run started at BusyMax `975c0149b297106ff4352fb45a9c8881dc9aed98`.
