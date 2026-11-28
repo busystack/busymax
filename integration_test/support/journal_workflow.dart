@@ -937,13 +937,22 @@ void runJournalWorkflow({
           expect(inputValue(tester, input('Title')), currentTitle);
           await tester.enterText(input('Title'), newTitle);
           await _editorAction(tester, button('Save', true));
+          await waitJournalWidget(tester, input('Title'), absent: true);
           await waitJournalWidget(tester, series);
           await refresh();
-          final savedSeries = (await tester.runAsync(
-            () => request('GET', seriesUri.toString()),
-          ))!;
-          expect(savedSeries.statusCode, 200);
-          expect(savedSeries.body, contains('SUMMARY:$newTitle'));
+          final savedSeries = await _waitForJournalState(
+            tester,
+            () async {
+              final reply = await request('GET', seriesUri.toString());
+              return reply.statusCode == 200 &&
+                      reply.body.contains('SUMMARY:$newTitle\r\n')
+                  ? reply
+                  : null;
+            },
+            () =>
+                'The occurrence edit did not reach DAV. '
+                'DAV ${accountClient.trace}',
+          );
           expect(savedSeries.body, contains('RELATED-TO:${object.primaryUid}'));
           final identifiers = savedSeries.body
               .split(RegExp(r'\r?\n'))
@@ -1058,10 +1067,15 @@ void runJournalWorkflow({
         absent: true,
       );
       await refresh();
-      final deleted = (await tester.runAsync(
-        () => request('GET', object.requestUri),
-      ))!;
-      expect(deleted.statusCode, 404);
+      await _waitForJournalState(
+        tester,
+        () async => (await request('GET', object.requestUri)).statusCode == 404
+            ? true
+            : null,
+        () =>
+            'The deleted journal was still present on DAV. '
+            'DAV ${accountClient.trace}',
+      );
       record('delete-readback');
       final delta = (await tester.runAsync(
         () => request(
