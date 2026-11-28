@@ -48,11 +48,19 @@ void runJournalWorkflow({
   bool slowCollectionRemoval = false,
   bool checkMove = false,
 }) {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final description = restart == null
       ? '$platform journal collection and editor on $provider'
       : '$platform offline journal ${restart.name} across processes on $provider';
   testWidgets(description, (tester) async {
+    final markers = <String>[];
+    binding.reportData = {'journalTest': description, 'journalCases': markers};
+    void record(String name) {
+      final marker = 'JOURNAL_WORKFLOW_CASE $provider $name PASS';
+      markers.add(marker);
+      debugPrint(marker);
+    }
+
     expect(isNative(), isTrue);
     final profile = (await tester.runAsync(fixture))!;
     final authority = Uri.parse(profile['authority'] as String);
@@ -266,12 +274,8 @@ void runJournalWorkflow({
           expect(draft.contentJson, contains(offlineDraft));
           expect(draft.contentJson, contains('Unsaved description $marker'));
         });
-        debugPrint(
-          'JOURNAL_WORKFLOW_CASE $provider offline-journal-draft-process-restart PASS',
-        );
-        debugPrint(
-          'JOURNAL_WORKFLOW_CASE $provider offline-process-restart PASS',
-        );
+        record('offline-journal-draft-process-restart');
+        record('offline-process-restart');
         return;
       }
       await tester.runAsync(() async {
@@ -322,7 +326,7 @@ void runJournalWorkflow({
       ))!;
       expect(remote.statusCode, 207);
       expect(remote.body, contains('VJOURNAL'));
-      debugPrint('JOURNAL_WORKFLOW_CASE $provider collection-create PASS');
+      record('collection-create');
 
       await _tapVisible(tester, find.text('New entry'));
       await waitJournalWidget(tester, input('Title'));
@@ -362,9 +366,7 @@ void runJournalWorkflow({
       expect(created.body, contains('DESCRIPTION:First body'));
       expect(created.body, contains('DESCRIPTION:Second body'));
       expect(created.body, isNot(contains('DTSTART')));
-      debugPrint(
-        'JOURNAL_WORKFLOW_CASE $provider undated-repeated-description PASS',
-      );
+      record('undated-repeated-description');
       final peerChange = created.body.replaceFirst(
         'SUMMARY:Journal café',
         'SUMMARY:Peer edit${restart == null ? '\r\nCOMMENT:Peer comment\r\nCONTACT:Peer contact' : ''}',
@@ -427,9 +429,7 @@ void runJournalWorkflow({
         await tester.ensureVisible(input('Parameter name'));
         await tester.enterText(input('Parameter name'), 'X-DRAFT-TEST');
       }
-      debugPrint(
-        'JOURNAL_WORKFLOW_CASE $provider editor-draft-close-and-reopen PASS',
-      );
+      record('editor-draft-close-and-reopen');
       await _editorAction(tester, button('Save', true));
       await waitJournalWidget(tester, find.textContaining('Local edit'));
       expect(inputValue(tester, input('Search')), 'second body');
@@ -455,11 +455,9 @@ void runJournalWorkflow({
           contains('COMMENT;X-DRAFT-TEST=preserved:Edited comment'),
         );
         expect(edited.body, contains('CONTACT:Later unfinished contact'));
-        debugPrint(
-          'JOURNAL_WORKFLOW_CASE $provider draft-incomplete-parameter-readback PASS',
-        );
+        record('draft-incomplete-parameter-readback');
       }
-      debugPrint('JOURNAL_WORKFLOW_CASE $provider peer-refresh-search PASS');
+      record('peer-refresh-search');
 
       if (restart == JournalRestartStage.queue) {
         Future<void> create(String title) async {
@@ -643,9 +641,7 @@ void runJournalWorkflow({
         await tester.enterText(input('Title'), 'Local edit');
         await _editorAction(tester, button('Save', true));
         await _refresh(tester, enabledRefresh());
-        debugPrint(
-          'JOURNAL_WORKFLOW_CASE $provider journal-content-conflict-choices PASS',
-        );
+        record('journal-content-conflict-choices');
       }
 
       if (checkMove) {
@@ -713,9 +709,7 @@ void runJournalWorkflow({
             );
             expect(entry.collectionId, isNot(collection!.id));
           });
-          debugPrint(
-            'JOURNAL_WORKFLOW_CASE $provider journal-move-readback PASS',
-          );
+          record('journal-move-readback');
         } finally {
           await tester.runAsync(() async {
             final removed = await request('DELETE', destinationUri.toString());
@@ -858,9 +852,7 @@ void runJournalWorkflow({
           ),
         );
         await searchFor('Local edit');
-        debugPrint(
-          'JOURNAL_WORKFLOW_CASE $provider recurrence-and-journal-link-readback PASS',
-        );
+        record('recurrence-and-journal-link-readback');
       }
       final beforeDelete = (await tester.runAsync(
         () => request(
@@ -896,7 +888,7 @@ void runJournalWorkflow({
         () => request('GET', object.requestUri),
       ))!;
       expect(deleted.statusCode, 404);
-      debugPrint('JOURNAL_WORKFLOW_CASE $provider delete-readback PASS');
+      record('delete-readback');
       final delta = (await tester.runAsync(
         () => request(
           'REPORT',
@@ -926,7 +918,7 @@ void runJournalWorkflow({
         tombstone.findElements('status', namespaceUri: dav).single.innerText,
         matches(RegExp(r'^HTTP/\S+ 404\b')),
       );
-      debugPrint('JOURNAL_WORKFLOW_CASE $provider delete-sync-tombstone PASS');
+      record('delete-sync-tombstone');
 
       final rename = button('Rename', false);
       await waitJournalWidget(tester, rename);
@@ -1023,13 +1015,9 @@ void runJournalWorkflow({
       if (slowCollectionRemoval) {
         expect(accountClient.delayedRemovalMethods, hasLength(5));
         expect(accountClient.delayedRemovalMethods, contains('DELETE'));
-        debugPrint(
-          'JOURNAL_WORKFLOW_CASE $provider collection-delete-slow-response PASS',
-        );
+        record('collection-delete-slow-response');
       }
-      debugPrint(
-        'JOURNAL_WORKFLOW_CASE $provider collection-rename-delete-readback PASS',
-      );
+      record('collection-rename-delete-readback');
     } finally {
       await tester.pumpWidget(const SizedBox());
       tester.testTextInput.unregister();

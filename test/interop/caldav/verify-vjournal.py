@@ -235,7 +235,9 @@ def main():
                 code = 127
         content = log.read_text(errors='replace')
         missing = [name for name in named
-                   if not re.search(r'^\d\d:\d\d \+\d+.*: .*' + re.escape(name) + r'$', content, re.M)]
+                   if not re.search(
+                       r'^(?:\d\d:\d\d \+\d+.*: .*' + re.escape(name) +
+                       r'|JOURNAL_NATIVE_TEST ' + re.escape(name) + r' PASS)$', content, re.M)]
         results[label] = dict(started=started, finished=utc(), exitCode=code,
                               command=command, missing=missing, log=log.name)
         checkpoint(artifact, evidence)
@@ -424,14 +426,20 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
             apk_identity = {'applicationId': package_id, 'preflightSha256': apk_hash,
                             'signerCertificateSha256': sorted(signing_identity)}
             results[f'{prefix}-apk'] = apk_identity
-            passed = run(label, ['flutter', 'test', native, '-d', serial,
-                         '--no-uninstall', define, '--reporter', 'expanded'], extra_env=flags,
+            # Launch the APK checked above without a second Gradle build.
+            # The integration-test driver returns the named results over the VM connection.
+            passed = run(label, ['flutter', 'drive', '--debug', '--no-pub',
+                         '--target=' + native, '--driver=integration_test/support/journal_driver.dart',
+                         '--use-application-binary=' + str(apk), '-d', serial], extra_env=flags,
                          named=[expected])
             with tempfile.TemporaryDirectory(dir=artifact) as directory:
                 local_apk = Path(directory) / 'tested-qa.apk'
                 if read_installed(local_apk) and certificates(local_apk) == signing_identity:
                     with local_apk.open('rb') as binary:
                         apk_identity['installedSha256'] = hashlib.file_digest(binary, 'sha256').hexdigest()
+                    if apk_identity['installedSha256'] != apk_hash:
+                        apk_identity['artifactError'] = 'The installed APK differs from the verified prebuilt APK.'
+                        passed = False
                 else:
                     apk_identity['artifactError'] = 'Installed QA artifact could not be verified after the run.'
                     passed = False
