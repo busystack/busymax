@@ -28,22 +28,28 @@ Finder field(String name) => find.byWidgetPredicate(
 );
 
 void main() {
-  for (final missing in [false, true]) {
+  for (final state in ['read only', 'missing', 'revoked in the file picker']) {
     testWidgets(
-      'import requires a destination when the invoked source is ${missing ? 'missing' : 'read only'}',
+      'import requires a destination when the invoked source is $state',
       (tester) async {
         final db = AppDatabase.memoryForTests();
         addTearDown(db.close);
-        final alternate = (await tester.runAsync(() async {
-          final source = await seedLocalJournalCollection(db);
+        final revokedWhilePicking = state == 'revoked in the file picker';
+        late DavCollection source;
+        Future<void> revoke() async {
           await (db.update(
             db.davCollections,
           )..where((row) => row.id.equals(source.id))).write(
             DavCollectionsCompanion(
-              serverMissing: Value(missing),
+              serverMissing: Value(state == 'missing'),
               currentUserPrivilegesJson: const Value('["{DAV:}read"]'),
             ),
           );
+        }
+
+        final alternate = (await tester.runAsync(() async {
+          source = await seedLocalJournalCollection(db);
+          if (!revokedWhilePicking) await revoke();
           return seedLocalJournalCollection(
             db,
             accountId: 'other-account',
@@ -82,6 +88,7 @@ void main() {
                   files: JournalFileActions(
                     read: () async {
                       reads++;
+                      if (revokedWhilePicking) await revoke();
                       return file;
                     },
                     export: (_) async {},
@@ -101,7 +108,11 @@ void main() {
               .initialValue,
           '',
         );
-        expect(reads, 0);
+        expect(reads, revokedWhilePicking ? 1 : 0);
+        expect(
+          find.text('Server permissions changed. Pending edits are paused.'),
+          findsOneWidget,
+        );
         expect(find.text('Save'), findsNothing);
         expect(
           await tester.runAsync(() => db.select(db.pendingOps).get()),
