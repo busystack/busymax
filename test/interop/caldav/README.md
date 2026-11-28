@@ -360,6 +360,30 @@ flutter test --no-pub test/journal/journal_live_test.dart --reporter expanded \
   --plain-name 'journal range and historical queue recovery with independent HTTPS readback'
 ```
 
+#### Journal MOVE
+
+The same private profile covers journal MOVE over HTTPS with Calendars and
+Tasks disabled. The test reopens the file database after enqueueing and checks
+conditional dispatch, stale-source conflict resolution and recovery from a
+lost response after server commit. An independent client checks both URLs and
+compares the moved bytes. The BusyStack destination is journal-only and the
+Nextcloud destination is a mixed calendar.
+
+```sh
+flutter test --no-pub --concurrency 1 test/journal/journal_live_test.dart \
+  --reporter expanded --plain-name 'journal MOVE'
+```
+
+On Linux, opt into the editor MOVE scenario with `BUSYMAX_LINUX_JOURNAL_MOVE=1`.
+Use an isolated X11 session with `xdotool` on PATH for the GTK destination
+menu. Require the `journal-move-readback PASS` marker for each provider.
+
+```sh
+BUSYMAX_LINUX_JOURNAL_MOVE=1 GDK_BACKEND=x11 \
+  flutter test --no-pub -d linux integration_test/journal_linux_workflows_test.dart \
+  --reporter expanded
+```
+
 The shared native editor case includes a peer-seeded DATE series. It follows
 a same-collection journal link, edits a single occurrence, then promotes the
 same occurrence to this-and-future. Independent GETs check the original

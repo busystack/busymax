@@ -475,7 +475,9 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
                         'test/journal', '--reporter', 'expanded'],
         named=[f'{scenario} with independent HTTPS readback on {provider}'
                for provider in profiles
-               for scenario in ('journal durable CRUD', 'journal range and historical queue recovery')])
+               for scenario in ('journal durable CRUD',
+                                'journal range and historical queue recovery',
+                                'journal MOVE, conflict, and restart reconciliation')])
     for platform in ('linux', 'windows', 'android'):
         if args.native_platform and platform not in args.native_platform:
             continue

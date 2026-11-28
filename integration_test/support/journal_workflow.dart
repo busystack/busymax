@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
@@ -48,6 +49,7 @@ void runJournalWorkflow({
   Future<Directory> Function()? persistentProfile,
   bool checkConflictChoices = false,
   bool slowCollectionRemoval = false,
+  bool checkLinuxMove = false,
 }) {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final description = restart == null
@@ -630,6 +632,115 @@ void runJournalWorkflow({
         debugPrint(
           'JOURNAL_WORKFLOW_CASE $provider journal-content-conflict-choices PASS',
         );
+      }
+
+      if (checkLinuxMove) {
+        // Keep the existing entry in place for the subsequent tombstone check.
+        final sourceUri = Uri.parse(collection.requestUri);
+        final destinationUri = sourceUri.resolve('../journal-move-$marker/');
+        final sourceEntry = sourceUri.resolve('move.ics').toString();
+        final destinationEntry = destinationUri.resolve('move.ics').toString();
+        final moveTitle = 'Journal move $marker';
+        final destinationTitle = 'Move destination $marker';
+        await tester.runAsync(() async {
+          final createdCollection = await request(
+            'MKCALENDAR',
+            destinationUri.toString(),
+            headers: {'Content-Type': 'application/xml'},
+            body:
+                '<c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:set><d:prop><d:displayname>$destinationTitle</d:displayname><c:supported-calendar-component-set><c:comp name="VJOURNAL"/></c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>',
+          );
+          expect(createdCollection.statusCode, 201);
+        });
+        try {
+          final original = (await tester.runAsync(() async {
+            final createdEntry = await request(
+              'PUT',
+              sourceEntry,
+              headers: {'Content-Type': 'text/calendar', 'If-None-Match': '*'},
+              body: [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//BusyMax//Native journal MOVE QA//EN',
+                'BEGIN:VJOURNAL',
+                'UID:journal-move-$marker@example.invalid',
+                'DTSTAMP:20261126T000000Z',
+                'SUMMARY:$moveTitle',
+                'DESCRIPTION:Moved from the journal editor',
+                'END:VJOURNAL',
+                'END:VCALENDAR',
+                '',
+              ].join('\r\n'),
+            );
+            expect(createdEntry.statusCode, 201);
+            final fetched = await request('GET', sourceEntry);
+            expect(fetched.statusCode, 200);
+            await sync(full: true);
+            return fetched;
+          }))!;
+          await searchFor(moveTitle);
+          await _tapVisible(tester, find.textContaining('$moveTitle ·'));
+          await waitJournalWidget(tester, input('Title'));
+          final moveDestinationPicker = find.byWidgetPredicate(
+            (widget) =>
+                widget is BusyMaxComboRow<String> &&
+                widget.title == 'Move journal entry',
+          );
+          await _scrollEditorTo(tester, moveDestinationPicker);
+          final menu = tester.widget<BusyMaxMenuButton<String>>(
+            find.descendant(
+              of: moveDestinationPicker,
+              matching: find.byType(BusyMaxMenuButton<String>),
+            ),
+          );
+          final index = menu.entries.indexWhere(
+            (entry) => entry.label == destinationTitle,
+          );
+          expect(index, greaterThan(0));
+          await _tapVisible(tester, moveDestinationPicker);
+          await tester.pump();
+          await tester.runAsync(() async {
+            // The destination picker creates a native GTK menu. Deliver real
+            // X11 keys to that menu rather than searching Flutter widgets.
+            await Future<void>.delayed(const Duration(milliseconds: 200));
+            final keys = await Process.run('xdotool', [
+              'key',
+              '--clearmodifiers',
+              '--delay',
+              '100',
+              'Home',
+              for (var item = 0; item < index; item++) 'Down',
+              'Return',
+            ]);
+            expect(keys.exitCode, 0);
+          });
+          await waitJournalWidget(tester, find.text(destinationTitle));
+          await _editorAction(tester, button('Move journal entry', false));
+          await waitJournalWidget(tester, input('Title'), absent: true);
+          await _refresh(tester, enabledRefresh());
+          await tester.runAsync(() async {
+            expect((await request('GET', sourceEntry)).statusCode, 404);
+            final moved = await request('GET', destinationEntry);
+            expect(moved.statusCode, 200);
+            expect(moved.bodyBytes, original.bodyBytes);
+            final projected = await database
+                .select(database.davJournalEntries)
+                .get();
+            final entry = projected.singleWhere(
+              (row) => row.title == moveTitle,
+            );
+            expect(entry.collectionId, isNot(collection!.id));
+          });
+          debugPrint(
+            'JOURNAL_WORKFLOW_CASE $provider journal-move-readback PASS',
+          );
+        } finally {
+          await tester.runAsync(() async {
+            final removed = await request('DELETE', destinationUri.toString());
+            expect(removed.statusCode, anyOf(200, 204));
+          });
+        }
+        await searchFor('Local edit');
       }
 
       const dav = 'DAV:';

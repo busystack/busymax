@@ -7,6 +7,34 @@ conformance is upstream-blocked for the recorded representations.
 Use the [fixture and runner instructions](../test/interop/caldav/README.md#journal-candidate-qualification)
 to repeat the run.
 
+## Journal collection moves
+
+The move queue uses its persisted component type when checking the source
+and destination, dispatching the conditional MOVE, and reconciling an
+interrupted attempt. A confirmed destination is projected from its fetched
+representation and ETag. There is no schema migration for these operations.
+
+The HTTPS regression reproduced the enqueue failure on both providers at
+`d3b5ac79853cdc6be3a51d7b94255d422747c204`. The final run passed at
+`8e54117cc5dec45de289763c2f48a5fe9e8f7800` with Calendars and Tasks disabled.
+BusyStack moved the resource into a journal-only collection. Stock Nextcloud
+35.0.3.2 moved it into a mixed collection.
+
+| Requirement | Independent result on each provider |
+| --- | --- |
+| O03, RFC 4918 §9.9 | After reopening the file database, MOVE sent the source ETag with `If-Match` and `Overwrite: F`. An independent HTTPS client observed source HTTP 404 and destination HTTP 200 with the original bytes, including the detached occurrence and both descriptions. The cache adopted the destination ETag and projected both components there. |
+| O06, RFC 9110 §13.1.1 | A peer edit made the queued ETag stale. The source retained the peer edit, the destination stayed absent, and the queue kept the conflict snapshot. Keep server restored the peer projection without another mutation. |
+| O05 | The server committed MOVE before the test client dropped its response and blocked confirmation reads. After a second database reopen, BusyMax reconciled both URLs and committed the destination projection without sending MOVE again. |
+
+See the [HTTPS MOVE command](../test/interop/caldav/README.md#journal-move)
+and `build/qualification/vjournal-move/manifest.json` for the exact fixtures,
+source identity, commands and logs. These cases exercise the production
+journal repository, queue, HTTP transport and projections. The Linux X11
+integration test used the production GTK destination menu and Move button
+with seeded QA accounts on both providers. It independently confirmed the
+source removal and destination bytes and checked the journal projection.
+Windows, Android and installed-package Move qualification remain open.
+
 ## Diagnostics journal retry follow-up
 
 Diagnostics now uses the physical DAV collection when retrying a journal.

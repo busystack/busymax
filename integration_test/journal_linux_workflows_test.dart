@@ -28,6 +28,7 @@ void main() {
       slowCollectionRemoval:
           provider == 'nextcloud' &&
           Platform.environment['BUSYMAX_LINUX_JOURNAL_SLOW_DELETE'] == '1',
+      checkLinuxMove: Platform.environment['BUSYMAX_LINUX_JOURNAL_MOVE'] == '1',
       app: () => const LinuxBusyMaxApp(),
       openJournals: (_, container) async =>
           container.read(appRouterProvider).go('/journals'),
