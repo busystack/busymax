@@ -7,6 +7,78 @@ conformance is upstream-blocked for the recorded representations.
 Use the [fixture and runner instructions](../test/interop/caldav/README.md#journal-candidate-qualification)
 to repeat the run.
 
+## Diagnostics journal retry follow-up
+
+Diagnostics now uses the physical DAV collection when retrying a journal.
+A move uses the account scope so synchronization can reconcile both
+collections. A skipped synchronization or a retry that leaves the selected
+operation unresolved is reported as incomplete. A read-only reconciliation
+can complete the check while the operation stays available for reviewed
+repair or discard.
+
+The historical update test opens a file-backed queue and invokes the same
+Diagnostics provider as the application. It verifies that a disabled source
+sends no request. With Journals enabled and both Tasks and Calendars disabled,
+it requires an authoritative GET before repair. The reviewed repair then
+sends a conditional PUT, and an independent client verifies the resulting
+entry and its single recurrence identity. The old routing reported success
+without executing the retry on both test servers.
+
+On stock Nextcloud, the test exposed a second blocker for recovery. The
+calendar-data returned in a REPORT and the payload returned in a GET had the
+same strong ETag and content with different line endings. Historical journal
+recovery now accounts for XML end-of-line normalization when comparing those
+representations. A different ETag or any other content difference still
+blocks repair and discard. [XML 1.0 §2.11](https://www.w3.org/TR/xml/#sec-line-ends)
+
+The configured journal suite passed 39 cases during the controlled run.
+Eight additional runs of the Nextcloud durable CRUD case passed, including
+the ordinary-to-future edit and cancellation assertions. Three more passed
+on a separate stock installation with a persistent SQLite volume. The
+final-source aggregate journal suite passed as well. The earlier aggregate
+failure did not recur, and its cause remains unconfirmed.
+The official changelog still listed 35.0.3. [Nextcloud changelog](https://nextcloud.com/changelog/)
+
+| Requirement | Executed result and independent check |
+| --- | --- |
+| A2, O06, O15 journal retry | Both real HTTPS fixtures passed disabled-source handling, read-only reconciliation, explicit repair and conditional write readback through the production Diagnostics provider. The historical readback unit tests reject different content even with a matching ETag. |
+| J16–J18, J24 recurrence and relationship | The Linux native editor on both providers and the BusyStack Android editor opened a same-collection journal link, edited a DATE occurrence and promoted it to this-and-future. Raw GETs confirmed one detached position and a retained link. The editor displayed the original preceding occurrence and the edited following occurrence. The manifest records subsequent per-provider reruns. Other date modes and target types require separate native evidence. |
+| O03, O06 Linux collection lifecycle and conflicts | Both providers passed conditional keep-server, reapply and duplicate choices with independent readback. The delayed Nextcloud collection removal passed with five successful wire responses delayed by twelve seconds each, and verified removal in DAV and in the journal projection. |
+| O04, O13 Linux persistence and GTK files | Both providers passed the two-process offline create, edit and delete case. Separate Linux GTK processes exercised recovery export, reviewed repair, byte-for-byte attachment save, and ICS export and import. The GTK scenario uses a private offline profile. |
+| O04 Android persistence | Both providers passed the API 35 queue and replay phases in distinct processes. The replay independently observed the server baseline while the app remained offline, then confirmed the create, edit and delete after reconnection. BusyStack's replay reused its original queued profile after an interrupted APK build. |
+| O15 Android foreground lifecycle | The native replay exposed a foreground refresh that tried to reconcile notifications after its shell was disposed. A widget regression reproduced the exception and passed after the shell began checking its lifetime after the awaited steps. |
+| O12 stock Nextcloud restart | A separate persistent SQLite fixture retained a journal's exact bytes, ETag and sync token after restarting Nextcloud. It accepted a conditional PUT after restart and rejected a stale ETag. No BusyMax cache restore was exercised by this probe. |
+| Strict stock Nextcloud storage | The independent probe repeated all 22 writes. BusyStack passed all 22. Nextcloud passed 12 and rejected the same ten writes with unchanged prior state. Native client qualification remains open separately. |
+
+The first deterministic suite at `06178bd341912a9e7c9c31d04444ca457fd3dbf1`
+passed 5,542 tests with 125 skips. The configured HTTPS cases ran separately.
+The later application commit `62d9bd5815aaa430edf4712be27b5334f2929875`
+adds the Android foreground refresh fix. The deterministic rerun at that
+commit passed 5,543 tests with 125 skips. The configured journal suite passed
+39 with the revised serial invocation. The prior aggregate migration timeout
+remains in its run receipt. The Linux executable and AOT library rebuilt at
+the application commit and matched their earlier SHA-256 hashes.
+
+The native Linux release bundle opened on X11. The rebuilt test-signed
+Android APK and AAB passed artifact inspection, including 16 KB alignment.
+The APK updated and cold-started the isolated `io.busystack.busymax.caldavqa`
+package on API 35 and API 37 with the retained QA signer. Both installed
+copies matched SHA-256
+`76da03a5a85e1d60e5f34c0e25999e509678e59177905b41e9d5158314e9547d`.
+These checks leave strict Snap, MSIX and production-signed Android
+qualification open. The Windows QA VM still enters Automatic Repair
+after its EFI boot-file error, and the authorized Windows SSH host and
+Store profile are unconfigured. The strict Snap builder lacks the owner
+desktop OAuth registration. The Android production preflight lacks the
+owner provider registrations and signing configuration.
+
+The run used the previously verified BusyStack schema 17 image from
+`75685be70c48a776322f957a17d937b5352a279b` and official Nextcloud
+35.0.3.2. The current caldav-server release branch is a later revision.
+The manifest records the tested image, JAR digest, corpus and both branch
+identities. See `build/qualification/vjournal-diagnostics-retry/evidence`
+for the manifest, coverage matrix and sanitized run logs.
+
 ## Diagnostics discard follow-up
 
 Diagnostics can discard a quarantined journal create or update once its
@@ -14,7 +86,7 @@ outcome is known. For an unsent create, discard removes its local
 projections. For an update, discard restores the server-confirmed
 projection. A previously attempted create requires a read confirming the
 original href is absent. A previously attempted update requires matching
-raw bytes and a strong ETag. A dependent operation with an uncertain
+content and a strong ETag. A dependent operation with an uncertain
 outcome blocks discard of the chain. The quarantine retains its separate
 reviewed repair workflow.
 
@@ -50,7 +122,7 @@ in the JSON recovery bundle. The queue validates persisted journal creates,
 updates and move candidates before dispatch. A create that may have reached
 the server becomes repairable only after the original href is confirmed
 absent. For an attempted update, the current representation must still match
-the original bytes and strong ETag. **Check server before repair** performs
+the original content and strong ETag. **Check server before repair** performs
 that read-only reconciliation. An existing create target or changed update
 baseline keeps the operation locked and exportable for review.
 

@@ -348,6 +348,25 @@ xvfb-run -a env -u GNOME_KEYRING_CONTROL -u SSH_AUTH_SOCK dbus-run-session -- sh
 The named HTTPS journal tests separately verify replay of the reviewed
 creation and per-component revision readback against both providers.
 
+The historical queue recovery cases also invoke the production Diagnostics
+retry provider with Tasks and Calendars disabled. They require zero requests
+when the journal collection is deselected, read-only reconciliation after
+reselection, and a successful conditional PUT and independent readback after
+reviewed repair. Run them with `BUSYMAX_JOURNAL_LIVE_FIXTURE` pointing to the
+private combined profile.
+
+```sh
+flutter test --no-pub test/journal/journal_live_test.dart --reporter expanded \
+  --plain-name 'journal range and historical queue recovery with independent HTTPS readback'
+```
+
+The shared native editor case includes a peer-seeded DATE series. It follows
+a same-collection journal link, edits a single occurrence, then promotes the
+same occurrence to this-and-future. Independent GETs check the original
+recurrence identity and that exactly one exception remains. The native editor
+checks the preceding and following occurrence titles. The resulting marker
+covers this DATE and journal-link scenario.
+
 Set `BUSYMAX_LINUX_JOURNAL_CONFLICTS=1` when running
 `integration_test/journal_linux_workflows_test.dart` against a disposable
 provider fixture to exercise all three journal conflict choices. The test
@@ -356,8 +375,18 @@ stored versions, and independently reads the result and duplicate. It does
 not cover lost-response reconciliation or permission transitions.
 
 To repeat only Android native stages after an emulator failure, add
-`--native-platform android` to the matrix command. The unselected cells
+`--native-platform android` to the matrix command. Add
+`--native-provider caldav` or `--native-provider nextcloud` to select a
+provider when diagnosing an interrupted native run. The unselected cells
 remain unexecuted and keep the overall gate incomplete.
+
+Use `--android-process-restart` with the configured QA device to add the
+offline create, edit and delete scenario. The runner uses a new app-private
+profile per run, checks the application ID and signer before installing each
+stage, and force-stops only the QA package between the two processes. The
+replay stage must reopen that profile and its native secure-storage credential,
+observe a different PID, and independently verify all three operations over
+HTTPS. The stage leaves the application's other profiles intact.
 
 Use `vjournal-nextcloud.py start /tmp --memory-backed` for an isolated
 admission or replay check on a host with slow disk I/O. The fixture records
