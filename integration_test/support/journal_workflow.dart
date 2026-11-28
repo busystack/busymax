@@ -608,15 +608,25 @@ void runJournalWorkflow({
             ),
           ))!;
           expect(changed.statusCode, anyOf(200, 204));
-          setOnline(true);
           accountClient.preconditionFailures.clear();
+          setOnline(true);
           await refresh(confirmPartial: number == 2);
+          final attempted = (
+            uri: Uri.parse(object.requestUri),
+            etag: before.headers['etag']!,
+          );
+          final deadline = Stopwatch()..start();
+          while (!accountClient.preconditionFailures.contains(attempted) &&
+              deadline.elapsed < const Duration(seconds: 40)) {
+            await tester.pump(const Duration(milliseconds: 100));
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 100)),
+            );
+          }
           expect(
             accountClient.preconditionFailures,
-            contains((
-              uri: Uri.parse(object.requestUri),
-              etag: before.headers['etag']!,
-            )),
+            contains(attempted),
+            reason: 'DAV ${accountClient.trace}',
           );
           final conflict = (await tester.runAsync(
             () async =>
@@ -1257,6 +1267,7 @@ Finder journalScheduleSearchInput() {
 }
 
 Future<void> openJournalSearch(WidgetTester tester) async {
+  await _dismissSourcesSheet(tester);
   final input = journalScheduleSearchInput();
   if (Platform.isWindows) {
     await waitJournalWidget(tester, input);
@@ -1305,6 +1316,7 @@ Future<void> enterJournalEditor(WidgetTester tester) async {
 
 Future<void> _createScheduleJournal(WidgetTester tester) async {
   await _closeScheduleSearch(tester);
+  await _dismissSourcesSheet(tester);
   if (Platform.isLinux) {
     final trigger = find.byKey(const ValueKey('schedule-create-button'));
     await waitJournalWidget(tester, trigger);
@@ -1438,6 +1450,7 @@ Future<void> _refresh(
   bool confirmPartial = false,
   String Function()? failureContext,
 }) async {
+  await _dismissSourcesSheet(tester);
   if (Platform.isLinux) {
     final menu = tester.widget<BusyMaxMainMenuButton>(
       find.byType(BusyMaxMainMenuButton),
@@ -1478,6 +1491,14 @@ Future<void> _refresh(
     );
   }
   expect(activity.busy(allSyncScope), isFalse, reason: failureContext?.call());
+}
+
+Future<void> _dismissSourcesSheet(WidgetTester tester) async {
+  if (!Platform.isAndroid) return;
+  final sheet = find.byType(BottomSheet);
+  if (sheet.evaluate().isEmpty) return;
+  await tester.binding.handlePopRoute();
+  await waitJournalWidget(tester, sheet, absent: true);
 }
 
 Future<void> waitJournalWidget(
