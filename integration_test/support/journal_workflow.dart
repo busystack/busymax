@@ -734,8 +734,15 @@ void runJournalWorkflow({
         await _editorAction(tester, find.text('Repeat'));
         await scrollToOccurrence(find.text('$dayOne · $seriesTitle'));
         await scrollToOccurrence(find.text('${prefix}03 · $futureTitle'));
-        await _editorAction(tester, button('Close', false).last);
-        await tester.enterText(input('Search'), '');
+        await _scrollEditorTo(tester, button('Save', true));
+        await _tapVisible(
+          tester,
+          find.descendant(
+            of: find.widgetWithText(Wrap, 'Save'),
+            matching: button('Close', false),
+          ),
+        );
+        await searchFor('Local edit');
         debugPrint(
           'JOURNAL_WORKFLOW_CASE $provider recurrence-and-journal-link-readback PASS',
         );
