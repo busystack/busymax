@@ -34,7 +34,7 @@ void main() {
       transferFiles:
           stage == null &&
               Platform.environment['BUSYMAX_LINUX_JOURNAL_FILES'] == '1'
-          ? (tester, title, importedTitle, importedUid) async {
+          ? (tester, title, importedTitle, importedUid, account, source) async {
               final directory = (await tester.runAsync(
                 () => Directory.systemTemp.createTemp('busymax-journal-gtk-'),
               ))!;
@@ -45,23 +45,20 @@ void main() {
                 title: title,
                 importedTitle: importedTitle,
                 importedUid: importedUid,
+                account: account,
+                source: source,
               );
               return base64Encode(linuxJournalAttachment);
             }
           : null,
       app: () => const LinuxBusyMaxApp(),
-      openJournals: (_, container) async =>
-          container.read(appRouterProvider).go('/journals'),
-      input: journalMaterialInput,
+      openSchedule: (_, container) async =>
+          container.read(appRouterProvider).go('/schedule'),
+      input: (label) => label == 'Search'
+          ? journalScheduleSearchInput()
+          : journalMaterialInput(label),
       button: (label, primary) =>
           find.widgetWithText(primary ? ElevatedButton : FilledButton, label),
-      enabledRefresh: () => find.byWidgetPredicate(
-        (widget) =>
-            widget is FilledButton &&
-            widget.onPressed != null &&
-            widget.child is Text &&
-            (widget.child as Text).data == 'Refresh',
-      ),
     );
   }
 }

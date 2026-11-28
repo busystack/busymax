@@ -472,24 +472,39 @@ void main() {
         isFalse,
       );
     });
-    test('type includes All, Events only and Tasks only', () {
+    test('type includes All or exactly the selected item type', () {
+      const journal = JournalScheduleItem(
+        id: 'journal-entry',
+        accountId: 'account',
+        provider: BusyProvider.caldav,
+        sourceId: 'journal',
+        title: 'Project log',
+        start: null,
+        allDay: false,
+        searchText: 'Sprint conclusions',
+      );
       for (final type in ScheduleSearchType.values) {
         final criteria = ScheduleSearchCriteria(
           type: type,
           referenceDate: today,
           firstWeekday: DateTime.sunday,
           sourceIds: {'calendar'},
+          journalSourceIds: {'journal'},
           taskListKeys: {
             const ScheduleTaskListKey(accountId: 'account', taskListId: 'list'),
           },
         );
         expect(
           matches(event, criteria.filters('')),
-          type != ScheduleSearchType.tasks,
+          type == ScheduleSearchType.all || type == ScheduleSearchType.events,
         );
         expect(
           matches(task(), criteria.filters('')),
-          type != ScheduleSearchType.events,
+          type == ScheduleSearchType.all || type == ScheduleSearchType.tasks,
+        );
+        expect(
+          matches(journal, criteria.filters('conclusions')),
+          type == ScheduleSearchType.all || type == ScheduleSearchType.journals,
         );
       }
     });

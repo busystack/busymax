@@ -49,7 +49,7 @@ class ScheduleNoSourcesState extends StatelessWidget {
   Widget build(BuildContext context) {
     return BusyMaxEmptyState(
       icon: YaruIcons.calendar,
-      title: context.l10n.scheduleNoSources,
+      title: context.l10n.scheduleNoVisibleSources,
       message: context.l10n.scheduleNoSourcesDescription,
       actions: [
         BusyMaxPushButton.suggested(
@@ -96,40 +96,13 @@ class ScheduleUnavailableState extends StatelessWidget {
 }
 
 class ScheduleEmptyState extends StatelessWidget {
-  const ScheduleEmptyState({
-    super.key,
-    required this.onNewEvent,
-    required this.onNewTask,
-  });
-
-  final VoidCallback? onNewEvent;
-  final VoidCallback? onNewTask;
+  const ScheduleEmptyState({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return BusyMaxEmptyState(
-      icon: YaruIcons.calendar_day,
-      title: context.l10n.noEventsOrTasks,
-      actions: [
-        if (onNewEvent != null)
-          BusyMaxPushButton.standard(
-            onPressed: onNewEvent,
-            child: _ScheduleEmptyStateActionLabel(
-              icon: YaruIcons.calendar_new,
-              label: context.l10n.newEvent,
-            ),
-          ),
-        if (onNewTask != null)
-          BusyMaxPushButton.standard(
-            onPressed: onNewTask,
-            child: _ScheduleEmptyStateActionLabel(
-              icon: YaruIcons.task_list,
-              label: context.l10n.newTask,
-            ),
-          ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => BusyMaxEmptyState(
+    icon: YaruIcons.calendar_day,
+    title: context.l10n.noScheduleItems,
+  );
 }
 
 class ScheduleSearchEmptyState extends StatelessWidget {
@@ -139,7 +112,7 @@ class ScheduleSearchEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return BusyMaxEmptyState(
       icon: YaruIcons.search,
-      title: context.l10n.scheduleNoSearchResults,
+      title: context.l10n.scheduleNoMatchingItems,
       message: context.l10n.scheduleNoSearchResultsDescription,
     );
   }

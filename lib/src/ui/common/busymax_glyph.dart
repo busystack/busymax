@@ -1,6 +1,7 @@
 enum BusyMaxGlyph {
   calendar,
   task,
+  journal,
   add,
   edit,
   delete,

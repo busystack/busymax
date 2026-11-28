@@ -1170,11 +1170,7 @@ abstract final class BusyMaxPushButton {
   }
 }
 
-/// A contained circular action for compact popover toolbars.
-///
-/// Yaru owns focus, hover, press feedback, and desktop control geometry. The
-/// outer semantic surface only adds the persistent containment used by Ubuntu
-/// detail-popover actions.
+/// Compact toolbar action with the same geometry and focus as header controls.
 class BusyMaxPopoverIconButton extends StatelessWidget {
   const BusyMaxPopoverIconButton({
     super.key,
@@ -1190,38 +1186,14 @@ class BusyMaxPopoverIconButton extends StatelessWidget {
   final bool destructive;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = BusyMaxSurfaceColors.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    final foreground = destructive ? colorScheme.onError : null;
-    final background = destructive ? colorScheme.error : colors.control;
-    final enabled = onPressed != null;
-    return Material(
-      color: enabled ? background : colors.disabledControl,
-      shape: const CircleBorder(),
-      child: YaruIconButton(
-        icon: Icon(
-          icon,
-          size: BusyMaxSizes.popoverActionIcon,
-          color: enabled ? foreground : colors.disabledForeground,
-        ),
-        iconSize: BusyMaxSizes.popoverActionButton,
-        style: const ButtonStyle(
-          minimumSize: WidgetStatePropertyAll(
-            Size.square(BusyMaxSizes.popoverActionButton),
-          ),
-          maximumSize: WidgetStatePropertyAll(
-            Size.square(BusyMaxSizes.popoverActionButton),
-          ),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          side: WidgetStatePropertyAll(BorderSide.none),
-          shape: WidgetStatePropertyAll(CircleBorder()),
-        ),
-        tooltip: tooltip,
-        onPressed: onPressed,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => BusyMaxHeaderIconButton(
+    icon: Icon(icon),
+    tooltip: tooltip,
+    onPressed: onPressed,
+    iconSize: BusyMaxSizes.popoverActionIcon,
+    fixedSize: const Size.square(BusyMaxSizes.popoverActionButton),
+    foregroundColor: destructive ? Theme.of(context).colorScheme.error : null,
+  );
 }
 
 Color busyMaxSelectedBackground(BuildContext context) {

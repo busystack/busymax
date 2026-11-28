@@ -67,7 +67,7 @@ END:VJOURNAL
       subscriptionUrl: uri.toString(),
       localName: 'Published notes',
     );
-    final entry = (await watchJournalSubscriptions(database).first).single;
+    final entry = (await listJournalSubscriptions(database)).single;
     expect(entry.source.summary, 'Published notes');
     expect(entry.source.readOnly, isTrue);
     expect(entry.journal.start, isNull);
@@ -81,7 +81,7 @@ END:VJOURNAL
     await (database.update(database.calendarSources)
           ..where((row) => row.id.equals(entry.source.id)))
         .write(const CalendarSourcesCompanion(selected: Value(false)));
-    expect(await watchJournalSubscriptions(database).first, isEmpty);
+    expect(await listJournalSubscriptions(database), isEmpty);
   });
 
   test(

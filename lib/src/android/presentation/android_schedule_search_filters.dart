@@ -1,3 +1,5 @@
+import '../../db/app_database.dart' show DavCollection;
+
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:intl/intl.dart';
 
@@ -21,6 +23,7 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
     required this.accounts,
     required this.sources,
     required this.taskLists,
+    this.journalSources = const [],
   });
   final ScheduleSearchCriteria value;
   final ValueChanged<ScheduleSearchCriteria> onChanged;
@@ -28,6 +31,7 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
   final List<AccountEntity> accounts;
   final List<CalendarSourceEntity> sources;
   final List<TaskListEntity> taskLists;
+  final List<DavCollection> journalSources;
 
   @override
   Widget build(BuildContext context) {
@@ -88,11 +92,12 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
             value.person,
             (v) => onChanged(value.copyWith(person: v)),
           ),
-        _text(
-          l.location,
-          value.location,
-          (v) => onChanged(value.copyWith(location: v)),
-        ),
+        if (value.includesEvents || value.includesTasks)
+          _text(
+            l.location,
+            value.location,
+            (v) => onChanged(value.copyWith(location: v)),
+          ),
         Text(l.searchSources, style: Theme.of(context).textTheme.titleSmall),
         for (final account in accounts.where(
           (account) =>
@@ -105,7 +110,12 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
                   taskLists.any(
                     (list) =>
                         list.accountId == account.id && !list.pendingDelete,
-                  ),
+                  ) ||
+              value.includesJournals &&
+                  (journalSources.any(
+                        (source) => source.accountId == account.id,
+                      ) ||
+                      account.isSubscription),
         )) ...[
           Padding(
             padding: const EdgeInsetsDirectional.only(top: 12, bottom: 4),
@@ -162,6 +172,36 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
                   }
                   onChanged(value.copyWith(taskListKeys: keys));
                 },
+              ),
+          if (value.includesJournals)
+            for (final (id, label) in [
+              for (final source in journalSources.where(
+                (source) => source.accountId == account.id,
+              ))
+                (source.id, source.displayName),
+              for (final source in sources.where(
+                (source) =>
+                    source.accountId == account.id &&
+                    account.isSubscription &&
+                    !source.isDeleted,
+              ))
+                (source.id, source.summary),
+            ])
+              CheckboxListTile(
+                key: ValueKey(('android-search-journal', id)),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(label),
+                secondary: const Icon(Icons.book_outlined, size: 18),
+                value: value.journalSourceIds.contains(id),
+                onChanged: (selected) => onChanged(
+                  value.copyWith(
+                    journalSourceIds: {
+                      ...value.journalSourceIds.where((entry) => entry != id),
+                      if (selected == true) id,
+                    },
+                  ),
+                ),
               ),
         ],
         if (!value.hasSources)

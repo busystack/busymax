@@ -1244,11 +1244,23 @@ abstract class AppLocalizations {
   /// **'Choose what to show in Settings, then refresh.'**
   String get scheduleNoSourcesDescription;
 
+  /// No description provided for @scheduleNoVisibleSources.
+  ///
+  /// In en, this message translates to:
+  /// **'No visible calendars, task lists, or journals'**
+  String get scheduleNoVisibleSources;
+
   /// No description provided for @scheduleNoSearchResults.
   ///
   /// In en, this message translates to:
   /// **'No matching events or tasks'**
   String get scheduleNoSearchResults;
+
+  /// No description provided for @scheduleNoMatchingItems.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching events, tasks, or journal entries'**
+  String get scheduleNoMatchingItems;
 
   /// No description provided for @scheduleNoSearchResultsDescription.
   ///
@@ -6844,6 +6856,30 @@ abstract class AppLocalizations {
   /// **'Journals'**
   String get journals;
 
+  /// No description provided for @newJournalEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'New journal entry'**
+  String get newJournalEntry;
+
+  /// No description provided for @newJournalSource.
+  ///
+  /// In en, this message translates to:
+  /// **'New journal'**
+  String get newJournalSource;
+
+  /// No description provided for @editJournalEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit journal entry'**
+  String get editJournalEntry;
+
+  /// No description provided for @noScheduleItems.
+  ///
+  /// In en, this message translates to:
+  /// **'No events, tasks, or journal entries'**
+  String get noScheduleItems;
+
   /// No description provided for @newJournal.
   ///
   /// In en, this message translates to:
@@ -6913,7 +6949,7 @@ abstract class AppLocalizations {
   /// No description provided for @journalCollectionExportRecovery.
   ///
   /// In en, this message translates to:
-  /// **'Entries awaiting recovery were left out of the calendar export. Open an affected entry in Journals to review or export its pending request.'**
+  /// **'Entries awaiting recovery were left out of the calendar export. Find an affected journal entry in Search to review or export its pending request.'**
   String get journalCollectionExportRecovery;
 
   /// No description provided for @journalDraftSaved.

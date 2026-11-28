@@ -230,7 +230,12 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     List<ScheduleItem> items,
   ) {
     final dated = items.where((item) => item.start != null).toList();
-    final noDateTasks = ScheduleProjection.noDateTasks(items);
+    final noDateTasks = [
+      ...ScheduleProjection.noDateTasks(items),
+      ...items.whereType<JournalScheduleItem>().where(
+        (item) => item.start == null,
+      ),
+    ];
     final groups = ScheduleProjection.groupByDay(
       dated,
       visibleRange: widget.range,
@@ -808,13 +813,13 @@ class _AgendaRow extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-      leading: _AgendaItemMarker(item: item),
-      trailing: task == null
-          ? null
+      leading: task == null
+          ? _AgendaItemMarker(item: item)
           : ScheduleCheckbox(
               value: completed,
 
-              onChanged: onTaskCompletionChanged == null
+              onChanged:
+                  onTaskCompletionChanged == null || !task.capabilities.canEdit
                   ? null
                   : (value) => onTaskCompletionChanged!(value ?? false),
             ),
@@ -971,7 +976,7 @@ class _AgendaItemMarker extends StatelessWidget {
         ? Icons.account_tree_outlined
         : isTask
         ? SchedulePresentation.of(context).taskIcon
-        : SchedulePresentation.of(context).calendarIcon;
+        : SchedulePresentation.of(context).itemIcon(item);
     return Icon(icon, size: ScheduleSizes.iconSm, color: color);
   }
 }
@@ -1002,7 +1007,13 @@ class _AgendaItemTitle extends StatelessWidget {
         decoration: completed ? TextDecoration.lineThrough : null,
         color: completed ? colorScheme.onSurfaceVariant : colorScheme.onSurface,
       ),
-      child: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+      child: Text(
+        item is JournalScheduleItem && item.title.isEmpty
+            ? context.l10n.untitledJournal
+            : item.title,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }

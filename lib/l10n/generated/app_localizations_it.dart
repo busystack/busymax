@@ -695,8 +695,16 @@ class AppLocalizationsIt extends AppLocalizations {
       'Scegli cosa mostrare nelle Impostazioni, quindi aggiorna l’agenda.';
 
   @override
+  String get scheduleNoVisibleSources =>
+      'No visible calendars, task lists, or journals';
+
+  @override
   String get scheduleNoSearchResults =>
       'Nessun evento o attività corrispondente';
+
+  @override
+  String get scheduleNoMatchingItems =>
+      'No matching events, tasks, or journal entries';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4124,6 +4132,18 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get journals => 'Diari';
+
+  @override
+  String get newJournalEntry => 'New journal entry';
+
+  @override
+  String get newJournalSource => 'New journal';
+
+  @override
+  String get editJournalEntry => 'Edit journal entry';
+
+  @override
+  String get noScheduleItems => 'No events, tasks, or journal entries';
 
   @override
   String get newJournal => 'Nuova voce';

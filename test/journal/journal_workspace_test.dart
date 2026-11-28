@@ -10,52 +10,21 @@ import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/journal/journal_import_review.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
-import 'package:busymax/src/journal/presentation/journal_workspace.dart';
+import 'package:busymax/src/journal/presentation/journal_pane.dart';
 import 'package:busymax/src/journal/presentation/material_journal_controls.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import '../support/local_journal_fixture.dart';
+
 Finder field(String name) => find.byWidgetPredicate(
   (widget) => widget is TextField && widget.decoration?.labelText == name,
 );
-
-Future<void> setupSource(AppDatabase db) async {
-  await db
-      .into(db.accounts)
-      .insert(
-        AccountsCompanion.insert(
-          id: 'qa',
-          provider: 'caldav',
-          authority: 'https://example.invalid/',
-          providerAccountId: 'qa',
-          credentialKind: 'caldav_password',
-          authState: const Value('signed_in'),
-          createdAtUtc: 'now',
-          updatedAtUtc: 'now',
-        ),
-      );
-  await db
-      .into(db.davCollections)
-      .insert(
-        DavCollectionsCompanion.insert(
-          id: 'source',
-          accountId: 'qa',
-          hrefKey: '/dav/journals/',
-          requestUri: 'https://example.invalid/dav/journals/',
-          displayName: 'Fixture journal',
-          journalProjectionEnabled: const Value(true),
-          journalInventoryComplete: const Value(true),
-          currentUserPrivilegesJson: const Value('["{DAV:}all"]'),
-          supportedComponentMask: const Value(8),
-          createdAtUtc: 'now',
-          updatedAtUtc: 'now',
-        ),
-      );
-}
 
 void main() {
   testWidgets(
@@ -113,7 +82,7 @@ void main() {
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
-              body: JournalWorkspace(
+              body: _JournalEditorFixture(
                 controls: const MaterialJournalControls(),
                 files: JournalFileActions(
                   read: () async => null,
@@ -174,7 +143,7 @@ void main() {
     (tester) async {
       final db = AppDatabase.memoryForTests();
       addTearDown(db.close);
-      await tester.runAsync(() => setupSource(db));
+      await tester.runAsync(() => seedLocalJournalCollection(db));
       await tester.binding.setSurfaceSize(const Size(320, 560));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
@@ -191,7 +160,7 @@ void main() {
               child: child!,
             ),
             home: const Scaffold(
-              body: JournalWorkspace(controls: MaterialJournalControls()),
+              body: _JournalEditorFixture(controls: MaterialJournalControls()),
             ),
           ),
         ),
@@ -202,7 +171,7 @@ void main() {
                 widget is OutlinedButton &&
                 widget.onPressed != null &&
                 widget.child is Text &&
-                (widget.child as Text).data == 'New journal collection',
+                (widget.child as Text).data == 'New journal',
           )
           .hitTestable();
       await _wait(tester, create);
@@ -211,9 +180,10 @@ void main() {
       final title = field('Title');
       await _wait(tester, title);
       await tester.ensureVisible(title);
+      await tester.showKeyboard(title);
       await tester.enterText(title, 'Narrow collection');
       await tester.pump();
-      final save = find.widgetWithText(OutlinedButton, 'Save');
+      final save = find.widgetWithText(FilledButton, 'Create');
       await tester.ensureVisible(save);
       await tester.pump();
       expect(save.hitTestable(), findsOneWidget);
@@ -231,7 +201,7 @@ void main() {
       final db = AppDatabase.memoryForTests();
       addTearDown(db.close);
       await tester.runAsync(() async {
-        await setupSource(db);
+        await seedLocalJournalCollection(db);
         await DavNativeImportService(db).import(
           accountId: 'qa',
           collectionId: 'source',
@@ -285,7 +255,7 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
-            body: JournalWorkspace(
+            body: _JournalEditorFixture(
               controls: const MaterialJournalControls(),
               files: JournalFileActions(
                 read: () async {
@@ -357,7 +327,7 @@ void main() {
       final file = File('${directory.path}/review.sqlite');
       var database = AppDatabase(NativeDatabase(file));
       addTearDown(() => database.close());
-      await setupSource(database);
+      await seedLocalJournalCollection(database);
       var reviews = JournalImportReviewRepository(JournalRepository(database));
       const raw =
           'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax//QA//EN\r\n'
@@ -411,7 +381,7 @@ void main() {
       addTearDown(database.close);
       final repository = JournalRepository(database);
       await tester.runAsync(() async {
-        await setupSource(database);
+        await seedLocalJournalCollection(database);
         await repository.create(
           (await repository.watchSources().first).single,
           title: 'Saved journal',
@@ -481,7 +451,7 @@ void main() {
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
-              body: JournalWorkspace(
+              body: _JournalEditorFixture(
                 controls: const MaterialJournalControls(),
                 files: JournalFileActions(
                   read: () async => null,
@@ -500,6 +470,8 @@ void main() {
       final saved = find.textContaining('Saved journal');
       await _wait(tester, saved);
       await tester.tap(saved);
+      await _wait(tester, find.text('Edit journal entry'));
+      await tester.tap(find.text('Edit journal entry'));
       await _wait(tester, find.text('Retained title'));
       expect(field('Title'), findsNothing);
       final export = find.text('Export JSON');
@@ -544,6 +516,8 @@ void main() {
         return id;
       });
       await tester.tap(saved);
+      await _wait(tester, find.text('Edit journal entry'));
+      await tester.tap(find.text('Edit journal entry'));
       await _wait(
         tester,
         find.text('The journal draft could not be saved on this device.'),
@@ -565,7 +539,7 @@ void main() {
       final db = AppDatabase.memoryForTests();
       addTearDown(db.close);
       await tester.runAsync(() async {
-        await setupSource(db);
+        await seedLocalJournalCollection(db);
         await db.customStatement(
           'CREATE TEMP TRIGGER journal_draft_fail BEFORE INSERT ON dav_journal_drafts '
           "BEGIN SELECT RAISE(ABORT, 'fixture draft write failure'); END",
@@ -579,7 +553,7 @@ void main() {
             path: '/journals',
             onExit: (_, _) => coordinator.requestClose(),
             builder: (_, _) => Scaffold(
-              body: JournalWorkspace(
+              body: _JournalEditorFixture(
                 controls: const MaterialJournalControls(),
                 navigationCoordinator: coordinator,
               ),
@@ -606,7 +580,7 @@ void main() {
             widget is FilledButton &&
             widget.onPressed != null &&
             widget.child is Text &&
-            (widget.child as Text).data == 'New entry',
+            (widget.child as Text).data == 'New journal entry',
       );
       await _wait(tester, newEntry);
       await tester.tap(newEntry);
@@ -665,4 +639,84 @@ Future<void> _wait(WidgetTester tester, Finder finder) async {
     await _settle(tester);
   }
   expect(finder, findsWidgets);
+}
+
+class _JournalEditorFixture extends ConsumerStatefulWidget {
+  const _JournalEditorFixture({
+    required this.controls,
+    this.files,
+    this.navigationCoordinator,
+  });
+
+  final JournalControls controls;
+  final JournalFileActions? files;
+  final BusyMaxWindowCloseCoordinator? navigationCoordinator;
+
+  @override
+  ConsumerState<_JournalEditorFixture> createState() =>
+      _JournalEditorFixtureState();
+}
+
+class _JournalEditorFixtureState extends ConsumerState<_JournalEditorFixture> {
+  JournalPaneAction? _action;
+  JournalScheduleItem? _item;
+  late final _entries = JournalRepository(ref.read(databaseProvider))
+      .watchEntries();
+
+  @override
+  Widget build(BuildContext context) {
+    final action = _action;
+    if (action != null) {
+      return JournalPane(
+        action: action,
+        item: _item,
+        accountId: 'qa',
+        sourceId: 'source',
+        files: widget.files,
+        controls: widget.controls,
+        navigationCoordinator: widget.navigationCoordinator,
+        onClose: () => setState(() => _action = null),
+      );
+    }
+    return StreamBuilder(
+      stream: _entries,
+      builder: (context, snapshot) => ListView(
+        children: [
+          FilledButton(
+            onPressed: () => setState(() => _action = JournalPaneAction.create),
+            child: const Text('New journal entry'),
+          ),
+          OutlinedButton(
+            onPressed: () =>
+                setState(() => _action = JournalPaneAction.createCollection),
+            child: const Text('New journal'),
+          ),
+          if (widget.files != null)
+            OutlinedButton(
+              onPressed: () =>
+                  setState(() => _action = JournalPaneAction.import),
+              child: const Text('Import .ics file'),
+            ),
+          for (final entry in snapshot.data ?? const <DavJournalEntry>[])
+            ListTile(
+              title: Text('${entry.title} ·'),
+              onTap: () => setState(() {
+                _item = JournalScheduleItem(
+                  id: entry.componentId,
+                  accountId: entry.accountId,
+                  provider: BusyProvider.caldav,
+                  sourceId: entry.collectionId,
+                  title: entry.title ?? '',
+                  start: null,
+                  allDay: false,
+                  searchText: entry.searchText,
+                  entry: entry,
+                );
+                _action = JournalPaneAction.open;
+              }),
+            ),
+        ],
+      ),
+    );
+  }
 }

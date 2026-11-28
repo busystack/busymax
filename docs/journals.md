@@ -1,11 +1,15 @@
 # Journals
 
-Open **Journals** to browse diary entries independently of the calendar date
-range. Turn on journals for a DAV account in Settings and select the
-collections you want to see. A mixed collection shares its network refresh
-and sync token with its events and tasks. A journal collection can be created
-from the journal workspace. The provider controls membership and write
-permissions.
+Journals appear alongside calendars and task lists in Schedule. Turn on
+journals for a DAV account in Settings. Use the book icon next to each source
+to show or hide its entries. The account's Options menu offers **New journal**
+on supported servers. A mixed collection shares its refresh and sync token
+with its events and tasks. The provider controls membership and write permissions.
+
+Choose **New journal entry** from the Schedule **+** menu. Dated entries appear
+in the calendar views. Timed entries mark a single time and leave free/busy
+availability unchanged. Undated entries appear in Agenda under **No date**.
+Select a journal entry to read it, then use **Edit journal entry** to make changes.
 
 An entry can be undated, all-day, floating, UTC, or tied to a timezone. Add
 separate description blocks for text variants. Each block keeps its own
@@ -29,8 +33,10 @@ recurrence operation that exceeds the expansion budget leaves the original
 data available. A date-form conversion that leaves incompatible recurrence
 fields is rejected before it can change a queued resource.
 
-Search includes every description block and supports dated or undated
-filters. The search field stays populated when returning from an entry.
+Choose **Journals** in the Schedule search type filter, or leave it on **All**
+to search alongside events and tasks. Search includes every description block
+and supports source filters and dated or undated entries. The search field
+stays populated when returning from an entry.
 BusyMax stores unfinished editor changes locally. Reopen the entry to review
 its draft and use **Discard changes** to remove the draft intentionally.
 Pending entries can be exported as ICS before synchronizing. A failed write
@@ -38,11 +44,12 @@ keeps its local changes, and conflict resolution shows the source and local
 versions. Choosing **Refresh** checks the selected source and attempts to
 send its queued changes when the server permits it.
 
-Import previews both stored calendars and journal PUBLISH, ADD and CANCEL
-files. Confirm the destination before applying an import. BusyMax exports
-effective journal entries and collections with their recurrence data and
-timezone definitions. Read-only WebCal entries appear in the journal
-workspace when the subscription contains journals.
+Use a journal source's Options menu to import or export ICS. Import previews
+both stored journal entries and PUBLISH, ADD and CANCEL messages. Confirm
+the destination before applying an import. BusyMax exports effective journal
+entries and collections with their recurrence data and timezone definitions.
+Read-only WebCal entries appear in Schedule when the subscription contains
+journals.
 
 The qualification record describes the tested provider versions, known
 provider storage limits, and the scope of the native tests.

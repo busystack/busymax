@@ -19,14 +19,13 @@ import '../../../schedule/schedule_view_mode.dart';
 
 enum ScheduleToolbarMenuAction {
   refresh,
-  journals,
   settings,
   keyboardShortcuts,
   reportIssue,
   about,
 }
 
-enum _ScheduleCreateAction { event, task }
+enum _ScheduleCreateAction { event, task, journal }
 
 class ScheduleToolbar extends StatelessWidget {
   const ScheduleToolbar({
@@ -42,6 +41,7 @@ class ScheduleToolbar extends StatelessWidget {
     required this.canCreateTask,
     required this.onCreateEvent,
     required this.onCreateTask,
+    this.onCreateJournal,
     required this.onRefresh,
     this.canRefresh = true,
     this.showRefreshActivity = false,
@@ -77,6 +77,7 @@ class ScheduleToolbar extends StatelessWidget {
   final bool canCreateTask;
   final VoidCallback onCreateEvent;
   final VoidCallback onCreateTask;
+  final VoidCallback? onCreateJournal;
   final VoidCallback onRefresh;
   final bool canRefresh;
   final bool showRefreshActivity;
@@ -246,7 +247,10 @@ class ScheduleToolbar extends StatelessWidget {
                   tooltip: context.l10n.create,
                   icon: BusyMaxLinuxHeaderIcon.create,
                   controller: createMenuController,
-                  enabled: canCreateEvent || canCreateTask,
+                  enabled:
+                      canCreateEvent ||
+                      canCreateTask ||
+                      onCreateJournal != null,
                   entries: [
                     BusyMaxMenuEntry(
                       value: _ScheduleCreateAction.event,
@@ -264,6 +268,13 @@ class ScheduleToolbar extends StatelessWidget {
                       enabled: canCreateTask,
                       shortcut: BusyMaxShortcutLabels.newTask,
                     ),
+                    BusyMaxMenuEntry(
+                      value: _ScheduleCreateAction.journal,
+                      label: context.l10n.newJournalEntry,
+                      icon: YaruIcons.book,
+                      nativeIconName: 'accessories-text-editor-symbolic',
+                      enabled: onCreateJournal != null,
+                    ),
                   ],
                   onSelected: (value) {
                     switch (value) {
@@ -271,6 +282,8 @@ class ScheduleToolbar extends StatelessWidget {
                         onCreateEvent();
                       case _ScheduleCreateAction.task:
                         onCreateTask();
+                      case _ScheduleCreateAction.journal:
+                        onCreateJournal?.call();
                     }
                   },
                 ),
@@ -375,12 +388,6 @@ class BusyMaxMainMenuButton extends StatelessWidget {
             nativeIconName: 'view-refresh-symbolic',
             enabled: canRefresh,
           ),
-        BusyMaxMenuEntry(
-          value: ScheduleToolbarMenuAction.journals,
-          label: context.l10n.journals,
-          icon: Icons.book_outlined,
-          nativeIconName: 'accessories-text-editor-symbolic',
-        ),
         BusyMaxMenuEntry(
           value: ScheduleToolbarMenuAction.settings,
           label: context.l10n.settings,

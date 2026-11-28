@@ -13,12 +13,14 @@ bool scheduleItemSupportsLocationOpening(ScheduleItem item) =>
 String scheduleItemLocationText(ScheduleItem item) => switch (item) {
   CalendarScheduleItem(:final location) => location ?? '',
   TaskScheduleItem(:final location) => location ?? '',
+  JournalScheduleItem() => '',
 };
 
 GeographicPoint? scheduleItemNativeLocationPoint(ScheduleItem item) =>
     switch (item) {
       CalendarScheduleItem(:final locationPoint) => locationPoint,
       TaskScheduleItem(:final locationPoint) => locationPoint,
+      JournalScheduleItem() => null,
     };
 
 LocationItemIdentity scheduleItemLocationIdentity(ScheduleItem item) =>

@@ -690,7 +690,15 @@ class AppLocalizationsHi extends AppLocalizations {
       'सेटिंग्स में चुनें कि क्या दिखाना है, फिर रीफ़्रेश करें।';
 
   @override
+  String get scheduleNoVisibleSources =>
+      'No visible calendars, task lists, or journals';
+
+  @override
   String get scheduleNoSearchResults => 'कोई मिलता-जुलता इवेंट या कार्य नहीं';
+
+  @override
+  String get scheduleNoMatchingItems =>
+      'No matching events, tasks, or journal entries';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4086,6 +4094,18 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get journals => 'दैनिकी';
+
+  @override
+  String get newJournalEntry => 'New journal entry';
+
+  @override
+  String get newJournalSource => 'New journal';
+
+  @override
+  String get editJournalEntry => 'Edit journal entry';
+
+  @override
+  String get noScheduleItems => 'No events, tasks, or journal entries';
 
   @override
   String get newJournal => 'नई प्रविष्टि';

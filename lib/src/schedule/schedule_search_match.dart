@@ -2,6 +2,7 @@ import '../providers/busy_provider.dart';
 import '../calendar_providers/calendar_description.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
+import 'schedule_projection.dart';
 import 'schedule_range.dart';
 
 List<String> _terms(String query) => query
@@ -67,6 +68,7 @@ bool _matchesPerson(List<String> identity, List<String> terms) {
 String? scheduleItemLocation(ScheduleItem item) => switch (item) {
   CalendarScheduleItem() => item.location,
   TaskScheduleItem() => item.location,
+  JournalScheduleItem() => null,
 };
 
 String _plainDescription(ScheduleItem item) => switch (item) {
@@ -80,6 +82,7 @@ String _plainDescription(ScheduleItem item) => switch (item) {
     item.description ??
         htmlCalendarDescriptionToPlainText(item.descriptionHtml ?? ''),
   TaskScheduleItem() => item.notes ?? '',
+  JournalScheduleItem() => item.searchText,
 };
 
 Iterable<String> _contextFields(ScheduleItem item) sync* {
@@ -126,6 +129,13 @@ bool matchesScheduleFilters(
 }) {
   if (filters.accountIds.isNotEmpty &&
       !filters.accountIds.contains(item.accountId)) {
+    return false;
+  }
+  final date = item is TaskScheduleItem && filters.useTaskDueDate
+      ? item.due
+      : item.start;
+  if (filters.datePresence == ScheduleDatePresence.dated && date == null ||
+      filters.datePresence == ScheduleDatePresence.undated && date != null) {
     return false;
   }
   if (item is CalendarScheduleItem) {
@@ -186,6 +196,19 @@ bool matchesScheduleFilters(
       case ScheduleTaskDueState.noDueDate:
         if (item.due != null) return false;
     }
+  }
+  if (item is JournalScheduleItem &&
+      (!filters.includeJournals ||
+          (filters.journalSourceFilterActive &&
+              !filters.journalSourceIds.contains(item.sourceId)) ||
+          (!filters.ignoreDateRange &&
+              item.start != null &&
+              !ScheduleProjection.intersects(item, range)) ||
+          (!filters.ignoreDateRange &&
+              filters.useTaskDueDate &&
+              item.start == null) ||
+          filters.person.trim().isNotEmpty)) {
+    return false;
   }
   final location = (scheduleItemLocation(item) ?? '').toLowerCase();
   return location.contains(filters.location.trim().toLowerCase()) &&

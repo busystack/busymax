@@ -169,27 +169,32 @@ final class JournalRepository {
               .get())
           .isNotEmpty;
 
-  Stream<List<DavCollection>> watchSources() {
+  Stream<List<DavCollection>> watchSources() =>
+      _sourcesQuery().watch().map(_readSources);
+
+  Future<List<DavCollection>> listSources() =>
+      _sourcesQuery().get().then(_readSources);
+
+  List<DavCollection> _readSources(List<TypedResult> rows) => [
+    for (final row in rows) row.readTable(database.davCollections),
+  ];
+
+  Selectable<TypedResult> _sourcesQuery() {
     final accounts = database.accounts;
     final sources = database.davCollections;
-    final query =
-        database.select(sources).join([
-            innerJoin(accounts, accounts.id.equalsExp(sources.accountId)),
-          ])
-          ..where(
-            accounts.journalsEnabled &
-                sources.journalProjectionEnabled &
-                sources.deleted.not() &
-                sources.serverMissing.not(),
-          )
-          ..orderBy([
-            OrderingTerm.asc(sources.displayName),
-            OrderingTerm.asc(sources.id),
-          ]);
-    return query.watch().map(
-      (rows) =>
-          rows.map((row) => row.readTable(sources)).toList(growable: false),
-    );
+    return database.select(sources).join([
+        innerJoin(accounts, accounts.id.equalsExp(sources.accountId)),
+      ])
+      ..where(
+        accounts.journalsEnabled &
+            sources.journalProjectionEnabled &
+            sources.deleted.not() &
+            sources.serverMissing.not(),
+      )
+      ..orderBy([
+        OrderingTerm.asc(sources.displayName),
+        OrderingTerm.asc(sources.id),
+      ]);
   }
 
   Stream<List<DavJournalEntry>> watchEntries({
@@ -197,6 +202,27 @@ final class JournalRepository {
     String search = '',
     JournalDateFilter dateFilter = JournalDateFilter.all,
     int limit = 100,
+    int offset = 0,
+  }) => _entriesQuery(
+    collectionIds: collectionId == null ? null : {collectionId},
+    search: search,
+    dateFilter: dateFilter,
+    limit: limit,
+    offset: offset,
+  ).watch().map(_projectedEntries);
+
+  Future<List<DavJournalEntry>> listEntries({Set<String>? collectionIds}) =>
+      _entriesQuery(collectionIds: collectionIds).get().then(_projectedEntries);
+
+  List<DavJournalEntry> _projectedEntries(List<TypedResult> rows) => rows
+      .map((row) => row.readTable(database.davJournalEntries))
+      .toList(growable: false);
+
+  Selectable<TypedResult> _entriesQuery({
+    Set<String>? collectionIds,
+    String search = '',
+    JournalDateFilter dateFilter = JournalDateFilter.all,
+    int? limit,
     int offset = 0,
   }) {
     final entries = database.davJournalEntries;
@@ -228,9 +254,9 @@ final class JournalRepository {
                 collections.deleted.not() &
                 collections.serverMissing.not() &
                 notExistsQuery(pendingDeletes) &
-                (collectionId == null
+                (collectionIds == null
                     ? const Constant(true)
-                    : entries.collectionId.equals(collectionId)) &
+                    : entries.collectionId.isIn(collectionIds)) &
                 (term.isEmpty
                     ? const Constant(true)
                     : entries.searchText.contains(term)) &
@@ -243,12 +269,9 @@ final class JournalRepository {
           ..orderBy([
             OrderingTerm.desc(entries.startValue),
             OrderingTerm.asc(entries.componentId),
-          ])
-          ..limit(limit, offset: offset);
-    return query.watch().map(
-      (rows) =>
-          rows.map((row) => row.readTable(entries)).toList(growable: false),
-    );
+          ]);
+    if (limit != null) query.limit(limit, offset: offset);
+    return query;
   }
 
   Stream<PendingOp?> watchPending(String objectId) =>

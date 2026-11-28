@@ -8,6 +8,11 @@ import '../../../platform/gtk_animation_settings_service.dart';
 import '../../../l10n/oauth_error_description.dart';
 
 import 'dart:async';
+
+import '../../../db/app_database.dart' show DavCollection;
+import '../../../journal/presentation/journal_pane.dart';
+import '../../../journal/presentation/linux_journal_dialog.dart';
+
 import 'dart:math' as math;
 
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
@@ -25,6 +30,7 @@ import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../dav/dav_errors.dart';
+import '../../../dav/storage/dav_collection_capabilities.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
@@ -307,6 +313,122 @@ class _SourceRow extends ConsumerWidget {
   }
 }
 
+class _JournalScheduleSourceRow extends ConsumerWidget {
+  const _JournalScheduleSourceRow({
+    super.key,
+    required this.source,
+    required this.siblingIds,
+  });
+
+  final DavCollection source;
+  final List<String> siblingIds;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final settings = ref.watch(appSettingsControllerProvider);
+    final accountVisible = settings.isAccountVisibleInSchedule(
+      source.accountId,
+    );
+    final visible = accountVisible && source.journalsSelected;
+    final caps = collectionCapabilitiesFromStored(source);
+    final collection = ref
+        .watch(davCollectionsStreamProvider)
+        .valueOrNull
+        ?.where((item) => item.id == source.id)
+        .firstOrNull;
+    final brightness = Theme.of(context).brightness;
+    final color = _colorFromHex(source.color);
+    final accent =
+        color ??
+        ScheduleProjection.deterministicSourceColor(source.id, brightness);
+    final scope = davCollectionSyncScope(source.accountId, source.id);
+    return _CompactSourceRow(
+      title: source.displayName,
+      leading: ScheduleSidebarVisibilityIcon(
+        key: ValueKey(('journal-visibility', source.id)),
+        scope: scope,
+        label: source.displayName,
+        actionLabel: visible ? l10n.hide : l10n.show,
+        visible: visible,
+        color: accent,
+        animate: ref.watch(gtkAnimationsEnabledProvider).valueOrNull != false,
+        buttonBuilder: _sidebarVisibilityButton,
+        warningIcon: YaruIcons.warning,
+        icon: Icon(YaruIcons.book, size: 16, color: accent),
+        onPressed: accountVisible
+            ? () => unawaited(
+                ref
+                    .read(davSettingsRepositoryProvider)
+                    .setJournalsSelected(source.id, !visible),
+              )
+            : null,
+      ),
+      trailing: BusyMaxMenuButton<String>(
+        key: ValueKey(('journal-options', source.id)),
+        tooltip: l10n.options,
+        highlightWhenOpen: false,
+        triggerBuilder: _sidebarOptionsTrigger,
+        entries: [
+          BusyMaxMenuEntry(
+            value: 'refresh',
+            label: l10n.refresh,
+            icon: YaruIcons.refresh,
+          ),
+          BusyMaxMenuEntry(
+            value: 'edit',
+            label: l10n.rename,
+            icon: YaruIcons.pen,
+            enabled: caps.canMutateCollection,
+          ),
+          BusyMaxMenuEntry(
+            value: 'import',
+            label: l10n.importIcsFile,
+            icon: YaruIcons.document_open,
+            enabled:
+                caps.canAttemptCreateJournal || caps.canAttemptUpdateJournal,
+          ),
+          BusyMaxMenuEntry(
+            value: 'export',
+            label: l10n.export,
+            icon: YaruIcons.share,
+          ),
+          BusyMaxMenuEntry(
+            value: 'remove',
+            label: l10n.journalDeleteCollection,
+            icon: YaruIcons.trash,
+            enabled: collection?.canRemoveCollection == true,
+          ),
+          ..._movementEntries(context, source.id, siblingIds),
+        ],
+        onSelected: (selected) {
+          if (selected == 'refresh') {
+            unawaited(refreshFromLinux(context, ref, scope));
+          } else if (selected == 'move-up' || selected == 'move-down') {
+            _moveSidebarItem(
+              ref,
+              SidebarOrderSection.journals,
+              source.id,
+              selected,
+              siblingIds,
+              accountId: source.accountId,
+            );
+          } else {
+            unawaited(
+              showLinuxJournalDialog(context, switch (selected) {
+                'edit' => JournalPaneAction.renameCollection,
+                'remove' => JournalPaneAction.removeCollection,
+                'import' => JournalPaneAction.import,
+                _ => JournalPaneAction.exportCollection,
+              }, sourceId: source.id),
+            );
+          }
+        },
+      ),
+    );
+  }
+}
+
 class _CompactSourceRow extends StatelessWidget {
   const _CompactSourceRow({
     required this.title,
@@ -442,6 +564,16 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
   @override
   Widget build(BuildContext context) {
     final account = widget.account;
+    final journals = ref
+        .watch(appSettingsControllerProvider)
+        .sidebarOrder
+        .apply(
+          SidebarOrderSection.journals,
+          (ref.watch(scheduleJournalSourcesProvider).valueOrNull ?? const [])
+              .where((source) => source.accountId == account.id),
+          (source) => source.id,
+          accountId: account.id,
+        );
     final networkAvailability =
         ref.watch(networkAvailabilityProvider).valueOrNull ??
         ref.read(networkConnectivityMonitorProvider).availability;
@@ -461,6 +593,11 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
         _AccountHeaderCollectionAction(
           action: AccountHeaderCollectionAction.newTaskList,
           enabled: capabilities.taskListActionEnabled,
+        ),
+      if (capabilities.supportsJournalCreation)
+        _AccountHeaderCollectionAction(
+          action: AccountHeaderCollectionAction.newJournal,
+          enabled: capabilities.journalActionEnabled,
         ),
       _AccountHeaderCollectionAction(
         action: AccountHeaderCollectionAction.refresh,
@@ -528,6 +665,12 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
             );
           },
         ),
+        for (final journal in journals)
+          _JournalScheduleSourceRow(
+            key: ValueKey(('schedule-journal', journal.id)),
+            source: journal,
+            siblingIds: journals.map((source) => source.id).toList(),
+          ),
       ],
     );
     return AnimatedBuilder(
@@ -633,6 +776,12 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
         } finally {
           if (mounted) setState(() => _creatingTaskList = false);
         }
+      case AccountHeaderCollectionAction.newJournal:
+        await showLinuxJournalDialog(
+          context,
+          JournalPaneAction.createCollection,
+          accountId: widget.account.id,
+        );
     }
   }
 }
@@ -801,6 +950,9 @@ class _AccountHeaderRow extends ConsumerWidget {
       taskLists:
           ref.watch(sidebarTaskListsProvider(account.id)).valueOrNull ??
           const <TaskListEntity>[],
+      journals:
+          (ref.watch(scheduleJournalSourcesProvider).valueOrNull ?? const [])
+              .where((source) => source.accountId == account.id),
     );
     final visible = visibility != ScheduleAccountVisibility.hidden;
     final accountSemanticsLabel = [
@@ -925,6 +1077,8 @@ class _AccountHeaderRow extends ConsumerWidget {
                       '${context.l10n.newCalendar}…',
                     AccountHeaderCollectionAction.newTaskList =>
                       '${context.l10n.newTaskList}…',
+                    AccountHeaderCollectionAction.newJournal =>
+                      context.l10n.newJournalSource,
                     AccountHeaderCollectionAction.moveUp => context.l10n.moveUp,
                     AccountHeaderCollectionAction.moveDown =>
                       context.l10n.moveDown,
@@ -941,6 +1095,7 @@ class _AccountHeaderRow extends ConsumerWidget {
                       YaruIcons.calendar_new,
                     AccountHeaderCollectionAction.newTaskList =>
                       YaruIcons.unordered_list_new,
+                    AccountHeaderCollectionAction.newJournal => YaruIcons.book,
                   },
                   separatorBefore: item.separatorBefore,
                   enabled: item.enabled,
@@ -1378,6 +1533,7 @@ enum AccountHeaderCollectionAction {
   trash,
   newCalendar,
   newTaskList,
+  newJournal,
   moveUp,
   moveDown,
 }

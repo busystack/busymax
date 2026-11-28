@@ -30,36 +30,25 @@ final class JournalSubscriptionEntry {
 
 /// Projects journal notes from the existing, sanitized WebCal snapshot. The
 /// subscription fetch and its calendar-source visibility remain authoritative.
-Stream<List<JournalSubscriptionEntry>> watchJournalSubscriptions(
-  AppDatabase database,
-) {
+Future<List<JournalSubscriptionEntry>> listJournalSubscriptions(
+  AppDatabase database, {
+  Set<String>? sourceIds,
+}) async {
   final subscriptions = database.webCalSubscriptions;
   final sources = database.calendarSources;
-  final snapshots = <String, (String, List<JournalComponent>)>{};
   final query = database.select(subscriptions).join([
     innerJoin(sources, sources.id.equalsExp(subscriptions.calendarSourceId)),
   ])..where(sources.selected & sources.hidden.not() & sources.isDeleted.not());
-  return query.watch().map((rows) {
-    final active = <String>{};
-    final entries = <JournalSubscriptionEntry>[];
-    for (final row in rows) {
-      final subscription = row.readTable(subscriptions);
-      final source = row.readTable(sources);
-      active.add(subscription.id);
-      final cached = snapshots[subscription.id];
-      final journals = cached?.$1 == subscription.semanticHash
-          ? cached!.$2
-          : _parseJournals(subscription.snapshotIcsBody);
-      snapshots[subscription.id] = (subscription.semanticHash, journals);
-      entries.addAll(
-        journals.map(
-          (journal) => JournalSubscriptionEntry(source, subscription, journal),
-        ),
-      );
+  if (sourceIds != null) query.where(sources.id.isIn(sourceIds));
+  final entries = <JournalSubscriptionEntry>[];
+  for (final row in await query.get()) {
+    final subscription = row.readTable(subscriptions);
+    final source = row.readTable(sources);
+    for (final journal in _parseJournals(subscription.snapshotIcsBody)) {
+      entries.add(JournalSubscriptionEntry(source, subscription, journal));
     }
-    snapshots.removeWhere((id, _) => !active.contains(id));
-    return entries;
-  });
+  }
+  return entries;
 }
 
 List<JournalComponent> _parseJournals(String calendar) {

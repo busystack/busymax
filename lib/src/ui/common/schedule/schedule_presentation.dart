@@ -87,14 +87,14 @@ class SchedulePresentation {
               ListTile(
                 title: Text(item.title),
                 onTap: () => Navigator.pop(context, item),
-                trailing: item is TaskScheduleItem
+                leading: item is TaskScheduleItem
                     ? Checkbox(
                         value: item.completed,
                         onChanged: item.capabilities.canEdit
                             ? (value) => onCompletion(item, value ?? false)
                             : null,
                       )
-                    : null,
+                    : Icon(itemIcon(item)),
               ),
           ],
         ),
@@ -108,6 +108,13 @@ class SchedulePresentation {
   bool get touch => true;
   IconData get calendarIcon => Icons.calendar_today_outlined;
   IconData get taskIcon => Icons.checklist_outlined;
+  IconData get journalIcon => Icons.book_outlined;
+  IconData get recurrenceIcon => Icons.repeat;
+  IconData itemIcon(ScheduleItem item) => item is JournalScheduleItem
+      ? journalIcon
+      : item is TaskScheduleItem
+      ? taskIcon
+      : calendarIcon;
   IconData get createIcon => Icons.add;
   IconData previousIcon(TextDirection direction) => Icons.chevron_left;
   IconData nextIcon(TextDirection direction) => Icons.chevron_right;

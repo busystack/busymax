@@ -5,7 +5,6 @@ import 'schedule_presentation.dart';
 import '../../../schedule/schedule_item.dart';
 import 'schedule_event_block.dart';
 import '../../../features/schedule/presentation/schedule_item_selection.dart';
-import 'schedule_task_chip.dart';
 
 class ScheduleItemChip extends StatelessWidget {
   const ScheduleItemChip({
@@ -35,23 +34,13 @@ class ScheduleItemChip extends StatelessWidget {
   );
 
   Widget _build(BuildContext context) {
-    final item = this.item;
-    if (item is TaskScheduleItem) {
-      return ScheduleTaskChip(
-        item: item,
-        height: height,
-        width: width,
-        compact: compact,
-        onTap: onTap,
-        onCompletionChanged: onTaskCompletionChanged,
-      );
-    }
     return ScheduleEventBlock(
-      item: item as CalendarScheduleItem,
+      item: item,
       height: height,
       width: width,
       compact: compact,
       onTap: onTap,
+      onTaskCompletionChanged: onTaskCompletionChanged,
     );
   }
 }

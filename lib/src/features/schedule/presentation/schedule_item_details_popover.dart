@@ -143,7 +143,7 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.video_call_outlined),
+                        const Icon(YaruIcons.video),
                         const SizedBox(width: BusyMaxSpacing.xs),
                         Text(context.l10n.joinMeeting),
                       ],
@@ -265,7 +265,7 @@ class _PopoverActions extends StatelessWidget {
       ),
       if (item.capabilities.canEdit)
         BusyMaxPopoverIconButton(
-          icon: Icons.edit_outlined,
+          icon: YaruIcons.pen,
           tooltip: _editLabel(context, item),
           onPressed: () =>
               Navigator.of(context).pop(ScheduleItemDetailsAction.edit),
@@ -333,7 +333,7 @@ class _ScheduleItemDetails extends StatelessWidget {
   ) {
     final details = <Widget>[
       _ScheduleDetailRow(
-        icon: Icons.schedule,
+        icon: YaruIcons.clock,
         text: item is CalendarScheduleItem
             ? scheduleEventIntervalLabel(context, item as CalendarScheduleItem)
             : _dateTimeLabel(context, item),
@@ -345,7 +345,7 @@ class _ScheduleItemDetails extends StatelessWidget {
         text: ScheduleProjection.sourceLabelForScheduleItem(item),
       ),
       if (_accountLabel(item) case final account? when account.isNotEmpty)
-        _ScheduleDetailRow(icon: Icons.person_outline, text: account),
+        _ScheduleDetailRow(icon: YaruIcons.user, text: account),
       if (item is CalendarScheduleItem)
         ..._eventDetails(context, item as CalendarScheduleItem, destination),
       if (item is TaskScheduleItem)
@@ -472,7 +472,7 @@ class _ScheduleLocationDetailRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(
-          Icons.place_outlined,
+          YaruIcons.location,
           size: BusyMaxSizes.iconSm,
           color: colorScheme.onSurfaceVariant,
         ),
@@ -529,43 +529,43 @@ List<Widget> _eventDetails(
       item.eventType,
       item.googleStatusProperties,
     ))
-      _ScheduleDetailRow(icon: Icons.event_note_outlined, text: line),
+      _ScheduleDetailRow(icon: YaruIcons.document, text: line),
     if (locationDestination != null)
       _ScheduleLocationDetailRow(item: item, destination: locationDestination)
     else if (scheduleItemLocationText(item).trim().isNotEmpty)
       _ScheduleDetailRow(
-        icon: Icons.place_outlined,
+        icon: YaruIcons.location,
         text: scheduleItemLocationText(item),
       ),
     if (organizer != null)
       _ScheduleDetailRow(
-        icon: Icons.person_outline,
+        icon: YaruIcons.user,
         text: '${context.l10n.organizer}: $organizer',
       ),
     if (item.currentUserResponse case final response?)
       _ScheduleDetailRow(
-        icon: Icons.how_to_reg_outlined,
+        icon: YaruIcons.user,
         text:
             '${context.l10n.yourResponse}: '
             '${_responseStatusLabel(context, response)}',
       ),
     if (item.canSendReply)
       _ScheduleDetailRow(
-        icon: Icons.info_outline,
+        icon: YaruIcons.information,
         text: context.l10n.nextcloudAttendeeRestrictions,
         maxLines: null,
       ),
     for (final attendee in item.attendees)
       if (attendee['scheduleStatus'] != null)
         _ScheduleDetailRow(
-          icon: Icons.mark_email_read_outlined,
+          icon: YaruIcons.mail_ok,
           text:
               '${context.l10n.nextcloudSchedulingStatus}: ${attendee['email'] ?? ''} · ${attendee['scheduleStatus']}',
           maxLines: null,
         ),
     if (attendeeResponses.isNotEmpty)
       _ScheduleDetailRow(
-        icon: Icons.groups_outlined,
+        icon: YaruIcons.users,
         text:
             '${context.l10n.guestResponses}:\n'
             '${attendeeResponses.join('\n')}',
@@ -573,25 +573,29 @@ List<Widget> _eventDetails(
       ),
     if (item.reminderMinutesBeforeStart.isNotEmpty)
       _ScheduleDetailRow(
-        icon: Icons.notifications_outlined,
+        icon: YaruIcons.notification,
         text:
             '${context.l10n.reminder}: '
             '${item.reminderMinutesBeforeStart.map((minutes) => _reminderBeforeLabel(context, minutes)).join(', ')}',
       ),
     if (item.categories.isNotEmpty)
       _ScheduleDetailRow(
-        icon: Icons.sell_outlined,
+        icon: YaruIcons.tag,
         text: '${context.l10n.categories}: ${item.categories.join(', ')}',
       ),
     if (item.descriptionHtml != null &&
         isHtmlContentType(item.descriptionContentType))
       _ScheduleDetailRichRow(
-        icon: Icons.notes,
+        icon: YaruIcons.text_editor,
         html: item.descriptionHtml!,
         fallbackText: description ?? '',
       )
     else if (description != null && description.isNotEmpty)
-      _ScheduleDetailRow(icon: Icons.notes, text: description, maxLines: null),
+      _ScheduleDetailRow(
+        icon: YaruIcons.text_editor,
+        text: description,
+        maxLines: null,
+      ),
     for (final uri in calendarEventDescriptionLinks(item))
       _ScheduleWebLinkButton(label: uri.toString(), url: uri.toString()),
     if (item.eventLinkUrl case final link?)
@@ -610,7 +614,7 @@ List<Widget> _eventDetails(
       ),
     if (item.attachmentsMayExist && !item.attachmentsLoaded)
       _ScheduleDetailRow(
-        icon: Icons.info_outline,
+        icon: YaruIcons.information,
         text: context.l10n.attachmentsNotLoaded,
       ),
   ];
@@ -709,25 +713,25 @@ List<Widget> _taskDetails(
     ),
     if (item.reminder != null)
       _ScheduleDetailRow(
-        icon: Icons.notifications_outlined,
+        icon: YaruIcons.notification,
         text:
             '${context.l10n.reminder}: '
             '${formatClockDateTime(context, item.reminder!, DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).format(item.reminder!))}',
       ),
     if (item.categories.isNotEmpty)
       _ScheduleDetailRow(
-        icon: Icons.sell_outlined,
+        icon: YaruIcons.tag,
         text: '${context.l10n.categories}: ${item.categories.join(', ')}',
       ),
     if (locationDestination != null)
       _ScheduleLocationDetailRow(item: item, destination: locationDestination)
     else if (scheduleItemLocationText(item).trim().isNotEmpty)
       _ScheduleDetailRow(
-        icon: Icons.place_outlined,
+        icon: YaruIcons.location,
         text: scheduleItemLocationText(item),
       ),
     if (notes != null && notes.isNotEmpty)
-      _ScheduleDetailRow(icon: Icons.notes, text: notes),
+      _ScheduleDetailRow(icon: YaruIcons.text_editor, text: notes),
     for (final link in item.availableSourceLinks)
       _ScheduleWebLinkButton(
         label: link.label?.isNotEmpty == true

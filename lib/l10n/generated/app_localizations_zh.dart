@@ -642,7 +642,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleNoSourcesDescription => '请在设置中选择要显示的内容，然后刷新。';
 
   @override
+  String get scheduleNoVisibleSources =>
+      'No visible calendars, task lists, or journals';
+
+  @override
   String get scheduleNoSearchResults => '没有匹配的日程或任务';
+
+  @override
+  String get scheduleNoMatchingItems =>
+      'No matching events, tasks, or journal entries';
 
   @override
   String get scheduleNoSearchResultsDescription => '请尝试其他搜索内容或清除当前筛选条件。';
@@ -3906,6 +3914,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get journals => '日志';
+
+  @override
+  String get newJournalEntry => 'New journal entry';
+
+  @override
+  String get newJournalSource => 'New journal';
+
+  @override
+  String get editJournalEntry => 'Edit journal entry';
+
+  @override
+  String get noScheduleItems => 'No events, tasks, or journal entries';
 
   @override
   String get newJournal => '新建条目';

@@ -1074,8 +1074,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _handleMenuAction(ScheduleToolbarMenuAction action) {
     switch (action) {
-      case ScheduleToolbarMenuAction.journals:
-        unawaited(context.push<void>('/journals'));
       case ScheduleToolbarMenuAction.refresh:
         return;
       case ScheduleToolbarMenuAction.settings:

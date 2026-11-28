@@ -1,22 +1,21 @@
 import 'package:busymax/src/ui/common/flutter_material.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_shortcuts.dart';
 import '../../../l10n/l10n.dart';
 
-enum ScheduleCreateChoice { event, task }
+enum ScheduleCreateChoice { event, task, journal }
 
 ScheduleCreateChoice? singleAvailableScheduleCreateChoice({
   required bool canCreateEvent,
   required bool canCreateTask,
-}) {
-  if (canCreateEvent == canCreateTask) {
-    return null;
-  }
-  return canCreateEvent
-      ? ScheduleCreateChoice.event
-      : ScheduleCreateChoice.task;
-}
+  bool canCreateJournal = false,
+}) => [
+  if (canCreateEvent) ScheduleCreateChoice.event,
+  if (canCreateTask) ScheduleCreateChoice.task,
+  if (canCreateJournal) ScheduleCreateChoice.journal,
+].singleOrNull;
 
 Future<ScheduleCreateChoice?> showScheduleCreateMenu({
   required BuildContext context,
@@ -24,10 +23,11 @@ Future<ScheduleCreateChoice?> showScheduleCreateMenu({
   Offset? anchorPoint,
   bool canCreateEvent = true,
   bool canCreateTask = true,
+  bool canCreateJournal = false,
   BusyMaxMenuSession? session,
   bool preferAbove = false,
 }) async {
-  if (!canCreateEvent && !canCreateTask) {
+  if (!canCreateEvent && !canCreateTask && !canCreateJournal) {
     return null;
   }
 
@@ -53,6 +53,12 @@ Future<ScheduleCreateChoice?> showScheduleCreateMenu({
         enabled: canCreateTask,
         shortcut: BusyMaxShortcutLabels.newTask,
       ),
+      if (canCreateJournal)
+        BusyMaxMenuEntry(
+          value: ScheduleCreateChoice.journal,
+          label: context.l10n.newJournalEntry,
+          icon: YaruIcons.book,
+        ),
     ],
   );
   return selection?.value;

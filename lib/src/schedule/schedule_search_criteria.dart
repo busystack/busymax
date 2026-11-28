@@ -3,9 +3,17 @@ import 'package:collection/collection.dart';
 import 'schedule_filters.dart';
 import 'schedule_range.dart';
 
-enum ScheduleSearchType { all, events, tasks }
+enum ScheduleSearchType { all, events, tasks, journals }
 
-enum ScheduleSearchDate { any, today, tomorrow, thisWeek, custom }
+enum ScheduleSearchDate {
+  any,
+  dated,
+  undated,
+  today,
+  tomorrow,
+  thisWeek,
+  custom,
+}
 
 /// One immutable snapshot of a temporary search session. Set contents have
 /// value equality, so providers and caches invalidate for every criterion.
@@ -23,8 +31,10 @@ class ScheduleSearchCriteria {
     required this.firstWeekday,
     required Set<String> sourceIds,
     required Set<ScheduleTaskListKey> taskListKeys,
+    Set<String> journalSourceIds = const {},
   }) : sourceIds = Set.unmodifiable(sourceIds),
-       taskListKeys = Set.unmodifiable(taskListKeys);
+       taskListKeys = Set.unmodifiable(taskListKeys),
+       journalSourceIds = Set.unmodifiable(journalSourceIds);
 
   final ScheduleSearchType type;
   final ScheduleSearchDate date;
@@ -38,14 +48,22 @@ class ScheduleSearchCriteria {
   final int firstWeekday;
   final Set<String> sourceIds;
   final Set<ScheduleTaskListKey> taskListKeys;
-  bool get includesEvents => type != ScheduleSearchType.tasks;
-  bool get includesTasks => type != ScheduleSearchType.events;
+  final Set<String> journalSourceIds;
+  bool get includesEvents =>
+      type == ScheduleSearchType.all || type == ScheduleSearchType.events;
+  bool get includesTasks =>
+      type == ScheduleSearchType.all || type == ScheduleSearchType.tasks;
+  bool get includesJournals =>
+      type == ScheduleSearchType.all || type == ScheduleSearchType.journals;
   bool get hasSources =>
       (includesEvents && sourceIds.isNotEmpty) ||
-      (includesTasks && taskListKeys.isNotEmpty);
+      (includesTasks && taskListKeys.isNotEmpty) ||
+      (includesJournals && journalSourceIds.isNotEmpty);
 
   ScheduleRange? get range => switch (date) {
-    ScheduleSearchDate.any => null,
+    ScheduleSearchDate.any ||
+    ScheduleSearchDate.dated ||
+    ScheduleSearchDate.undated => null,
     ScheduleSearchDate.today => ScheduleRange.day(referenceDate),
     ScheduleSearchDate.tomorrow => ScheduleRange.day(
       DateTime(referenceDate.year, referenceDate.month, referenceDate.day + 1),
@@ -68,11 +86,19 @@ class ScheduleSearchCriteria {
     query: query,
     sourceIds: sourceIds,
     taskListKeys: taskListKeys,
+    journalSourceIds: journalSourceIds,
     sourceFilterActive: true,
     taskListFilterActive: true,
+    journalSourceFilterActive: true,
     includeCalendarEvents: includesEvents,
     includeTasks: includesTasks,
-    ignoreDateRange: date == ScheduleSearchDate.any,
+    includeJournals: includesJournals,
+    ignoreDateRange: range == null,
+    datePresence: switch (date) {
+      ScheduleSearchDate.dated => ScheduleDatePresence.dated,
+      ScheduleSearchDate.undated => ScheduleDatePresence.undated,
+      _ => ScheduleDatePresence.any,
+    },
     useTaskDueDate: true,
     taskCompletion: taskCompletion,
     taskDueState: taskDueState,
@@ -102,19 +128,26 @@ class ScheduleSearchCriteria {
     int? firstWeekday,
     Set<String>? sourceIds,
     Set<ScheduleTaskListKey>? taskListKeys,
+    Set<String>? journalSourceIds,
   }) => ScheduleSearchCriteria(
     type: type ?? this.type,
     date: date ?? this.date,
     taskCompletion: taskCompletion ?? this.taskCompletion,
     taskDueState: taskDueState ?? this.taskDueState,
-    person: type == ScheduleSearchType.tasks ? '' : person ?? this.person,
-    location: location ?? this.location,
+    person:
+        type == ScheduleSearchType.tasks || type == ScheduleSearchType.journals
+        ? ''
+        : person ?? this.person,
+    location: type == ScheduleSearchType.journals
+        ? ''
+        : location ?? this.location,
     customStart: customStart ?? this.customStart,
     customEnd: customEnd ?? this.customEnd,
     referenceDate: referenceDate,
     firstWeekday: firstWeekday ?? this.firstWeekday,
     sourceIds: sourceIds ?? this.sourceIds,
     taskListKeys: taskListKeys ?? this.taskListKeys,
+    journalSourceIds: journalSourceIds ?? this.journalSourceIds,
   );
 
   Object get _values => (
@@ -134,6 +167,10 @@ class ScheduleSearchCriteria {
       other is ScheduleSearchCriteria &&
       _values == other._values &&
       const SetEquality<String>().equals(sourceIds, other.sourceIds) &&
+      const SetEquality<String>().equals(
+        journalSourceIds,
+        other.journalSourceIds,
+      ) &&
       const SetEquality<ScheduleTaskListKey>().equals(
         taskListKeys,
         other.taskListKeys,
@@ -142,6 +179,7 @@ class ScheduleSearchCriteria {
   int get hashCode => Object.hash(
     _values,
     const SetEquality<String>().hash(sourceIds),
+    const SetEquality<String>().hash(journalSourceIds),
     const SetEquality<ScheduleTaskListKey>().hash(taskListKeys),
   );
 }

@@ -950,16 +950,15 @@ void main() {
       ),
     );
 
-    final taskInkWell = find.descendant(
-      of: find.byType(ScheduleItemChip),
-      matching: find.byType(InkWell),
+    final cursor = tester.widget<FocusableActionDetector>(
+      find
+          .descendant(
+            of: find.byType(ScheduleItemChip),
+            matching: find.byType(FocusableActionDetector),
+          )
+          .first,
     );
-    expect(
-      tester
-          .widgetList<InkWell>(taskInkWell)
-          .where((inkWell) => inkWell.mouseCursor == SystemMouseCursors.click),
-      hasLength(1),
-    );
+    expect(cursor.mouseCursor, SystemMouseCursors.click);
   });
 
   testWidgets('same-slot day items render in a horizontal strip', (
@@ -1105,6 +1104,9 @@ void main() {
     tester,
   ) async {
     final selectedDate = DateTime(2026, 1, 15);
+    final completed = <bool>[];
+    await tester.binding.setSurfaceSize(const Size(1000, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
       localizedTestApp(
@@ -1119,11 +1121,23 @@ void main() {
               ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
-              items: _itemsFor(selectedDate),
+              items: [
+                ..._itemsFor(selectedDate),
+                JournalScheduleItem(
+                  id: 'journal:1',
+                  accountId: 'caldav:user',
+                  provider: BusyProvider.caldav,
+                  sourceId: 'journal',
+                  title: 'Daily notes',
+                  start: selectedDate,
+                  allDay: true,
+                  searchText: '',
+                ),
+              ],
               onDaySelected: (_) {},
               onCreateAtDay: (_, {anchorContext}) {},
               onItemSelected: (_, _, [_]) {},
-              onTaskCompletionChanged: (_, _) {},
+              onTaskCompletionChanged: (_, value) => completed.add(value),
             ),
           ),
         ),
@@ -1133,6 +1147,33 @@ void main() {
     expect(find.byType(icv.EventsMonths), findsNothing);
     expect(find.text('Design review'), findsOneWidget);
     expect(find.text('Submit report'), findsOneWidget);
+    Finder row(String title) => find.ancestor(
+      of: find.text(title),
+      matching: find.byType(shared_event.ScheduleEventBlock),
+    );
+    final event = row('Design review');
+    final task = row('Submit report');
+    final journal = row('Daily notes');
+    for (final sibling in [task, journal]) {
+      expect(tester.getRect(sibling).left, tester.getRect(event).left);
+      expect(tester.getSize(sibling), tester.getSize(event));
+    }
+    expect(
+      find.descendant(of: event, matching: find.byIcon(YaruIcons.calendar)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: journal, matching: find.byIcon(YaruIcons.book)),
+      findsOneWidget,
+    );
+    final checkbox = find.descendant(
+      of: task,
+      matching: find.byType(YaruCheckbox),
+    );
+    expect(tester.widget<YaruCheckbox>(checkbox).onChanged, isNotNull);
+    await tester.tap(checkbox, kind: PointerDeviceKind.mouse);
+    await tester.pump(kDoubleTapTimeout);
+    expect(completed, [true]);
   });
 
   testWidgets('month create button reports its own popover anchor', (
@@ -1545,7 +1586,7 @@ void main() {
 
     expect(find.text('Design review'), findsOneWidget);
     expect(find.byIcon(YaruIcons.share), findsOneWidget);
-    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+    expect(find.byIcon(YaruIcons.pen), findsOneWidget);
     expect(find.byIcon(YaruIcons.trash), findsOneWidget);
     expect(find.byIcon(YaruIcons.window_close), findsOneWidget);
     expect(find.text('Export'), findsNothing);
@@ -1553,122 +1594,21 @@ void main() {
     expect(find.text('Delete'), findsNothing);
     expect(find.byType(BusyMaxPopoverIconButton), findsNWidgets(4));
 
-    final actionButtons = tester
-        .widgetList<YaruIconButton>(
-          find.descendant(
-            of: find.byType(BusyMaxPopoverIconButton),
-            matching: find.byType(YaruIconButton),
-          ),
-        )
-        .toList();
-    final actionContext = tester.element(
-      find.byType(BusyMaxPopoverIconButton).first,
+    final detailButtons = find.descendant(
+      of: find.byType(BusyMaxPopoverIconButton),
+      matching: find.byType(BusyMaxHeaderIconButton),
     );
-    final actionColors = BusyMaxSurfaceColors.of(actionContext);
-    expect(BusyMaxSizes.popoverActionButton, kYaruTitleBarItemHeight);
-    expect(BusyMaxSizes.popoverActionIcon, BusyMaxSizes.iconSm);
-    expect(actionButtons, hasLength(4));
-    for (final button in actionButtons) {
-      expect(button.iconSize, BusyMaxSizes.popoverActionButton);
-      expect(button.style?.backgroundColor, isNull);
-      expect(button.style?.overlayColor, isNull);
-      expect(button.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
-      expect(
-        button.style?.minimumSize?.resolve({}),
-        const Size.square(BusyMaxSizes.popoverActionButton),
-      );
-      expect(
-        button.style?.maximumSize?.resolve({}),
-        const Size.square(BusyMaxSizes.popoverActionButton),
-      );
-      final style = button.defaultStyleOf(
-        tester.element(find.byWidget(button)),
-      );
-      expect(
-        style.fixedSize?.resolve({}),
-        const Size.square(BusyMaxSizes.popoverActionButton),
-      );
-      expect(style.overlayColor?.resolve({WidgetState.hovered}), isNotNull);
-      expect(style.overlayColor?.resolve({WidgetState.pressed}), isNotNull);
-    }
-    final restingSurfaces = tester
-        .widgetList<Material>(
-          find.descendant(
-            of: find.byType(BusyMaxPopoverIconButton),
-            matching: find.byWidgetPredicate(
-              (widget) =>
-                  widget is Material &&
-                  widget.color == actionColors.control &&
-                  widget.shape == const CircleBorder(),
-            ),
-          ),
-        )
-        .toList();
-    expect(restingSurfaces, hasLength(3));
-    final destructiveSurfaces = tester
-        .widgetList<Material>(
-          find.descendant(
-            of: find.byType(BusyMaxPopoverIconButton),
-            matching: find.byWidgetPredicate(
-              (widget) =>
-                  widget is Material &&
-                  widget.color == Theme.of(actionContext).colorScheme.error &&
-                  widget.shape == const CircleBorder(),
-            ),
-          ),
-        )
-        .toList();
-    expect(destructiveSurfaces, hasLength(1));
-    for (final button in find.byType(BusyMaxPopoverIconButton).evaluate()) {
-      expect(
-        tester.getSize(find.byWidget(button.widget)),
-        const Size.square(BusyMaxSizes.popoverActionButton),
-      );
-    }
-    for (final icon in tester.widgetList<Icon>(
-      find.descendant(
-        of: find.byType(BusyMaxPopoverIconButton),
-        matching: find.byType(Icon),
-      ),
+    expect(detailButtons, findsNWidgets(4));
+    for (final button in tester.widgetList<BusyMaxHeaderIconButton>(
+      detailButtons,
     )) {
-      expect(icon.size, BusyMaxSizes.popoverActionIcon);
+      expect(button.iconSize, BusyMaxSizes.popoverActionIcon);
+      expect(
+        button.fixedSize,
+        const Size.square(BusyMaxSizes.popoverActionButton),
+      );
+      expect(button.shape, isNot(isA<CircleBorder>()));
     }
-    expect(
-      tester.widget<Icon>(find.byIcon(YaruIcons.trash)).color,
-      Theme.of(actionContext).colorScheme.onError,
-    );
-    expect(tester.widget<Icon>(find.byIcon(YaruIcons.share)).color, isNull);
-
-    final popoverSurfaceFinder = _popoverDecorationFinder(
-      find.byType(BusyMaxContentPopoverSurface),
-    );
-    expect(popoverSurfaceFinder, findsOneWidget);
-    final popoverContext = tester.element(popoverSurfaceFinder);
-    final popoverRoute = ModalRoute.of(popoverContext)!;
-    expect(
-      popoverRoute.traversalEdgeBehavior,
-      TraversalEdgeBehavior.closedLoop,
-    );
-    expect(
-      popoverRoute.directionalTraversalEdgeBehavior,
-      TraversalEdgeBehavior.stop,
-    );
-    final contentSurface = tester.widget<BusyMaxPopoverSurface>(
-      find.descendant(
-        of: find.byType(BusyMaxContentPopoverSurface),
-        matching: find.byType(BusyMaxPopoverSurface),
-      ),
-    );
-    final contentColors = BusyMaxSurfaceColors.of(popoverContext);
-    expect(contentSurface.color, contentColors.popover);
-    expect(contentSurface.outlineColor, contentColors.floatingBorder);
-    expect(contentSurface.shadowRole, BusyMaxPopoverShadowRole.details);
-
-    final editCenter = tester.getCenter(find.byIcon(Icons.edit_outlined));
-    final deleteCenter = tester.getCenter(find.byIcon(YaruIcons.trash));
-    final closeCenter = tester.getCenter(find.byIcon(YaruIcons.window_close));
-    expect(editCenter.dx, lessThan(deleteCenter.dx));
-    expect(deleteCenter.dx, lessThan(closeCenter.dx));
 
     await tester.tap(find.byIcon(YaruIcons.share));
     await tester.pumpAndSettle();
@@ -1999,108 +1939,90 @@ void main() {
   }
 
   for (final brightness in Brightness.values) {
-    testWidgets(
-      'popover action paints a contained circle and strengthens it on hover '
-      'in $brightness mode',
-      (tester) async {
-        final theme = BusyMaxYaruTheme.build(
-          brightness: brightness,
-          accentColor: const Color(0xFF3584E4),
-        );
-        final colors = theme.extension<BusyMaxSurfaceColors>()!;
-        final boundaryKey = GlobalKey();
+    testWidgets('popover action uses the standard button hover treatment '
+        'in $brightness mode', (tester) async {
+      final theme = BusyMaxYaruTheme.build(
+        brightness: brightness,
+        accentColor: const Color(0xFF3584E4),
+      );
+      final colors = theme.extension<BusyMaxSurfaceColors>()!;
+      final boundaryKey = GlobalKey();
 
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: theme,
-            home: Center(
-              child: RepaintBoundary(
-                key: boundaryKey,
-                child: ColoredBox(
-                  color: colors.card,
-                  child: SizedBox.square(
-                    dimension: 50,
-                    child: Center(
-                      child: BusyMaxPopoverIconButton(
-                        icon: YaruIcons.share,
-                        tooltip: 'Export',
-                        onPressed: () {},
-                      ),
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Center(
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: ColoredBox(
+                color: colors.card,
+                child: SizedBox.square(
+                  dimension: 50,
+                  child: Center(
+                    child: BusyMaxPopoverIconButton(
+                      icon: YaruIcons.share,
+                      tooltip: 'Export',
+                      onPressed: () {},
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        );
-        await tester.pumpAndSettle();
-
-        final restingPixels = await _capturePixels(tester, boundaryKey);
-        final background = _pixelAt(restingPixels, x: 2, y: 2);
-        final restingFace = _pixelAt(restingPixels, x: 25, y: 10);
-        expect(restingFace, isNot(background));
-
-        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-        addTearDown(mouse.removePointer);
-        await mouse.addPointer(location: Offset.zero);
-        await mouse.moveTo(
-          tester.getCenter(find.byType(BusyMaxPopoverIconButton)),
-        );
-        await tester.pumpAndSettle();
-
-        final hoveredPixels = await _capturePixels(tester, boundaryKey);
-        final hoveredBackground = _pixelAt(hoveredPixels, x: 2, y: 2);
-        final hoveredFace = _pixelAt(hoveredPixels, x: 25, y: 10);
-        expect(hoveredBackground, background);
-        expect(hoveredFace, isNot(restingFace));
-        expect(
-          _luminanceDistance(hoveredFace, background),
-          greaterThan(_luminanceDistance(restingFace, background)),
-        );
-      },
-    );
-
-    testWidgets('destructive popover action uses a visible semantic fill in '
-        '$brightness mode', (tester) async {
-      final theme = BusyMaxYaruTheme.build(
-        brightness: brightness,
-        accentColor: const Color(0xFF3584E4),
-      );
-      final colors = theme.extension<BusyMaxSurfaceColors>()!;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: theme,
-          home: Center(
-            child: BusyMaxPopoverIconButton(
-              icon: YaruIcons.trash,
-              tooltip: 'Delete',
-              destructive: true,
-              onPressed: () {},
-            ),
-          ),
         ),
       );
       await tester.pumpAndSettle();
 
-      final action = find.byType(BusyMaxPopoverIconButton);
-      final destructiveSurface = tester.widget<Material>(
-        find.descendant(
-          of: action,
-          matching: find.byWidgetPredicate(
-            (widget) =>
-                widget is Material &&
-                widget.color == theme.colorScheme.error &&
-                widget.shape == const CircleBorder(),
-          ),
-        ),
-      );
-      final icon = tester.widget<Icon>(find.byIcon(YaruIcons.trash));
+      final restingPixels = await _capturePixels(tester, boundaryKey);
+      final background = _pixelAt(restingPixels, x: 2, y: 2);
+      final restingFace = _pixelAt(restingPixels, x: 25, y: 10);
 
-      expect(destructiveSurface.color, theme.colorScheme.error);
-      expect(destructiveSurface.color, isNot(colors.control));
-      expect(icon.color, theme.colorScheme.onError);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(
+        tester.getCenter(find.byType(BusyMaxPopoverIconButton)),
+      );
+      await tester.pumpAndSettle();
+
+      final hoveredPixels = await _capturePixels(tester, boundaryKey);
+      final hoveredBackground = _pixelAt(hoveredPixels, x: 2, y: 2);
+      final hoveredFace = _pixelAt(hoveredPixels, x: 25, y: 10);
+      expect(hoveredBackground, background);
+      expect(hoveredFace, isNot(restingFace));
+      expect(
+        _luminanceDistance(hoveredFace, background),
+        greaterThan(_luminanceDistance(restingFace, background)),
+      );
     });
+
+    testWidgets(
+      'destructive popover action uses the standard button in $brightness mode',
+      (tester) async {
+        final theme = BusyMaxYaruTheme.build(
+          brightness: brightness,
+          accentColor: const Color(0xFF3584E4),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Center(
+              child: BusyMaxPopoverIconButton(
+                icon: YaruIcons.trash,
+                tooltip: 'Delete',
+                destructive: true,
+                onPressed: () {},
+              ),
+            ),
+          ),
+        );
+        final button = tester.widget<BusyMaxHeaderIconButton>(
+          find.byType(BusyMaxHeaderIconButton),
+        );
+        expect(button.foregroundColor, theme.colorScheme.error);
+        expect(button.shape, isNot(isA<CircleBorder>()));
+      },
+    );
   }
 
   testWidgets('popover action retains Yaru keyboard-focus treatment', (
@@ -2252,7 +2174,7 @@ void main() {
 
     expect(find.byIcon(YaruIcons.share), findsOneWidget);
     expect(find.byIcon(YaruIcons.window_close), findsOneWidget);
-    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    expect(find.byIcon(YaruIcons.pen), findsNothing);
     expect(find.byIcon(YaruIcons.trash), findsNothing);
   });
 
@@ -2293,7 +2215,7 @@ void main() {
     await tester.tap(find.text('Open details'));
     await tester.pumpAndSettle();
     expect(find.text('Show on map'), findsOneWidget);
-    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    expect(find.byIcon(YaruIcons.pen), findsNothing);
     await tester.tap(find.text('Show on map'));
     await tester.pumpAndSettle();
     expect(await action, ScheduleItemDetailsAction.openLocation);
@@ -3638,7 +3560,7 @@ void main() {
       ),
     );
 
-    expect(find.text('No events or tasks'), findsNothing);
+    expect(find.text('No events, tasks, or journal entries'), findsNothing);
     expect(find.text('New event'), findsNothing);
     expect(find.text('New task'), findsNothing);
   });
@@ -3954,33 +3876,39 @@ void main() {
     expect(more, isNot(contains('BoxShadow(')));
   });
 
-  test('schedule item details actions use the shared contained Yaru role', () {
-    final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
-    final adapter = design.substring(
-      design.indexOf('class BusyMaxPopoverIconButton'),
-      design.indexOf('Color busyMaxSelectedBackground'),
-    );
-    final popover = File(
-      'lib/src/features/schedule/presentation/schedule_item_details_popover.dart',
-    ).readAsStringSync();
+  test(
+    'schedule item details actions use the standard Yaru header control',
+    () {
+      final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
+      final adapter = design.substring(
+        design.indexOf('class BusyMaxPopoverIconButton'),
+        design.indexOf('Color busyMaxSelectedBackground'),
+      );
+      final popover = File(
+        'lib/src/features/schedule/presentation/schedule_item_details_popover.dart',
+      ).readAsStringSync();
 
-    expect(adapter, contains('class BusyMaxPopoverIconButton'));
-    expect(adapter, contains('child: YaruIconButton('));
-    expect(adapter, contains('shape: const CircleBorder()'));
-    expect(design, contains('class BusyMaxHeaderIconButton'));
-    expect(adapter, contains('iconSize: BusyMaxSizes.popoverActionButton'));
-    expect(adapter, isNot(contains('final button = IconButton(')));
-    expect(adapter, isNot(contains('busyMaxHeaderButtonBackground(context)')));
-    expect(popover, contains('BusyMaxPopoverIconButton('));
-    expect(popover, contains('BusyMaxContentPopoverSurface('));
-    expect(popover, isNot(contains('surfaceColors.popover')));
-    expect(popover, contains('destructive: true'));
-    expect(popover, isNot(contains('backgroundColor:')));
-    expect(popover, isNot(contains('foregroundColor:')));
-    expect(popover, isNot(contains('hoverColor:')));
-    expect(popover, isNot(contains('elevation:')));
-    expect(popover, isNot(contains('BoxShadow(')));
-  });
+      expect(adapter, contains('class BusyMaxPopoverIconButton'));
+      expect(adapter, contains('BusyMaxHeaderIconButton('));
+      expect(adapter, isNot(contains('CircleBorder')));
+      expect(design, contains('class BusyMaxHeaderIconButton'));
+      expect(adapter, contains('iconSize: BusyMaxSizes.popoverActionIcon'));
+      expect(adapter, isNot(contains('final button = IconButton(')));
+      expect(
+        adapter,
+        isNot(contains('busyMaxHeaderButtonBackground(context)')),
+      );
+      expect(popover, contains('BusyMaxPopoverIconButton('));
+      expect(popover, contains('BusyMaxContentPopoverSurface('));
+      expect(popover, isNot(contains('surfaceColors.popover')));
+      expect(popover, contains('destructive: true'));
+      expect(popover, isNot(contains('backgroundColor:')));
+      expect(popover, isNot(contains('foregroundColor:')));
+      expect(popover, isNot(contains('hoverColor:')));
+      expect(popover, isNot(contains('elevation:')));
+      expect(popover, isNot(contains('BoxShadow(')));
+    },
+  );
 
   test('agenda list groups use the shared grouped row surface', () {
     final agenda = File('lib/src/ui/common/schedule/schedule_agenda_view.dart')
@@ -4900,7 +4828,7 @@ void main() {
     final projection = File('lib/src/schedule/schedule_projection.dart')
         .readAsStringSync();
 
-    expect(eventBlock, contains('color: surfaceColors.control'));
+    expect(eventBlock, contains('surfaceColors.control,'));
     expect(eventBlock, contains('sourceAccent'));
     expect(taskChip, contains('color: surfaceColors.control'));
     expect(taskChip, contains('color: surfaceColors.divider'));

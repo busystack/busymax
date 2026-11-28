@@ -3,6 +3,11 @@ import '../../sync/linux_sync_feedback.dart';
 import '../../sync/sync_request.dart';
 import '../../sync/domain_sync_schedule.dart';
 import '../../../schedule/schedule_creation_destinations.dart';
+import '../../../dav/storage/dav_collection_capabilities.dart';
+import '../../../db/app_database.dart' show DavCollection;
+import '../../../journal/presentation/journal_pane.dart';
+import '../../../journal/presentation/linux_journal_dialog.dart';
+import '../../../schedule/schedule_sidebar_sources.dart';
 import '../../../schedule/schedule_agenda_query.dart';
 
 import 'package:intl/intl.dart';
@@ -197,6 +202,7 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
 }
 
 class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
+  List<DavCollection> _journalSources = const [];
   static const _agendaInitialDays = 30;
   static const _agendaPageDays = 30;
   static const _agendaInitialTaskBucketLimit = 8;
@@ -321,6 +327,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     // save. Requery when those rows arrive so the month view updates itself.
     ref.watch(scheduleDataRevisionProvider);
     final settings = ref.watch(appSettingsControllerProvider);
+    final journalSourcesState = ref.watch(scheduleJournalSourcesProvider);
+    final journals = journalSourcesState.valueOrNull ?? const [];
+    _journalSources = journals;
     if (widget.notificationDeadline == null) {
       _syncModeFromSettings(settings.scheduleViewMode);
     } else {
@@ -366,12 +375,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                   calendarSources: sources,
                   taskLists: taskLists,
                   settings: settings,
+                  journals: journals,
                 );
                 _searchSources = sources;
                 _searchTaskLists = taskLists;
                 _searchVisibility = visibility;
                 _searchInventoryReady =
                     accountsState.hasValue &&
+                    (journalSourcesState.hasValue ||
+                        journalSourcesState.hasError) &&
                     !accountsState.isLoading &&
                     !accountsState.hasError &&
                     sourcesSnapshot.hasData &&
@@ -458,6 +470,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     accountIds: accountIds.toSet(),
                     sourceIds: visibleSourceIds,
                     taskListKeys: queriedTaskListKeys,
+                    journalSourceIds: visibility.visibleJournalSourceIds,
                   ),
                   builder: (context, snapshot) {
                     final itemsLoading =
@@ -517,6 +530,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                   taskListKeys: visibleTaskListKeys,
                                   sourceFilterActive: true,
                                   taskListFilterActive: true,
+                                  journalSourceFilterActive: true,
+                                  includeJournals: true,
+                                  journalSourceIds:
+                                      visibility.visibleJournalSourceIds,
                                   includeCalendarEvents:
                                       _scope != ScheduleScope.tasks,
                                   includeTasks: _scope != ScheduleScope.events,
@@ -622,6 +639,21 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 due: _day(_defaultSelectedDateStart()),
                               ),
                             ),
+                            onCreateJournal:
+                                journals.any(
+                                  (source) =>
+                                      visibility.visibleJournalSourceIds
+                                          .contains(source.id) &&
+                                      collectionCapabilitiesFromStored(source)
+                                          .canAttemptCreateJournal,
+                                )
+                                ? () => unawaited(
+                                    showLinuxJournalDialog(
+                                      context,
+                                      JournalPaneAction.create,
+                                    ),
+                                  )
+                                : null,
                             createMenuController: _createMenuController,
                             onRefresh: () => unawaited(_refreshAll()),
                             canRefresh: accounts.isNotEmpty,
@@ -685,7 +717,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                           dayEndMinute: settings.scheduleDayEndMinute,
                           hasAnySources:
                               visibility.hasCalendarSources ||
-                              visibility.hasTaskLists,
+                              visibility.hasTaskLists ||
+                              journals.isNotEmpty,
                           hasAccounts: accounts.isNotEmpty,
                           items: items,
                           onOpenSettings: () =>
@@ -882,8 +915,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   void _handleToolbarMenu(ScheduleToolbarMenuAction action) {
     switch (action) {
-      case ScheduleToolbarMenuAction.journals:
-        unawaited(context.push<void>('/journals'));
       case ScheduleToolbarMenuAction.refresh:
         _handleHeaderAction(BusyMaxHeaderAction.refresh);
       case ScheduleToolbarMenuAction.settings:
@@ -1081,6 +1112,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       firstWeekday: _firstWeekday(context),
       sourceIds: visibility.visibleCalendarSourceIds,
       taskListKeys: visibility.visibleTaskListKeys,
+      journalSourceIds: visibility.visibleJournalSourceIds,
     ).remapTaskLists(ref.read(taskListIdReplacementsProvider));
     _searchCriteria = _initialSearchCriteria;
   }
@@ -1104,6 +1136,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         ],
         sources: _searchSources,
         taskLists: _searchTaskLists,
+        journalSources: _journalSources,
         sidebar: sidebar,
         showEndBorder: false,
         onChanged: (value) {
@@ -1165,6 +1198,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     required Set<String> accountIds,
     required Set<String> sourceIds,
     required Set<ScheduleTaskListKey> taskListKeys,
+    required Set<String> journalSourceIds,
   }) async {
     if (widget.notificationDeadline != null) {
       return _ScheduleItemsResult(
@@ -1195,6 +1229,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         taskListKeys: taskListKeys,
         sourceFilterActive: true,
         taskListFilterActive: true,
+        journalSourceIds: journalSourceIds,
+        journalSourceFilterActive: true,
+        includeJournals: true,
         includeCalendarEvents: _scope != ScheduleScope.tasks,
         includeTasks: _scope != ScheduleScope.events,
         taskCompletion: ScheduleTaskCompletion.all,
@@ -1211,6 +1248,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       accountIds: accountIds,
       sourceIds: sourceIds,
       taskListKeys: taskListKeys,
+      journalSourceIds: journalSourceIds,
       includeEvents: _scope != ScheduleScope.tasks,
       includeTasks: _scope != ScheduleScope.events,
       overdueLimit: _agendaOverdueTaskLimit,
@@ -1604,12 +1642,21 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     final recentAnchorPoint = _takeRecentSchedulePointerPosition();
     final anchorPoint = anchorContext == null ? recentAnchorPoint : null;
     final canCreateEvent = writableSources.isNotEmpty;
-    if (!canCreateEvent && !canCreateTask) {
+    final journalDestination = _journalSources
+        .where(
+          (source) =>
+              _searchVisibility?.visibleJournalSourceIds.contains(source.id) ==
+                  true &&
+              collectionCapabilitiesFromStored(source).canAttemptCreateJournal,
+        )
+        .firstOrNull;
+    if (!canCreateEvent && !canCreateTask && journalDestination == null) {
       return;
     }
     final directChoice = singleAvailableScheduleCreateChoice(
       canCreateEvent: canCreateEvent,
       canCreateTask: canCreateTask,
+      canCreateJournal: journalDestination != null,
     );
     if (directChoice != null) {
       await _openScheduleCreateChoice(
@@ -1632,6 +1679,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         anchorPoint: anchorPoint,
         preferAbove: anchorContext != null,
         session: menuSession,
+        canCreateEvent: canCreateEvent,
+        canCreateTask: canCreateTask,
+        canCreateJournal: journalDestination != null,
       );
     } finally {
       if (identical(_createChoiceMenuSession, menuSession)) {
@@ -1660,6 +1710,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         await _openNewEvent(writableSources, start);
       case ScheduleCreateChoice.task:
         await _openNewTask(accounts, due: _day(start));
+      case ScheduleCreateChoice.journal:
+        await showLinuxJournalDialog(
+          context,
+          JournalPaneAction.create,
+          initialDate: start,
+        );
     }
   }
 
@@ -1736,6 +1792,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     List<CalendarSourceEntity> sources, {
     Offset? globalPosition,
   }) async {
+    if (item is JournalScheduleItem) {
+      await showLinuxJournalDialog(
+        anchorContext,
+        JournalPaneAction.open,
+        item: item,
+      );
+      return;
+    }
     final locationDestination = resolveSavedScheduleLocation(
       item: item,
       repository: ref.read(locationResolutionRepositoryProvider),
@@ -3172,10 +3236,7 @@ class _ScheduleBody extends StatelessWidget {
               ? (context) => searchCriteria?.hasSources == false
                     ? Center(child: Text(context.l10n.searchNoSources))
                     : const ScheduleSearchEmptyState()
-              : (context) => ScheduleEmptyState(
-                  onNewEvent: canCreateEvent ? onNewEvent : null,
-                  onNewTask: canCreateTask ? onNewTask : null,
-                ),
+              : (context) => const ScheduleEmptyState(),
         ),
       },
     );

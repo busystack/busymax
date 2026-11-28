@@ -49,7 +49,9 @@ import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import 'dart:async';
 
-import '../../journal/presentation/journal_workspace.dart';
+import '../../journal/presentation/journal_pane.dart';
+import '../../db/app_database.dart' show DavCollection;
+import '../../dav/storage/dav_collection_capabilities.dart';
 import '../../journal/presentation/material_journal_controls.dart';
 
 import 'dart:convert';
@@ -135,6 +137,7 @@ final _androidScheduleItemsProvider = FutureProvider.autoDispose
       final visibility = ScheduleSourceVisibility.fromSources(
         calendarSources: sources,
         taskLists: lists,
+        journals: await ref.watch(scheduleJournalSourcesProvider.future),
         settings: settings,
       );
       final repository = ref.watch(scheduleRepositoryProvider);
@@ -155,6 +158,7 @@ final _androidScheduleItemsProvider = FutureProvider.autoDispose
           range: ScheduleRange.days(DateTime.now(), count: key.agendaDays),
           sourceIds: visibility.visibleCalendarSourceIds,
           taskListKeys: visibility.visibleTaskListKeys,
+          journalSourceIds: visibility.visibleJournalSourceIds,
           overdueLimit: key.overdueLimit,
           noDateLimit: key.noDateLimit,
         );
@@ -172,47 +176,16 @@ final _androidScheduleItemsProvider = FutureProvider.autoDispose
                 query: key.query,
                 sourceIds: visibility.visibleCalendarSourceIds,
                 taskListKeys: visibility.visibleTaskListKeys,
+                journalSourceIds: visibility.visibleJournalSourceIds,
                 sourceFilterActive: true,
                 taskListFilterActive: true,
+                journalSourceFilterActive: true,
+                includeJournals: true,
                 taskCompletion: ScheduleTaskCompletion.all,
                 showNoDateTasks: false,
               ),
         ),
       );
-    });
-
-// A mini-calendar always draws six weeks, independently of full Month's
-// actual week count. Fetch precisely the dates that its markers represent.
-final _androidMiniCalendarItemsProvider = FutureProvider.autoDispose
-    .family<List<ScheduleItem>, ({DateTime month, int firstWeekday})>((
-      ref,
-      key,
-    ) async {
-      ref.watch(scheduleDataRevisionProvider);
-      final sources = await ref.watch(calendarSourcesStreamProvider.future);
-      final lists = await ref.watch(scheduleTaskListsProvider.future);
-      final visibility = ScheduleSourceVisibility.fromSources(
-        calendarSources: sources,
-        taskLists: lists,
-        settings: ref.watch(appSettingsControllerProvider),
-      );
-      final start = ScheduleRange.month(
-        key.month,
-        firstWeekday: key.firstWeekday,
-      ).start;
-      return ref
-          .watch(scheduleRepositoryProvider)
-          .listItems(
-            range: ScheduleRange.days(start, count: 42),
-            filters: ScheduleFilters(
-              sourceIds: visibility.visibleCalendarSourceIds,
-              taskListKeys: visibility.visibleTaskListKeys,
-              sourceFilterActive: true,
-              taskListFilterActive: true,
-              taskCompletion: ScheduleTaskCompletion.all,
-              showNoDateTasks: false,
-            ),
-          );
     });
 
 class AndroidScheduleScreen extends ConsumerStatefulWidget {
@@ -345,6 +318,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     final visibility = ScheduleSourceVisibility.fromSources(
       calendarSources: sourceInventory.valueOrNull ?? const [],
       taskLists: taskInventory.valueOrNull ?? const [],
+      journals:
+          ref.watch(scheduleJournalSourcesProvider).valueOrNull ?? const [],
       settings: settings,
     );
     var items = page.whenData((value) => value.items);
@@ -359,6 +334,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
         ScheduleProjection.day(DateTime.now()).toIso8601String(),
         sourceKeys,
         listKeys,
+        ...visibility.visibleJournalSourceIds.toList()..sort(),
       ]);
       if (!sourceInventory.isLoading &&
           !taskInventory.isLoading &&
@@ -578,54 +554,6 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                 switch (value) {
                   case 'refresh':
                     await _refreshWorkspace();
-                  case 'journals':
-                    if (context.mounted) {
-                      await Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (context) => Scaffold(
-                            appBar: AppBar(title: Text(context.l10n.journals)),
-                            body: SafeArea(
-                              child: JournalWorkspace(
-                                controls: const MaterialJournalControls(),
-                                openScheduleItem: _openJournalScheduleReference,
-                                onRefresh: (scope) async {
-                                  if (scope.kind == SyncScopeKind.all) {
-                                    await refreshAndroidAccounts(context, ref);
-                                    return;
-                                  }
-                                  final account = await ref
-                                      .read(accountsRepositoryProvider)
-                                      .accountById(scope.accountId!);
-                                  if (!context.mounted) return;
-                                  if (account?.provider.isDav == true &&
-                                      !await ensureAndroidLocalNetworkAccess(
-                                        context,
-                                        account!.authority,
-                                      )) {
-                                    return;
-                                  }
-                                  if (context.mounted) {
-                                    await refreshFromAndroid(
-                                      context,
-                                      ref,
-                                      scope,
-                                    );
-                                  }
-                                },
-                                files: const JournalFileActions(
-                                  read: _readJournalFile,
-                                  export: _exportJournalFile,
-                                  exportDraft: _exportJournalDraft,
-                                  pickAttachment: _pickJournalAttachment,
-                                  saveAttachment: _saveJournalAttachment,
-                                  exportCollection: _exportJournalCollection,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }
                   case 'settings':
                     if (context.mounted) {
                       await Navigator.of(context).push<void>(
@@ -660,10 +588,6 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                     value: 'refresh',
                     child: Text(context.l10n.refreshAll),
                   ),
-                PopupMenuItem(
-                  value: 'journals',
-                  child: Text(context.l10n.journals),
-                ),
                 PopupMenuItem(
                   value: 'settings',
                   child: Text(context.l10n.settings),
@@ -734,6 +658,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     final visibility = ScheduleSourceVisibility.fromSources(
       calendarSources: sourceState.valueOrNull ?? const [],
       taskLists: listState.valueOrNull ?? const [],
+      journals:
+          ref.watch(scheduleJournalSourcesProvider).valueOrNull ?? const [],
       settings: ref.watch(appSettingsControllerProvider),
     );
     if (!items.isLoading &&
@@ -743,7 +669,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
         sourceState.hasValue &&
         listState.hasValue &&
         !visibility.hasCalendarSources &&
-        !visibility.hasTaskLists) {
+        !visibility.hasTaskLists &&
+        visibility.visibleJournalSourceIds.isEmpty) {
       return Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -753,7 +680,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
               const Icon(Icons.calendar_today_outlined),
               const SizedBox(height: 12),
               Text(
-                context.l10n.scheduleNoSources,
+                context.l10n.scheduleNoVisibleSources,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
@@ -834,32 +761,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                 .scheduleDayEndMinute,
             agendaEmptyBuilder: items.isLoading || coverageComplete != true
                 ? (context) => const SizedBox.shrink()
-                : (context) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(context.l10n.noEventsOrTasks),
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            if (_canCreateEvent)
-                              TextButton.icon(
-                                icon: const Icon(Icons.event_outlined),
-                                label: Text(context.l10n.newEvent),
-                                onPressed: () => _createEvent(context),
-                              ),
-                            if (_canCreateTask)
-                              TextButton.icon(
-                                icon: const Icon(Icons.checklist_outlined),
-                                label: Text(context.l10n.newTask),
-                                onPressed: () =>
-                                    _createItem(context, itemType: 'task'),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+                : (context) =>
+                      Center(child: Text(context.l10n.noScheduleItems)),
           ),
         ),
         if (items.isLoading)
@@ -983,7 +886,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                       icon: Icons.search_off,
                       title: !criteria.hasSources
                           ? context.l10n.searchNoSources
-                          : context.l10n.scheduleNoSearchResults,
+                          : context.l10n.scheduleNoMatchingItems,
                       detail: context.l10n.scheduleNoSearchResultsDescription,
                     ),
             ),
@@ -1170,6 +1073,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     final visibility = ScheduleSourceVisibility.fromSources(
       calendarSources: sources,
       taskLists: lists,
+      journals:
+          ref.read(scheduleJournalSourcesProvider).valueOrNull ?? const [],
       settings: ref.read(appSettingsControllerProvider),
     );
     final now = DateTime.now();
@@ -1182,6 +1087,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
         firstWeekday: _firstWeekday(context),
         sourceIds: visibility.visibleCalendarSourceIds,
         taskListKeys: visibility.visibleTaskListKeys,
+        journalSourceIds: visibility.visibleJournalSourceIds,
       ).remapTaskLists(ref.read(taskListIdReplacementsProvider));
       _searchCriteria = _initialSearchCriteria;
       _searching = true;
@@ -1224,6 +1130,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
     ),
     sources: ref.watch(calendarSourcesStreamProvider).valueOrNull ?? const [],
     taskLists: ref.watch(scheduleTaskListsProvider).valueOrNull ?? const [],
+    journalSources:
+        ref.watch(scheduleJournalSourcesProvider).valueOrNull ?? const [],
     onChanged: (value) => setState(() {
       _notificationDate = null;
       _allTaskLists = false;
@@ -1316,7 +1224,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
         IconButton(
           tooltip: context.l10n.create,
           icon: const Icon(Icons.add),
-          onPressed: _canCreateEvent || _canCreateTask
+          onPressed: _canCreateEvent || _canCreateTask || _canCreateJournal
               ? () => _createItem(context)
               : null,
         ),
@@ -1336,6 +1244,91 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
           )
           .toList()
           .isNotEmpty;
+
+  bool get _canCreateJournal =>
+      (ref.watch(scheduleJournalSourcesProvider).valueOrNull ?? const []).any(
+        (source) =>
+            collectionCapabilitiesFromStored(source).canAttemptCreateJournal,
+      );
+
+  Future<void> _journalDialog(
+    BuildContext context,
+    JournalPaneAction action, {
+    JournalScheduleItem? item,
+    String? sourceId,
+    String? accountId,
+    DateTime? initialDate,
+  }) => showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => Dialog(
+      child: SizedBox(
+        width: 640,
+        height: MediaQuery.sizeOf(context).height * .8,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Text(
+                journalPaneTitle(context.l10n, action),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            Expanded(
+              child: JournalPane(
+                action: action,
+                item: item,
+                sourceId: sourceId,
+                accountId: accountId,
+                initialDate: initialDate,
+                controls: const MaterialJournalControls(),
+                openScheduleItem: _openJournalScheduleReference,
+                onRefresh: (scope) async {
+                  final account = await ref
+                      .read(accountsRepositoryProvider)
+                      .accountById(scope.accountId!);
+                  if (!context.mounted || account == null) return;
+                  if (!await ensureAndroidLocalNetworkAccess(
+                        context,
+                        account.authority,
+                      ) ||
+                      !context.mounted) {
+                    return;
+                  }
+                  await refreshFromAndroid(context, ref, scope);
+                },
+                files: const JournalFileActions(
+                  read: _readJournalFile,
+                  export: _exportJournalFile,
+                  exportDraft: _exportJournalDraft,
+                  pickAttachment: _pickJournalAttachment,
+                  saveAttachment: _saveJournalAttachment,
+                  exportCollection: _exportJournalCollection,
+                ),
+                onClose: () => Navigator.of(context).pop(),
+                detailActions: (actions) => Wrap(
+                  spacing: 4,
+                  children: [
+                    for (final action in actions)
+                      IconButton(
+                        tooltip: action.label,
+                        icon: Icon(switch (action.icon) {
+                          JournalDetailAction.share => Icons.share_outlined,
+                          JournalDetailAction.edit => Icons.edit_outlined,
+                          JournalDetailAction.delete => Icons.delete_outline,
+                          JournalDetailAction.close => Icons.close,
+                        }),
+                        onPressed: action.run,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 
   void _movePeriod(ScheduleViewMode mode, int direction) {
     setState(() {
@@ -1374,6 +1367,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                   taskLists:
                       ref.read(scheduleTaskListsProvider).valueOrNull ??
                       const [],
+                  journalSources:
+                      ref.read(scheduleJournalSourcesProvider).valueOrNull ??
+                      const [],
                   onChanged: (value) {
                     setState(() {
                       _notificationDate = null;
@@ -1404,6 +1400,31 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
   Widget _sourcesPane({bool dismissOnNavigate = false}) => _AndroidSourcesPane(
     compact: dismissOnNavigate,
     selectedDate: _anchor,
+    onJournalAction: (action, sourceId, accountId) async {
+      if (action == JournalPaneAction.createCollection ||
+          action == JournalPaneAction.renameCollection ||
+          action == JournalPaneAction.removeCollection) {
+        final account = await ref
+            .read(accountsRepositoryProvider)
+            .accountById(accountId);
+        if (!mounted ||
+            account == null ||
+            !await ensureAndroidLocalNetworkAccess(
+              context,
+              account.authority,
+            )) {
+          return;
+        }
+      }
+      if (mounted) {
+        await _journalDialog(
+          context,
+          action,
+          sourceId: sourceId,
+          accountId: accountId,
+        );
+      }
+    },
     onNavigate: (date, mode) {
       if (dismissOnNavigate) {
         Navigator.pop(context);
@@ -1472,11 +1493,27 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                       ? () => Navigator.pop(context, 'task')
                       : null,
                 ),
+                ListTile(
+                  leading: const Icon(Icons.book_outlined),
+                  title: Text(context.l10n.newJournalEntry),
+                  enabled: _canCreateJournal,
+                  onTap: _canCreateJournal
+                      ? () => Navigator.pop(context, 'journal')
+                      : null,
+                ),
               ],
             ),
           ),
         );
     if (!context.mounted || type == null) {
+      return;
+    }
+    if (type == 'journal') {
+      await _journalDialog(
+        context,
+        JournalPaneAction.create,
+        initialDate: start,
+      );
       return;
     }
     if (type == 'event') {
@@ -1574,6 +1611,10 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
   }
 
   Future<void> _showItem(BuildContext context, ScheduleItem item) async {
+    if (item is JournalScheduleItem) {
+      await _journalDialog(context, JournalPaneAction.open, item: item);
+      return;
+    }
     if (item is TaskScheduleItem && androidTaskEditorIsActive(context)) {
       await showAndroidTaskEditor(
         context,
@@ -1650,8 +1691,19 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                     spacing: 8,
                     runSpacing: 8,
                     children: [
+                      IconButton(
+                        tooltip: context.l10n.export,
+                        icon: const Icon(Icons.share_outlined),
+                        onPressed: () => _exportItem(sheetContext, item),
+                      ),
                       if (item.capabilities.canEdit || item is TaskScheduleItem)
-                        FilledButton.icon(
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          tooltip: item is CalendarScheduleItem
+                              ? context.l10n.editEvent
+                              : item.capabilities.canEdit
+                              ? context.l10n.editTask
+                              : context.l10n.taskDetails,
                           onPressed: () async {
                             if (editing) {
                               return;
@@ -1674,19 +1726,11 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                               }
                             }
                           },
-                          icon: const Icon(Icons.edit),
-                          label: Text(
-                            item is CalendarScheduleItem
-                                ? context.l10n.editEvent
-                                : item.capabilities.canEdit
-                                ? context.l10n.editTask
-                                : context.l10n.taskDetails,
-                          ),
                         ),
                       if (item.capabilities.canDelete)
-                        OutlinedButton.icon(
+                        IconButton(
                           icon: const Icon(Icons.delete_outline),
-                          label: Text(switch (item) {
+                          tooltip: switch (item) {
                             CalendarScheduleItem(isNextcloudAttendee: true) =>
                               context.l10n.nextcloudDeclineAndRemove,
                             CalendarScheduleItem(
@@ -1695,7 +1739,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                             ) =>
                               context.l10n.nextcloudCancelMeeting,
                             _ => context.l10n.delete,
-                          }),
+                          },
                           onPressed: () async {
                             if (await _deleteItem(item) &&
                                 sheetContext.mounted) {
@@ -1703,17 +1747,10 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen>
                             }
                           },
                         ),
-                      ...[
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: () => _exportItem(sheetContext, item),
-                          icon: const Icon(Icons.file_download_outlined),
-                          label: Text(context.l10n.export),
-                        ),
-                      ],
-                      TextButton(
+                      IconButton(
+                        tooltip: context.l10n.close,
+                        icon: const Icon(Icons.close),
                         onPressed: () => Navigator.pop(sheetContext),
-                        child: Text(context.l10n.close),
                       ),
                     ],
                   ),
@@ -2590,11 +2627,14 @@ class _AndroidSourcesPane extends ConsumerStatefulWidget {
   const _AndroidSourcesPane({
     required this.selectedDate,
     required this.onNavigate,
+    required this.onJournalAction,
     this.compact = false,
   });
   final bool compact;
   final DateTime selectedDate;
   final void Function(DateTime, ScheduleViewMode) onNavigate;
+  final Future<void> Function(JournalPaneAction, String?, String)
+  onJournalAction;
 
   @override
   ConsumerState<_AndroidSourcesPane> createState() =>
@@ -2647,7 +2687,7 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
     final monthItems =
         ref
             .watch(
-              _androidMiniCalendarItemsProvider((
+              scheduleMiniCalendarItemsProvider((
                 month: month,
                 firstWeekday: _firstWeekday(context),
               )),
@@ -2752,6 +2792,14 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
       (l) => l.id,
       accountId: account.id,
     );
+    final journals = settings.sidebarOrder.apply(
+      SidebarOrderSection.journals,
+      (ref.watch(scheduleJournalSourcesProvider).valueOrNull ?? const []).where(
+        (source) => source.accountId == account.id,
+      ),
+      (source) => source.id,
+      accountId: account.id,
+    );
     final disclosure = _accountDisclosures.putIfAbsent(
       account.id,
       ExpansibleController.new,
@@ -2784,6 +2832,7 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
           ? sources
           : const <CalendarSourceEntity>[],
       taskLists: lists,
+      journals: journals,
     );
     final visible = visibility != ScheduleAccountVisibility.hidden;
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
@@ -2892,6 +2941,12 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
                   running.remove(account.id);
                   if (mounted) setState(() {});
                 }
+              } else if (action == 'journal') {
+                await widget.onJournalAction(
+                  JournalPaneAction.createCollection,
+                  null,
+                  account.id,
+                );
               } else if (action == 'settings') {
                 await Navigator.of(context).push<void>(
                   MaterialPageRoute(
@@ -2947,8 +3002,16 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
                   const Icon(Icons.playlist_add),
                   enabled: capabilities.taskListActionEnabled,
                 ),
+              if (capabilities.supportsJournalCreation)
+                _androidAccountMenuItem(
+                  'journal',
+                  context.l10n.newJournalSource,
+                  const Icon(Icons.book_outlined),
+                  enabled: capabilities.journalActionEnabled,
+                ),
               if (capabilities.supportsCalendarCreation ||
-                  capabilities.supportsTaskListCreation)
+                  capabilities.supportsTaskListCreation ||
+                  (capabilities.supportsJournalCreation))
                 const PopupMenuDivider(),
               _androidAccountMenuItem(
                 'refresh',
@@ -3031,12 +3094,162 @@ class _AndroidSourcesPaneState extends ConsumerState<_AndroidSourcesPane> {
               ),
             ),
           ),
+        for (final journal in journals)
+          _journalSource(
+            journal,
+            account,
+            journals.map((row) => row.id).toList(),
+          ),
       ],
     );
     return ListTileTheme.merge(
       horizontalTitleGap: BusyMaxSpacing.small,
       child: tile,
     );
+  }
+
+  Widget _journalSource(
+    DavCollection journal,
+    AccountEntity account,
+    List<String> siblings,
+  ) {
+    final l10n = context.l10n;
+    final settings = ref.watch(appSettingsControllerProvider);
+    final visible =
+        settings.isAccountVisibleInSchedule(account.id) &&
+        journal.journalsSelected;
+    final accountVisible = settings.isAccountVisibleInSchedule(account.id);
+    final color = _journalSourceColor(
+      journal.color,
+      journal.id,
+      Theme.of(context).brightness,
+    );
+    final scope = davCollectionSyncScope(account.id, journal.id);
+    final caps = collectionCapabilitiesFromStored(journal);
+    final collection = ref
+        .watch(davCollectionsStreamProvider)
+        .valueOrNull
+        ?.where((row) => row.id == journal.id)
+        .firstOrNull;
+    return ListTile(
+      key: ValueKey(('schedule-journal', journal.id)),
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        journal.displayName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      leading: ScheduleSidebarVisibilityIcon(
+        key: ValueKey(('journal-visibility', journal.id)),
+        scope: scope,
+        label: journal.displayName,
+        actionLabel: visible ? l10n.hide : l10n.show,
+        visible: visible,
+        color: color,
+        buttonBuilder: _androidSidebarVisibilityButton,
+        warningIcon: Icons.warning_amber_rounded,
+        ringSize: 24,
+        icon: Icon(Icons.book_outlined, color: color, size: 18),
+        onPressed: accountVisible
+            ? () => unawaited(
+                ref
+                    .read(davSettingsRepositoryProvider)
+                    .setJournalsSelected(journal.id, !visible),
+              )
+            : null,
+      ),
+      trailing: PopupMenuButton<String>(
+        key: ValueKey(('journal-options', journal.id)),
+        tooltip: l10n.options,
+        style: _androidSidebarTrailingStyle,
+        icon: _androidSidebarActionIcon(Icon(Icons.adaptive.more)),
+        itemBuilder: (_) => [
+          _androidAccountMenuItem(
+            'refresh',
+            l10n.refresh,
+            const Icon(Icons.refresh),
+          ),
+          _androidAccountMenuItem(
+            'rename',
+            l10n.rename,
+            const Icon(Icons.edit_outlined),
+            enabled: caps.canMutateCollection,
+          ),
+          _androidAccountMenuItem(
+            'import',
+            l10n.importIcsFile,
+            const Icon(Icons.file_open_outlined),
+            enabled:
+                caps.canAttemptCreateJournal || caps.canAttemptUpdateJournal,
+          ),
+          _androidAccountMenuItem(
+            'export',
+            l10n.export,
+            const Icon(Icons.share_outlined),
+          ),
+          _androidAccountMenuItem(
+            'delete',
+            l10n.journalDeleteCollection,
+            const Icon(Icons.delete_outline),
+            enabled: collection?.canRemoveCollection == true,
+          ),
+          _androidAccountMenuItem(
+            'up',
+            l10n.moveUp,
+            const Icon(Icons.arrow_upward),
+            enabled: siblings.indexOf(journal.id) > 0,
+          ),
+          _androidAccountMenuItem(
+            'down',
+            l10n.moveDown,
+            const Icon(Icons.arrow_downward),
+            enabled: siblings.indexOf(journal.id) < siblings.length - 1,
+          ),
+        ],
+        onSelected: (value) async {
+          if (value == 'refresh') {
+            if (!await ensureAndroidLocalNetworkAccess(
+                  context,
+                  account.authority,
+                ) ||
+                !mounted) {
+              return;
+            }
+            await refreshFromAndroid(context, ref, scope);
+          } else if (value == 'up' || value == 'down') {
+            await ref
+                .read(appSettingsControllerProvider.notifier)
+                .moveSidebarItem(
+                  SidebarOrderSection.journals,
+                  journal.id,
+                  value == 'up' ? -1 : 1,
+                  siblings,
+                  accountId: account.id,
+                );
+          } else {
+            await widget.onJournalAction(
+              switch (value) {
+                'rename' => JournalPaneAction.renameCollection,
+                'import' => JournalPaneAction.import,
+                'delete' => JournalPaneAction.removeCollection,
+                _ => JournalPaneAction.exportCollection,
+              },
+              journal.id,
+              account.id,
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Color _journalSourceColor(String? value, String id, Brightness brightness) {
+    final hex = value == null
+        ? null
+        : int.tryParse(value.replaceFirst('#', ''), radix: 16);
+    return hex == null
+        ? ScheduleProjection.deterministicSourceColor(id, brightness)
+        : Color(0xff000000 | hex);
   }
 
   Widget _taskListVisibility(TaskListEntity list) {
@@ -3443,7 +3656,7 @@ class _AgendaList extends StatelessWidget {
     onTaskListMutationConsumed: onTaskMutationConsumed,
     emptyBuilder:
         emptyBuilder ??
-        (context) => Center(child: Text(context.l10n.noEventsOrTasks)),
+        (context) => Center(child: Text(context.l10n.noScheduleItems)),
     hasMoreOverdueTasks: hasMoreOverdue,
     hasMoreNoDateTasks: hasMoreNoDate,
     onLoadMore: onLoadMore,

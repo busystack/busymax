@@ -1,4 +1,3 @@
-import '../journal/presentation/journal_desktop_files.dart';
 import '../features/notifications/daily_summary_policy.dart';
 
 import 'package:busymax/src/ui/common/flutter_material.dart';
@@ -10,17 +9,11 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/schedule/presentation/schedule_workspace.dart';
 import '../schedule/schedule_scope.dart';
-import '../l10n/l10n.dart';
-import '../journal/presentation/journal_workspace.dart';
-import '../journal/presentation/linux_journal_controls.dart';
-import '../platform/gtk_header_icon_service.dart';
 import 'app_bootstrap.dart';
 import 'busymax_design.dart';
-import 'busymax_window_close.dart';
 import 'busymax_layout.dart';
 import 'busymax_surface_colors.dart';
 import 'linux/linux_page_frame.dart';
-import 'linux/linux_header_style.dart';
 import 'linux/linux_window_host.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -31,7 +24,6 @@ class _RouterRefreshNotifier extends ChangeNotifier {
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = _RouterRefreshNotifier();
-  final journalNavigation = BusyMaxWindowCloseCoordinator();
   ref.listen(authSessionControllerProvider, (_, _) {
     refreshNotifier.refresh();
   });
@@ -81,35 +73,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
-        path: '/journals',
-        onExit: (_, _) => journalNavigation.requestClose(),
-        builder: (context, state) => LinuxPageFrame(
-          header: BusyMaxLinuxHeaderLayout(
-            leading: BusyMaxLinuxHeaderControlGroup(
-              children: [
-                BusyMaxLinuxHeaderIconButton(
-                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                  icon: BusyMaxLinuxHeaderIcon.back,
-                  onPressed: () => context.canPop()
-                      ? context.pop()
-                      : context.go('/schedule'),
-                ),
-              ],
-            ),
-            title: BusyMaxLinuxHeaderTitle(context.l10n.journals),
-            trailing: const SizedBox.shrink(),
-          ),
-          body: Material(
-            type: MaterialType.transparency,
-            child: JournalWorkspace(
-              controls: const LinuxJournalControls(),
-              files: journalDesktopFiles,
-              navigationCoordinator: journalNavigation,
-            ),
-          ),
-        ),
-      ),
+      GoRoute(path: '/journals', redirect: (_, _) => '/schedule'),
       GoRoute(
         path: '/settings',
         pageBuilder: (context, state) => NoTransitionPage<void>(

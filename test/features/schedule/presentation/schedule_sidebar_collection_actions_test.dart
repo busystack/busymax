@@ -1200,7 +1200,15 @@ void main() {
           ),
         );
 
-    expect(menu.entries, hasLength(7));
+    expect(menu.entries, hasLength(8));
+    expect(
+      menu.entries
+          .singleWhere(
+            (item) => item.value == AccountHeaderCollectionAction.newJournal,
+          )
+          .enabled,
+      isFalse,
+    );
     expect(
       menu.entries.where((entry) => entry.enabled).map((entry) => entry.value),
       [AccountHeaderCollectionAction.settings],

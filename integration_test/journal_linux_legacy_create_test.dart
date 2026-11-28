@@ -58,18 +58,26 @@ void main() {
       expect(operation.operationType, 'dav.create');
       expect(operation.attemptCount, 0);
       expect(operation.baselineEtag, isNull);
-      container.read(appRouterProvider).go('/journals');
-      final label = find.textContaining(RegExp(r'^Series ·'));
+      container.read(appRouterProvider).go('/schedule');
+      await openJournalSearch(tester);
+      await tester.enterText(journalScheduleSearchInput(), 'Series');
+      final label = find.text('Series');
       await waitJournalWidget(tester, label);
       await tester.tap(label);
 
       if (stage == 'transfer') {
+        await enterJournalEditor(tester);
         await transferLinuxJournalFiles(
           tester,
           profile,
           title: 'Series',
           importedTitle: 'GTK imported series',
           importedUid: 'linux-journal-file-roundtrip@example.invalid',
+          account: operation.accountId,
+          source: (await tester.runAsync(() async {
+            final entries = await JournalRepository(database).listEntries();
+            return entries.firstWhere((entry) => entry.title == 'Series');
+          }))!.collectionId,
         );
         debugPrint('JOURNAL_LINUX_LEGACY_CREATE transfer PASS');
         await tester.pumpWidget(const SizedBox.shrink());

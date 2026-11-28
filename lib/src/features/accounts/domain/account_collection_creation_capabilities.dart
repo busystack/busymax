@@ -27,6 +27,8 @@ final class AccountCollectionCreationCapabilities {
     required this.taskListMode,
     required this.calendarActionEnabled,
     required this.taskListActionEnabled,
+    this.supportsJournalCreation = false,
+    this.journalActionEnabled = false,
   });
 
   factory AccountCollectionCreationCapabilities.resolve({
@@ -47,9 +49,17 @@ final class AccountCollectionCreationCapabilities {
         : TaskListCreationMode.unavailable;
     final connected = account.isSignedIn;
     final nextcloudOnline = networkAvailability != NetworkAvailability.offline;
+    final supportsJournalCreation =
+        account.journalsEnabled &&
+        genericAllowed &&
+        (account.provider == BusyProvider.caldav ||
+            account.provider == BusyProvider.nextcloud);
     return AccountCollectionCreationCapabilities(
       calendarMode: calendarMode,
       taskListMode: taskListMode,
+      supportsJournalCreation: supportsJournalCreation,
+      journalActionEnabled:
+          supportsJournalCreation && connected && nextcloudOnline,
       calendarActionEnabled:
           calendarMode != CalendarCollectionCreationMode.unavailable &&
           connected &&
@@ -75,12 +85,17 @@ final class AccountCollectionCreationCapabilities {
   final TaskListCreationMode taskListMode;
   final bool calendarActionEnabled;
   final bool taskListActionEnabled;
+  final bool supportsJournalCreation;
+  final bool journalActionEnabled;
 
   bool get supportsCalendarCreation =>
       calendarMode != CalendarCollectionCreationMode.unavailable;
   bool get supportsTaskListCreation =>
       taskListMode != TaskListCreationMode.unavailable;
-  bool get hasActions => supportsCalendarCreation || supportsTaskListCreation;
+  bool get hasActions =>
+      supportsCalendarCreation ||
+      supportsTaskListCreation ||
+      supportsJournalCreation;
 }
 
 final class AccountCollectionCreationModes {

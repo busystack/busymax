@@ -2,6 +2,8 @@ enum ScheduleTaskCompletion { open, all, completed }
 
 enum ScheduleTaskDueState { any, overdue, noDueDate }
 
+enum ScheduleDatePresence { any, dated, undated }
+
 class ScheduleTaskListKey {
   const ScheduleTaskListKey({
     required this.accountId,
@@ -27,10 +29,13 @@ class ScheduleFilters {
     this.accountIds = const {},
     this.sourceIds = const {},
     this.taskListKeys = const {},
+    this.journalSourceIds = const {},
     this.sourceFilterActive = false,
     this.taskListFilterActive = false,
+    this.journalSourceFilterActive = false,
     this.includeCalendarEvents = true,
     this.includeTasks = true,
+    this.includeJournals = false,
     this.query = '',
     this.taskCompletion = ScheduleTaskCompletion.open,
     this.ignoreDateRange = false,
@@ -40,16 +45,20 @@ class ScheduleFilters {
     this.person = '',
     this.location = '',
     this.showNoDateTasks = true,
+    this.datePresence = ScheduleDatePresence.any,
     this.notificationDeadline,
   });
 
   final Set<String> accountIds;
   final Set<String> sourceIds;
   final Set<ScheduleTaskListKey> taskListKeys;
+  final Set<String> journalSourceIds;
   final bool sourceFilterActive;
   final bool taskListFilterActive;
+  final bool journalSourceFilterActive;
   final bool includeCalendarEvents;
   final bool includeTasks;
+  final bool includeJournals;
   final String query;
   final ScheduleTaskCompletion taskCompletion;
 
@@ -69,6 +78,7 @@ class ScheduleFilters {
   final String person;
   final String location;
   final bool showNoDateTasks;
+  final ScheduleDatePresence datePresence;
 
   /// Temporary notification destination; ordinary browsing filters are retained.
   final DateTime? notificationDeadline;

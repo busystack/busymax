@@ -698,7 +698,15 @@ class AppLocalizationsFi extends AppLocalizations {
       'Valitse asetuksissa, mitä näytetään, ja päivitä sitten näkymä.';
 
   @override
+  String get scheduleNoVisibleSources =>
+      'No visible calendars, task lists, or journals';
+
+  @override
   String get scheduleNoSearchResults => 'Ei vastaavia tapahtumia tai tehtäviä';
+
+  @override
+  String get scheduleNoMatchingItems =>
+      'No matching events, tasks, or journal entries';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4127,6 +4135,18 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get journals => 'Päiväkirjat';
+
+  @override
+  String get newJournalEntry => 'New journal entry';
+
+  @override
+  String get newJournalSource => 'New journal';
+
+  @override
+  String get editJournalEntry => 'Edit journal entry';
+
+  @override
+  String get noScheduleItems => 'No events, tasks, or journal entries';
 
   @override
   String get newJournal => 'Uusi merkintä';

@@ -1,7 +1,13 @@
 import '../../features/sync/sync_request.dart';
 import 'windows_sync_feedback.dart';
+import 'windows_journal_page.dart';
+import '../../db/app_database.dart' show DavCollection;
+import '../../dav/storage/dav_collection_capabilities.dart';
+import '../../journal/presentation/journal_pane.dart';
 import '../../l10n/nextcloud_collection_error_description.dart';
 import '../../schedule/schedule_task_list_actions.dart';
+import '../../schedule/schedule_item.dart';
+import '../../schedule/schedule_projection.dart';
 import '../../l10n/dav_collection_error_description.dart';
 
 import 'dart:async';
@@ -168,6 +174,16 @@ class _WindowsScheduleSourcePaneState
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: _MiniMonth(
+              items:
+                  ref
+                      .watch(
+                        scheduleMiniCalendarItemsProvider((
+                          month: _displayedMonth,
+                          firstWeekday: widget.firstWeekday,
+                        )),
+                      )
+                      .valueOrNull ??
+                  const [],
               firstWeekday: widget.firstWeekday,
               displayedMonth: _displayedMonth,
               selectedDate: widget.selectedDate,
@@ -242,6 +258,7 @@ class _WindowsScheduleSourcePaneState
                       calendars: _calendarsFor(account.id),
                       taskLists: _taskListsFor(account.id),
                       selectedCalendarIds: widget.selectedCalendarSourceIds,
+                      journals: _journalsFor(account.id),
                     ),
                     onAccountSettings: widget.onAccountSettings == null
                         ? null
@@ -307,13 +324,47 @@ class _WindowsScheduleSourcePaneState
                           widget.onTaskListVisibilityChanged(list, value),
                       menuItems: _taskListMenuItems(context, account, list),
                     ),
+                  for (final journal in _journalsFor(account.id))
+                    _VisibilityRow(
+                      key: ValueKey((
+                        'schedule-journal',
+                        account.id,
+                        journal.id,
+                      )),
+                      icon: BusyMaxGlyph.journal,
+                      iconColor: journal.color == null
+                          ? null
+                          : _colorFromHex(journal.color!),
+                      scope: davCollectionSyncScope(
+                        journal.accountId,
+                        journal.id,
+                      ),
+                      title: journal.displayName,
+                      selected: journal.journalsSelected,
+                      accountVisible: settings.isAccountVisibleInSchedule(
+                        account.id,
+                      ),
+                      onChanged: (visible) => unawaited(
+                        ref
+                            .read(davSettingsRepositoryProvider)
+                            .setJournalsSelected(journal.id, visible),
+                      ),
+                      menuItems: _journalMenuItems(
+                        context,
+                        journal,
+                        _journalsFor(account.id).map((row) => row.id).toList(),
+                      ),
+                    ),
                 ],
                 if (accounts.isNotEmpty &&
                     widget.calendarSources.isEmpty &&
-                    widget.taskLists.isEmpty)
+                    widget.taskLists.isEmpty &&
+                    (ref.watch(scheduleJournalSourcesProvider).valueOrNull ??
+                            const [])
+                        .isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text(l10n.scheduleNoSources),
+                    child: Text(l10n.scheduleNoVisibleSources),
                   ),
               ],
             ),
@@ -813,6 +864,80 @@ class _WindowsScheduleSourcePaneState
       ) ??
       false;
 
+  List<DavCollection> _journalsFor(String accountId) => ref
+      .watch(appSettingsControllerProvider)
+      .sidebarOrder
+      .apply(
+        SidebarOrderSection.journals,
+        (ref.watch(scheduleJournalSourcesProvider).valueOrNull ?? const [])
+            .where((source) => source.accountId == accountId),
+        (source) => source.id,
+        accountId: accountId,
+      );
+
+  List<MenuFlyoutItem> _journalMenuItems(
+    BuildContext context,
+    DavCollection journal,
+    List<String> siblings,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    final caps = collectionCapabilitiesFromStored(journal);
+    final settings = ref
+        .watch(davCollectionsStreamProvider)
+        .valueOrNull
+        ?.where((entry) => entry.id == journal.id)
+        .firstOrNull;
+    void open(JournalPaneAction action) => unawaited(
+      showWindowsJournalDialog(context, action, sourceId: journal.id),
+    );
+    return [
+      MenuFlyoutItem(
+        leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+        text: Text(l10n.refresh),
+        onPressed: () => unawaited(
+          refreshWindowsScope(
+            context,
+            ref,
+            davCollectionSyncScope(journal.accountId, journal.id),
+          ),
+        ),
+      ),
+      MenuFlyoutItem(
+        leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.edit)),
+        text: Text(l10n.rename),
+        onPressed: caps.canMutateCollection
+            ? () => open(JournalPaneAction.renameCollection)
+            : null,
+      ),
+      MenuFlyoutItem(
+        leading: const Icon(FluentIcons.open_file),
+        text: Text(l10n.importIcsFile),
+        onPressed: caps.canAttemptCreateJournal || caps.canAttemptUpdateJournal
+            ? () => open(JournalPaneAction.import)
+            : null,
+      ),
+      MenuFlyoutItem(
+        leading: const Icon(FluentIcons.share),
+        text: Text(l10n.export),
+        onPressed: () => open(JournalPaneAction.exportCollection),
+      ),
+      MenuFlyoutItem(
+        leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.delete)),
+        text: Text(l10n.journalDeleteCollection),
+        onPressed: settings?.canRemoveCollection == true
+            ? () => open(JournalPaneAction.removeCollection)
+            : null,
+      ),
+      ..._movementItems(
+        context,
+        SidebarOrderSection.journals,
+        journal.id,
+        siblings,
+        accountId: journal.accountId,
+      ),
+    ];
+  }
+
   Future<void> _showMessage(String message) => showDialog<void>(
     context: context,
     builder: (dialogContext) => ContentDialog(
@@ -886,7 +1011,8 @@ class _AccountHeader extends ConsumerWidget {
         : 0;
     final hasCreation =
         capabilities.supportsCalendarCreation ||
-        capabilities.supportsTaskListCreation;
+        capabilities.supportsTaskListCreation ||
+        (capabilities.supportsJournalCreation);
     final visible = visibility != ScheduleAccountVisibility.hidden;
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -982,6 +1108,23 @@ class _AccountHeader extends ConsumerWidget {
                     ? onCreateTaskList
                     : null,
               ),
+            if (capabilities.supportsJournalCreation)
+              MenuFlyoutItem(
+                leading: Icon(
+                  windowsBusyMaxGlyph(BusyMaxGlyph.journal),
+                  size: 16,
+                ),
+                text: Text(l10n.newJournalSource),
+                onPressed: capabilities.journalActionEnabled
+                    ? () => unawaited(
+                        showWindowsJournalDialog(
+                          context,
+                          JournalPaneAction.createCollection,
+                          accountId: account.id,
+                        ),
+                      )
+                    : null,
+              ),
             if (hasCreation) const MenuFlyoutSeparator(),
             MenuFlyoutItem(
               text: Text(l10n.refreshAccount),
@@ -1017,7 +1160,7 @@ class _AccountHeader extends ConsumerWidget {
               ),
             const MenuFlyoutSeparator(),
             ...movementItems,
-          ]),
+          ], key: ValueKey(('account-collection-options', account.id))),
         ],
       ),
     );
@@ -1026,8 +1169,10 @@ class _AccountHeader extends ConsumerWidget {
 
 Widget _windowsSidebarOptions(
   BuildContext context,
-  List<MenuFlyoutItemBase> items,
-) => Tooltip(
+  List<MenuFlyoutItemBase> items, {
+  Key? key,
+}) => Tooltip(
+  key: key,
   message: AppLocalizations.of(context).options,
   child: SizedBox.fromSize(
     size: _sidebarOptionsSize,
@@ -1131,6 +1276,7 @@ bool _isCurrentCalendarColor(
 
 class _MiniMonth extends StatelessWidget {
   const _MiniMonth({
+    required this.items,
     required this.displayedMonth,
     required this.firstWeekday,
     required this.selectedDate,
@@ -1140,6 +1286,7 @@ class _MiniMonth extends StatelessWidget {
     required this.onSelected,
   });
 
+  final List<ScheduleItem> items;
   final DateTime displayedMonth;
   final int firstWeekday;
   final DateTime selectedDate;
@@ -1160,6 +1307,10 @@ class _MiniMonth extends StatelessWidget {
       for (var offset = 0; offset < 42; offset += 1)
         DateTime(gridStart.year, gridStart.month, gridStart.day + offset),
     ];
+    final entries = ScheduleProjection.groupByDay(
+      items,
+      repeatCalendarEvents: true,
+    );
     final weekdayBase = DateTime(2026, 1, 5 + firstWeekday - 1);
     return Column(
       children: [
@@ -1205,6 +1356,7 @@ class _MiniMonth extends StatelessWidget {
                 Expanded(
                   child: _MiniDayButton(
                     day: days[week * 7 + weekday],
+                    items: entries[days[week * 7 + weekday]] ?? const [],
                     inMonth:
                         days[week * 7 + weekday].month == displayedMonth.month,
                     selected: _sameDay(days[week * 7 + weekday], selectedDate),
@@ -1220,12 +1372,14 @@ class _MiniMonth extends StatelessWidget {
 
 class _MiniDayButton extends StatelessWidget {
   const _MiniDayButton({
+    required this.items,
     required this.day,
     required this.inMonth,
     required this.selected,
     required this.onSelected,
   });
 
+  final List<ScheduleItem> items;
   final DateTime day;
   final bool inMonth;
   final bool selected;
@@ -1233,9 +1387,42 @@ class _MiniDayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final child = SizedBox(
-      height: 26,
-      child: Center(child: Text('${day.day}')),
+    final theme = FluentTheme.of(context);
+    final child = Semantics(
+      label: items.isEmpty
+          ? null
+          : AppLocalizations.of(context).scheduleItemCount(items.length),
+      child: SizedBox(
+        height: 26,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Text('${day.day}'),
+            if (items.isNotEmpty)
+              Positioned(
+                bottom: 0,
+                child: Row(
+                  children: [
+                    for (final item in items.take(3))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 1),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: ScheduleProjection.colorForItem(
+                              item,
+                              theme.brightness,
+                            ),
+                          ),
+                          child: const SizedBox.square(dimension: 3),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
     );
     return Padding(
       padding: const EdgeInsets.all(1),

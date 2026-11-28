@@ -18,7 +18,9 @@ class SchedulePlannerEventArranger extends icv.SideEventArranger {
     required double heightPerMinute,
   }) => [
     for (final event in super.arrange(
-      events: events,
+      events: events
+          .where((event) => event.eventType != ScheduleItemKind.journal)
+          .toList(),
       height: height,
       width: width,
       heightPerMinute: heightPerMinute,
@@ -32,7 +34,29 @@ class SchedulePlannerEventArranger extends icv.SideEventArranger {
         right: event.right,
         event: event.event,
       ),
+    for (final event in events)
+      if (event.eventType == ScheduleItemKind.journal)
+        _point(event, height, width, heightPerMinute),
   ];
+
+  icv.OrganizedEvent _point(
+    icv.Event event,
+    double height,
+    double width,
+    double scale,
+  ) {
+    final time = event.startTime;
+    final top = (time.hour * 60 + time.minute + time.second / 60) * scale;
+    return icv.OrganizedEvent(
+      startDuration: time,
+      endDuration: time,
+      top: top,
+      bottom: height - top - 22,
+      left: math.max(paddingLeft, width * .55),
+      right: paddingRight,
+      event: event,
+    );
+  }
 }
 
 /// Display-only planner adapters. Never use their adapted ends for editing.
@@ -73,7 +97,9 @@ class SchedulePlannerEvents {
             title: entries.first.item.title,
             description: groupLabel(entries.length),
             data: ScheduleSlotGroup([for (final entry in entries) entry.item]),
-            eventType: ScheduleSlotGroup,
+            eventType: entries.first.item is JournalScheduleItem
+                ? ScheduleItemKind.journal
+                : ScheduleSlotGroup,
           ),
     ];
   }
@@ -108,7 +134,11 @@ class SchedulePlannerEvents {
       );
     }
 
-    final end = item.end != null && item.end!.isAfter(start)
+    // The planner package requires a positive adapter interval. Journal
+    // markers are laid out independently of every timed event's busy column.
+    final end = item is JournalScheduleItem
+        ? start.add(const Duration(microseconds: 1))
+        : item.end != null && item.end!.isAfter(start)
         ? item.end!
         : start.add(const Duration(minutes: 30));
     return icv.Event(

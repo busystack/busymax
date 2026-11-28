@@ -834,6 +834,13 @@ bool _sameDay(DateTime left, DateTime right) {
       continue;
     }
     final itemStart = item.start!;
+    if (item is JournalScheduleItem) {
+      if (range.contains(itemStart)) {
+        start = math.min(start, _minuteOfDay(itemStart));
+        end = math.max(end, _minuteOfDay(itemStart) + 1);
+      }
+      continue;
+    }
     final itemEnd = item.end != null && item.end!.isAfter(itemStart)
         ? item.end!
         : itemStart.add(const Duration(minutes: 30));

@@ -39,6 +39,10 @@ class LinuxSchedulePresentation extends SchedulePresentation {
   @override
   IconData get taskIcon => YaruIcons.task_list;
   @override
+  IconData get journalIcon => YaruIcons.book;
+  @override
+  IconData get recurrenceIcon => YaruIcons.repeat;
+  @override
   IconData get createIcon => YaruIcons.plus;
   @override
   IconData previousIcon(TextDirection direction) =>

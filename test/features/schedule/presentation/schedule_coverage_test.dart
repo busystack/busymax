@@ -199,7 +199,7 @@ void main() {
         final action = find.byKey(
           ValueKey(switch (platform) {
             _Platform.linux => 'schedule-search-button',
-            _Platform.windows => 'windows-new-event',
+            _Platform.windows => 'windows-create-schedule-item',
             _Platform.android => 'android-workspace-menu',
           }),
         );

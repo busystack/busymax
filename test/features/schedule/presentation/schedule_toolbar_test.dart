@@ -580,6 +580,13 @@ void main() {
         'selected': false,
         'shortcut': 'T',
       },
+      {
+        'label': 'New journal entry',
+        'icon': 'accessories-text-editor-symbolic',
+        'enabled': false,
+        'role': 'command',
+        'selected': false,
+      },
     ]);
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
@@ -618,7 +625,6 @@ void main() {
       [for (final entry in entries) (entry! as Map<Object?, Object?>)['icon']],
       const [
         'view-refresh-symbolic',
-        'accessories-text-editor-symbolic',
         'preferences-system-symbolic',
         'input-keyboard-symbolic',
         'dialog-warning-symbolic',
@@ -739,7 +745,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-      findsNWidgets(2),
+      findsNWidgets(3),
     );
     expect(find.byType(YaruRadio<int>), findsNothing);
     expect(find.text('Event'), findsOneWidget);
@@ -778,16 +784,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-      findsNWidgets(5),
+      findsNWidgets(4),
     );
     expect(find.byType(YaruRadio<int>), findsNothing);
     expect(find.text('Report an issue'), findsOneWidget);
-    await tester.tap(find.text('Journals'));
-    await tester.pumpAndSettle();
-    expect(selectedMenuAction, ScheduleToolbarMenuAction.journals);
-
-    await tester.tap(find.byTooltip('Main Menu'));
-    await tester.pumpAndSettle();
+    expect(find.text('Journals'), findsNothing);
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
     expect(selectedMenuAction, ScheduleToolbarMenuAction.settings);
@@ -840,9 +841,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-      findsNWidgets(6),
+      findsNWidgets(5),
     );
-    expect(find.text('Journals'), findsOneWidget);
+    expect(find.text('Journals'), findsNothing);
     await tester.tap(find.text('Refresh all'));
     await tester.pumpAndSettle();
 
@@ -888,7 +889,7 @@ void main() {
 
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-      findsNWidgets(2),
+      findsNWidgets(3),
     );
     expect(find.byType(YaruRadio<int>), findsNothing);
     final eventItem = tester.widget<PopupMenuItem<int>>(
@@ -955,7 +956,7 @@ void main() {
 
       expect(
         find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-        findsNWidgets(2),
+        findsNWidgets(3),
       );
       expect(find.text('Event'), findsOneWidget);
       expect(find.text('Task'), findsOneWidget);
@@ -1111,7 +1112,7 @@ void main() {
 
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
-      findsNWidgets(2),
+      findsNWidgets(3),
     );
     expect(find.text('Event'), findsOneWidget);
     expect(find.text('Task'), findsOneWidget);

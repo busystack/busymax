@@ -683,8 +683,16 @@ class AppLocalizationsEt extends AppLocalizations {
       'Valige seadetes, mida kuvada, ja seejärel värskendage.';
 
   @override
+  String get scheduleNoVisibleSources =>
+      'No visible calendars, task lists, or journals';
+
+  @override
   String get scheduleNoSearchResults =>
       'Sobivaid sündmusi ega ülesandeid ei leitud';
+
+  @override
+  String get scheduleNoMatchingItems =>
+      'No matching events, tasks, or journal entries';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4074,6 +4082,18 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get journals => 'Päevikud';
+
+  @override
+  String get newJournalEntry => 'New journal entry';
+
+  @override
+  String get newJournalSource => 'New journal';
+
+  @override
+  String get editJournalEntry => 'Edit journal entry';
+
+  @override
+  String get noScheduleItems => 'No events, tasks, or journal entries';
 
   @override
   String get newJournal => 'Uus sissekanne';

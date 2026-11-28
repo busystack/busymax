@@ -144,6 +144,12 @@ class ScheduleProjection {
 
   static bool intersects(ScheduleItem item, ScheduleRange range) {
     final start = item.start;
+    if (item is JournalScheduleItem) {
+      if (start == null) return false;
+      if (!item.allDay) return range.contains(start);
+      return start.isBefore(range.end) &&
+          DateTime(start.year, start.month, start.day + 1).isAfter(range.start);
+    }
     if (start == null) {
       return true;
     }
@@ -152,6 +158,9 @@ class ScheduleProjection {
   }
 
   static String sourceLabelForScheduleItem(ScheduleItem item) {
+    if (item is JournalScheduleItem) {
+      return _cleanLabel(item.sourceName) ?? 'Journals';
+    }
     if (item is CalendarScheduleItem) {
       return _cleanLabel(item.sourceName) ?? 'Calendar';
     }
@@ -170,6 +179,10 @@ class ScheduleProjection {
   }
 
   static Color colorForItem(ScheduleItem item, Brightness brightness) {
+    if (item is JournalScheduleItem) {
+      return _colorFromHex(item.colorHex) ??
+          deterministicSourceColor(item.sourceId, brightness);
+    }
     if (item is CalendarScheduleItem) {
       return _colorFromHex(item.colorHex) ??
           deterministicSourceColor(item.sourceId, brightness);

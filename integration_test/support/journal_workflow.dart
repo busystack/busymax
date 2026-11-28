@@ -4,17 +4,22 @@ import 'dart:io';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
-import 'package:busymax/src/journal/presentation/journal_workspace.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
+import 'package:busymax/src/features/sync/sync_request.dart';
+import 'package:busymax/src/journal/presentation/journal_pane.dart';
+import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
+import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -33,6 +38,8 @@ typedef JournalFileTransfer = Future<String> Function(
   String title,
   String importedTitle,
   String importedUid,
+  String account,
+  String source,
 );
 
 enum JournalRestartStage { queue, replay }
@@ -43,10 +50,9 @@ void runJournalWorkflow({
   required bool Function() isNative,
   required Future<Map<String, Object?>> Function() fixture,
   required Widget Function() app,
-  required Future<void> Function(WidgetTester, ProviderContainer) openJournals,
+  required Future<void> Function(WidgetTester, ProviderContainer) openSchedule,
   required Finder Function(String) input,
   required JournalTestButton button,
-  required Finder Function() enabledRefresh,
   List<Override> Function(AppDatabase)? runtimeOverrides,
   JournalRestartStage? restart,
   Future<Directory> Function()? persistentProfile,
@@ -183,23 +189,34 @@ void runJournalWorkflow({
 
     Future<void> searchFor(String title, {bool absent = false}) async {
       final search = input('Search');
+      await openJournalSearch(tester);
       await waitJournalWidget(tester, search);
       await tester.enterText(search, title);
-      final matches = find.textContaining('$title ·');
-      if (absent) {
-        await waitJournalWidget(tester, find.text('No journal entries found.'));
-        expect(matches, findsNothing);
-      } else {
-        await waitJournalWidget(tester, matches);
-      }
+      await tester.pump(const Duration(milliseconds: 350));
+      await waitJournalWidget(tester, find.text(title), absent: absent);
     }
+
+    Future<void> refresh({
+      bool confirmPartial = false,
+      String Function()? failureContext,
+    }) => _refresh(
+      tester,
+      container,
+      confirmPartial: confirmPartial,
+      failureContext: failureContext,
+    );
 
     container = ProviderContainer(
       overrides: [
         ...?runtimeOverrides?.call(database),
         if (Platform.isAndroid)
           buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
-        initialAppSettingsProvider.overrideWithValue(AppSettings.defaults()),
+        initialAppSettingsProvider.overrideWithValue(
+          AppSettings.defaults().copyWith(
+            scheduleViewMode: ScheduleViewMode.agenda,
+            androidScheduleViewMode: ScheduleViewMode.agenda,
+          ),
+        ),
         databaseProvider.overrideWithValue(database),
         secretStoreProvider.overrideWithValue(secrets),
         localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
@@ -225,10 +242,10 @@ void runJournalWorkflow({
         await tester.pumpWidget(
           UncontrolledProviderScope(container: container, child: app()),
         );
-        await openJournals(tester, container);
+        await openSchedule(tester, container);
         await searchFor(offlineCreation);
         await searchFor(offlineEdit);
-        await _tapVisible(tester, find.textContaining('$offlineEdit ·'));
+        await _tapVisible(tester, find.text(offlineEdit));
         await waitJournalWidget(
           tester,
           find.text('Draft saved on this device'),
@@ -253,7 +270,7 @@ void runJournalWorkflow({
           200,
         );
         setOnline(true);
-        await _refresh(tester, enabledRefresh());
+        await refresh();
         await waitJournalWidget(
           tester,
           find.textContaining('Pending sync'),
@@ -308,16 +325,19 @@ void runJournalWorkflow({
       await tester.pumpWidget(
         UncontrolledProviderScope(container: container, child: app()),
       );
-      await openJournals(tester, container);
-      await waitJournalWidget(tester, find.text('New journal collection'));
-      await _tapVisible(tester, find.text('New journal collection'));
+      await openSchedule(tester, container);
+      await waitJournalWidget(tester, find.byType(JournalPane), absent: true);
+      await journalCollectionAction(tester, 'New journal', account: accountId);
       await tester.pump();
       final collectionTitle = input('Title');
       await tester.ensureVisible(collectionTitle);
       await tester.enterText(collectionTitle, collectionName);
-      final collectionSave = find.text('Save');
+      final collectionSave = find.descendant(
+        of: find.byType(JournalPane),
+        matching: find.text('Create'),
+      );
       await _tapVisible(tester, collectionSave);
-      await waitJournalWidget(tester, find.text('Save'), absent: true);
+      await waitJournalWidget(tester, find.byType(JournalPane), absent: true);
       collection = await tester.runAsync(
         () async => (await database.select(database.davCollections).get())
             .singleWhere((row) => row.displayName == collectionName),
@@ -335,7 +355,7 @@ void runJournalWorkflow({
       expect(remote.body, contains('VJOURNAL'));
       record('collection-create');
 
-      await _tapVisible(tester, find.text('New entry'));
+      await _createScheduleJournal(tester);
       await waitJournalWidget(tester, input('Title'));
       await tester.enterText(input('Title'), 'Journal café');
       final addDescription = find.text('Add description');
@@ -354,7 +374,7 @@ void runJournalWorkflow({
       await tester.enterText(secondDescription, 'Second body');
       await _editorAction(tester, button('Save', true));
       await waitJournalWidget(tester, find.textContaining('Journal café'));
-      await _refresh(tester, enabledRefresh());
+      await refresh();
       await waitJournalWidget(
         tester,
         find.textContaining('Pending sync'),
@@ -391,11 +411,13 @@ void runJournalWorkflow({
         ),
       ))!;
       expect(changed.statusCode, anyOf(200, 204));
-      await _refresh(tester, enabledRefresh());
+      await refresh();
       await waitJournalWidget(tester, find.textContaining('Peer edit'));
+      await openJournalSearch(tester);
       await tester.enterText(input('Search'), 'second body');
       await waitJournalWidget(tester, find.textContaining('Peer edit'));
       await _tapVisible(tester, find.textContaining('Peer edit'));
+      await enterJournalEditor(tester);
       await waitJournalWidget(tester, input('Title'));
       await tester.enterText(input('Title'), 'Local edit');
       if (restart == null) {
@@ -416,8 +438,9 @@ void runJournalWorkflow({
       await _editorAction(tester, button('Close', false));
       await waitJournalWidget(tester, input('Search'));
       expect(inputValue(tester, input('Search')), 'second body');
-      expect(find.textContaining('Peer edit'), findsOneWidget);
+      await waitJournalWidget(tester, find.text('Peer edit'));
       await _tapVisible(tester, find.textContaining('Peer edit'));
+      await enterJournalEditor(tester);
       await waitJournalWidget(tester, input('Title'));
       expect(inputValue(tester, input('Title')), 'Local edit');
       if (restart == null) {
@@ -448,7 +471,7 @@ void runJournalWorkflow({
       );
       await tester.enterText(input('Search'), '');
       await waitJournalWidget(tester, find.textContaining('Local edit'));
-      await _refresh(tester, enabledRefresh());
+      await refresh();
       final edited = (await tester.runAsync(
         () => request('GET', object.requestUri),
       ))!;
@@ -468,8 +491,7 @@ void runJournalWorkflow({
 
       if (restart == JournalRestartStage.queue) {
         Future<void> create(String title) async {
-          await waitJournalWidget(tester, find.text('New entry'));
-          await _tapVisible(tester, find.text('New entry'));
+          await _createScheduleJournal(tester);
           await waitJournalWidget(tester, input('Title'));
           await tester.enterText(input('Title'), title);
           await _editorAction(tester, button('Save', true));
@@ -478,7 +500,7 @@ void runJournalWorkflow({
         }
 
         await create(offlineDeletion);
-        await _refresh(tester, enabledRefresh());
+        await refresh();
         final deleteControl = (await tester.runAsync(
           () async =>
               (await database.select(database.davObjects).get()).singleWhere(
@@ -490,13 +512,15 @@ void runJournalWorkflow({
         setOnline(false);
         await create(offlineCreation);
         await searchFor('Local edit');
-        await _tapVisible(tester, find.textContaining('Local edit ·'));
+        await _tapVisible(tester, find.text('Local edit'));
+        await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         await tester.enterText(input('Title'), offlineEdit);
         await _editorAction(tester, button('Save', true));
         await searchFor(offlineEdit);
         await searchFor(offlineDeletion);
-        await _tapVisible(tester, find.textContaining('$offlineDeletion ·'));
+        await _tapVisible(tester, find.text(offlineDeletion));
+        await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         await _editorAction(tester, button('Delete', false));
         await _editorAction(
@@ -505,7 +529,8 @@ void runJournalWorkflow({
         );
         await searchFor(offlineDeletion, absent: true);
         await searchFor(offlineEdit);
-        await _tapVisible(tester, find.textContaining('$offlineEdit ·'));
+        await _tapVisible(tester, find.text(offlineEdit));
+        await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         await tester.enterText(input('Title'), offlineDraft);
         final description = input('Description').last;
@@ -555,9 +580,10 @@ void runJournalWorkflow({
           final localTitle = 'Local conflict choice $number';
           final remoteTitle = 'Remote conflict choice $number';
           setOnline(false);
-          final current = find.textContaining('$currentTitle ·');
+          final current = find.text(currentTitle);
           await waitJournalWidget(tester, current);
           await _tapVisible(tester, current);
+          await enterJournalEditor(tester);
           await waitJournalWidget(tester, input('Title'));
           await tester.enterText(input('Title'), localTitle);
           await _editorAction(tester, button('Save', true));
@@ -579,7 +605,7 @@ void runJournalWorkflow({
           expect(changed.statusCode, anyOf(200, 204));
           setOnline(true);
           accountClient.preconditionFailures.clear();
-          await _refresh(tester, enabledRefresh(), confirmPartial: number == 2);
+          await refresh(confirmPartial: number == 2);
           expect(
             accountClient.preconditionFailures,
             contains((
@@ -603,8 +629,10 @@ void runJournalWorkflow({
           ))!;
           expect(remoteAfterConflict.body, contains('SUMMARY:$remoteTitle'));
 
-          final selected = find.textContaining(
-            RegExp('^(?:$localTitle|$remoteTitle) ·'),
+          final selected = find.byWidgetPredicate(
+            (widget) =>
+                widget is Text &&
+                (widget.data == localTitle || widget.data == remoteTitle),
           );
           await waitJournalWidget(tester, selected);
           await _tapVisible(tester, selected);
@@ -615,14 +643,9 @@ void runJournalWorkflow({
           currentTitle = preserveLocal ? localTitle : remoteTitle;
           if (number == 1) {
             // Keep server adopts the confirmed snapshot locally and sends no write.
-            await waitJournalWidget(
-              tester,
-              find.textContaining('$currentTitle ·'),
-            );
+            await waitJournalWidget(tester, find.text(currentTitle));
           } else {
-            await _refresh(
-              tester,
-              enabledRefresh(),
+            await refresh(
               confirmPartial: true,
               failureContext: () =>
                   '$action did not finish refreshing. DAV ${accountClient.trace}.',
@@ -655,13 +678,14 @@ void runJournalWorkflow({
             expect(duplicate.primaryUid, isNot(object.primaryUid));
           }
         }
-        final finalEntry = find.textContaining('$currentTitle ·');
+        final finalEntry = find.text(currentTitle);
         await waitJournalWidget(tester, finalEntry);
         await _tapVisible(tester, finalEntry);
+        await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         await tester.enterText(input('Title'), 'Local edit');
         await _editorAction(tester, button('Save', true));
-        await _refresh(tester, enabledRefresh());
+        await refresh();
         record('journal-content-conflict-choices');
       }
 
@@ -710,13 +734,14 @@ void runJournalWorkflow({
             return fetched;
           }))!;
           await searchFor(moveTitle);
-          await _tapVisible(tester, find.textContaining('$moveTitle ·'));
+          await _tapVisible(tester, find.text(moveTitle));
+          await enterJournalEditor(tester);
           await waitJournalWidget(tester, input('Title'));
           await _selectMoveDestination(tester, destinationTitle);
           await waitJournalWidget(tester, find.text(destinationTitle));
           await _editorAction(tester, button('Move journal entry', false));
           await waitJournalWidget(tester, input('Title'), absent: true);
-          await _refresh(tester, enabledRefresh());
+          await refresh();
           await tester.runAsync(() async {
             expect((await request('GET', sourceEntry)).statusCode, 404);
             final moved = await request('GET', destinationEntry);
@@ -794,15 +819,17 @@ void runJournalWorkflow({
           ),
         ))!;
         expect(createdSeries.statusCode, 201);
-        await _refresh(tester, enabledRefresh());
+        await refresh();
         await searchFor(seriesTitle);
-        final series = find.textContaining('$seriesTitle ·');
+        final series = find.text(seriesTitle);
         await waitJournalWidget(tester, series);
         await _tapVisible(tester, series);
+        await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         expect(inputValue(tester, input('Title')), seriesTitle);
         final link = find.text('Open link · Local edit');
         await _editorAction(tester, link);
+        await enterJournalEditor(tester);
         await waitJournalWidget(
           tester,
           find.descendant(
@@ -824,6 +851,7 @@ void runJournalWorkflow({
         ]) {
           await waitJournalWidget(tester, series);
           await _tapVisible(tester, series);
+          await enterJournalEditor(tester);
           await waitJournalWidget(tester, input('Title'));
           await _editorAction(tester, find.text('Repeat'));
           final occurrence = find.byWidgetPredicate(
@@ -843,7 +871,7 @@ void runJournalWorkflow({
           await tester.enterText(input('Title'), newTitle);
           await _editorAction(tester, button('Save', true));
           await waitJournalWidget(tester, series);
-          await _refresh(tester, enabledRefresh());
+          await refresh();
           final savedSeries = (await tester.runAsync(
             () => request('GET', seriesUri.toString()),
           ))!;
@@ -860,6 +888,7 @@ void runJournalWorkflow({
           );
         }
         await _tapVisible(tester, series);
+        await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         await _editorAction(tester, find.text('Repeat'));
         await scrollToOccurrence(find.text('$dayOne · $seriesTitle'));
@@ -881,14 +910,17 @@ void runJournalWorkflow({
         final importedUid = 'gtk-import-$marker@example.invalid';
         await searchFor(title);
         await tester.enterText(input('Search'), '');
-        await _tapVisible(tester, find.textContaining('$title ·'));
+        await _tapVisible(tester, find.text(title));
+        await enterJournalEditor(tester);
         final attachment = await transferFiles(
           tester,
           title,
           importedTitle,
           importedUid,
+          accountId,
+          collection.id,
         );
-        await _refresh(tester, enabledRefresh());
+        await refresh();
         await tester.runAsync(() async {
           final entries = await database.select(database.davObjects).get();
           final imported = entries.singleWhere(
@@ -922,7 +954,12 @@ void runJournalWorkflow({
         expect(review['format'], 'busymax-journal-import-review');
         // Closing the review preserves it for inspection. Retire the reviewed
         // import explicitly after verifying that the queued resource is remote.
-        await _tapVisible(tester, button('Import .ics file', false));
+        await journalCollectionAction(
+          tester,
+          'Import .ics file',
+          account: accountId,
+          source: collection.id,
+        );
         await waitJournalWidget(tester, find.text(importedUid));
         await _editorAction(tester, button('Discard', false));
         await searchFor(importedTitle);
@@ -945,7 +982,8 @@ void runJournalWorkflow({
           .innerText;
       expect(syncToken, isNotEmpty);
 
-      await _tapVisible(tester, find.textContaining('Local edit ·'));
+      await _tapVisible(tester, find.text('Local edit'));
+      await enterJournalEditor(tester);
       await waitJournalWidget(tester, input('Title'));
       await _editorAction(tester, button('Delete', false));
       await _editorAction(
@@ -953,12 +991,8 @@ void runJournalWorkflow({
         button('Delete the entire entry and its recurrence?', false),
       );
       await waitJournalWidget(tester, input('Search'));
-      await waitJournalWidget(
-        tester,
-        find.textContaining('Local edit ·'),
-        absent: true,
-      );
-      await _refresh(tester, enabledRefresh());
+      await waitJournalWidget(tester, find.text('Local edit'), absent: true);
+      await refresh();
       final deleted = (await tester.runAsync(
         () => request('GET', object.requestUri),
       ))!;
@@ -995,9 +1029,12 @@ void runJournalWorkflow({
       );
       record('delete-sync-tombstone');
 
-      final rename = button('Rename', false);
-      await waitJournalWidget(tester, rename);
-      await _tapVisible(tester, rename);
+      await journalCollectionAction(
+        tester,
+        'Rename',
+        account: accountId,
+        source: collection.id,
+      );
       await waitJournalWidget(tester, input('Title'));
       final renamed = '$collectionName renamed';
       await tester.enterText(input('Title'), renamed);
@@ -1030,7 +1067,12 @@ void runJournalWorkflow({
           reason: 'The completed import review was explicitly discarded.',
         );
       }
-      await _tapVisible(tester, button('Delete collection', false));
+      await journalCollectionAction(
+        tester,
+        'Delete collection',
+        account: accountId,
+        source: collection.id,
+      );
       final confirmation = find.text(
         provider == 'nextcloud'
             ? 'Delete "$renamed"?'
@@ -1049,7 +1091,7 @@ void runJournalWorkflow({
         timeout: const Duration(minutes: 2),
         failureContext: () {
           final statuses = find.descendant(
-            of: find.byType(JournalWorkspace),
+            of: find.byType(JournalPane),
             matching: find.byWidgetPredicate(
               (widget) =>
                   widget is Semantics && widget.properties.liveRegion == true,
@@ -1064,7 +1106,7 @@ void runJournalWorkflow({
               '${accountClient.delayedRemovalMethods}.';
         },
       );
-      await waitJournalWidget(tester, enabledRefresh());
+      await waitJournalWidget(tester, find.byType(JournalPane), absent: true);
       const nc = 'http://nextcloud.com/ns';
       final removed = (await tester.runAsync(
         () => request(
@@ -1189,6 +1231,125 @@ Finder journalMaterialInput(String label) => find.byWidgetPredicate(
   (widget) => widget is TextField && widget.decoration?.labelText == label,
 );
 
+Finder journalScheduleSearchInput() {
+  if (Platform.isLinux) {
+    return find.descendant(
+      of: find.byKey(const ValueKey('schedule-header-search-field')),
+      matching: find.byType(TextField),
+    );
+  }
+  if (Platform.isWindows) {
+    return find.byWidgetPredicate(
+      (widget) => widget is fluent.TextBox && widget.placeholder == 'Search',
+    );
+  }
+  return find.byWidgetPredicate(
+    (widget) => widget is TextField && widget.decoration?.hintText == 'Search',
+  );
+}
+
+Future<void> openJournalSearch(WidgetTester tester) async {
+  final input = journalScheduleSearchInput();
+  if (Platform.isWindows) {
+    await waitJournalWidget(tester, input);
+    await tester.tap(input);
+  } else if (input.evaluate().isEmpty) {
+    final trigger = Platform.isLinux
+        ? find.byKey(const ValueKey('schedule-search-button'))
+        : find.byTooltip('Search');
+    await waitJournalWidget(tester, trigger);
+    await tester.tap(trigger);
+  }
+  await waitJournalWidget(tester, input);
+}
+
+Future<void> _closeScheduleSearch(WidgetTester tester) async {
+  if (Platform.isWindows) {
+    final close = find.byTooltip('Close').hitTestable();
+    if (close.evaluate().isNotEmpty) await tester.tap(close);
+  } else if (journalScheduleSearchInput().evaluate().isNotEmpty) {
+    final trigger = Platform.isLinux
+        ? find.byKey(const ValueKey('schedule-search-button'))
+        : find.byTooltip('Search');
+    await tester.tap(trigger);
+    await waitJournalWidget(tester, journalScheduleSearchInput(), absent: true);
+  }
+  await tester.pump();
+}
+
+Future<void> enterJournalEditor(WidgetTester tester) async {
+  final pane = find.byType(JournalPane);
+  await waitJournalWidget(tester, pane);
+  final edit = find.byTooltip('Edit journal entry');
+  await waitJournalWidget(
+    tester,
+    edit,
+    failureContext: () => tester
+        .widgetList<Text>(
+          find.descendant(of: pane, matching: find.byType(Text)),
+        )
+        .map((text) => text.data)
+        .whereType<String>()
+        .join(' | '),
+  );
+  await _tapVisible(tester, edit);
+}
+
+Future<void> _createScheduleJournal(WidgetTester tester) async {
+  await _closeScheduleSearch(tester);
+  if (Platform.isLinux) {
+    final trigger = find.byKey(const ValueKey('schedule-create-button'));
+    await waitJournalWidget(tester, trigger);
+    final menu = tester.widget<BusyMaxLinuxHeaderMenuButton<dynamic>>(trigger);
+    final item = menu.entries.singleWhere(
+      (item) => item.label == 'New journal entry',
+    );
+    expect(item.enabled, isTrue);
+    (menu as dynamic).onSelected(item.value);
+  } else {
+    final trigger = Platform.isWindows
+        ? find.widgetWithText(fluent.DropDownButton, 'Create')
+        : find.byTooltip('Create');
+    await waitJournalWidget(tester, trigger);
+    await _tapVisible(tester, trigger);
+    await waitJournalWidget(tester, find.text('New journal entry'));
+    await _tapVisible(tester, find.text('New journal entry'));
+  }
+  await waitJournalWidget(tester, find.byType(JournalPane));
+}
+
+Future<void> journalCollectionAction(
+  WidgetTester tester,
+  String label, {
+  required String account,
+  String? source,
+}) async {
+  await _closeScheduleSearch(tester);
+  final options = source == null
+      ? find.byKey(ValueKey(('account-collection-options', account)))
+      : Platform.isWindows
+      ? find.descendant(
+          of: find.byKey(ValueKey(('schedule-journal', account, source))),
+          matching: find.byTooltip('Options'),
+        )
+      : find.byKey(ValueKey(('journal-options', source)));
+  if (Platform.isAndroid && options.evaluate().isEmpty) {
+    await _tapVisible(tester, find.byTooltip('Calendars and task lists'));
+  }
+  await waitJournalWidget(tester, options);
+  if (Platform.isLinux) {
+    final menu = tester.widget<BusyMaxMenuButton<dynamic>>(options);
+    final item = menu.entries.singleWhere((item) => item.label == label);
+    expect(item.enabled, isTrue);
+    (menu as dynamic).onSelected(item.value);
+  } else {
+    await _tapVisible(tester, options);
+    await waitJournalWidget(tester, find.text(label));
+    await _tapVisible(tester, find.text(label));
+  }
+  await waitJournalWidget(tester, find.byType(JournalPane));
+}
+
 Future<void> _editorAction(WidgetTester tester, Finder action) async {
   if (Platform.isAndroid) {
     // Release the editor's text focus before moving to a footer control.
@@ -1248,7 +1409,7 @@ Future<void> _scrollEditorTo(
     delta,
     scrollable: find
         .descendant(
-          of: find.byType(ListView),
+          of: find.byType(JournalPane),
           matching: find.byType(Scrollable),
         )
         .first,
@@ -1265,12 +1426,25 @@ Future<void> _tapVisible(WidgetTester tester, Finder target) async {
 
 Future<void> _refresh(
   WidgetTester tester,
-  Finder enabled, {
+  ProviderContainer container, {
   bool confirmPartial = false,
   String Function()? failureContext,
 }) async {
-  await waitJournalWidget(tester, enabled);
-  await _tapVisible(tester, enabled);
+  if (Platform.isLinux) {
+    final menu = tester.widget<BusyMaxMainMenuButton>(
+      find.byType(BusyMaxMainMenuButton),
+    );
+    menu.onSelected(ScheduleToolbarMenuAction.refresh);
+  } else if (Platform.isWindows) {
+    await _tapVisible(tester, find.byTooltip('See more'));
+    await waitJournalWidget(tester, find.text('Refresh all'));
+    await _tapVisible(tester, find.text('Refresh all'));
+  } else {
+    final menu = find.byKey(const ValueKey('android-workspace-menu'));
+    await _tapVisible(tester, menu);
+    await waitJournalWidget(tester, find.text('Refresh all'));
+    await _tapVisible(tester, find.text('Refresh all'));
+  }
   await tester.pump();
   if (Platform.isAndroid && confirmPartial) {
     final dialog = find.widgetWithText(
@@ -1286,12 +1460,16 @@ Future<void> _refresh(
       ),
     );
   }
-  await waitJournalWidget(
-    tester,
-    enabled,
-    timeout: Platform.isAndroid ? const Duration(seconds: 90) : null,
-    failureContext: failureContext,
-  );
+  final activity = container.read(accountSyncActivityProvider);
+  final deadline = Stopwatch()..start();
+  while (activity.busy(allSyncScope) &&
+      deadline.elapsed < const Duration(seconds: 90)) {
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+  }
+  expect(activity.busy(allSyncScope), isFalse, reason: failureContext?.call());
 }
 
 Future<void> waitJournalWidget(

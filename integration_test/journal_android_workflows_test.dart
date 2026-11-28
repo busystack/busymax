@@ -51,25 +51,11 @@ void main() {
         return service;
       }),
     ],
-    openJournals: (tester, _) async {
-      final menu = find.byKey(const ValueKey('android-workspace-menu'));
-      await waitJournalWidget(tester, menu);
-      await tester.tap(menu);
-      final journals = find
-          .widgetWithText(PopupMenuItem<String>, 'Journals')
-          .hitTestable();
-      await waitJournalWidget(tester, journals);
-      await tester.tap(journals);
-    },
-    input: journalMaterialInput,
+    openSchedule: (_, _) async {},
+    input: (label) => label == 'Search'
+        ? journalScheduleSearchInput()
+        : journalMaterialInput(label),
     button: (label, primary) =>
         find.widgetWithText(primary ? FilledButton : OutlinedButton, label),
-    enabledRefresh: () => find.byWidgetPredicate(
-      (widget) =>
-          widget is OutlinedButton &&
-          widget.onPressed != null &&
-          widget.child is Text &&
-          (widget.child as Text).data == 'Refresh',
-    ),
   );
 }

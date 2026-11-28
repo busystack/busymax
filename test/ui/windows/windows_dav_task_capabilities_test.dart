@@ -159,7 +159,17 @@ void main() {
 }
 
 Future<FlyoutListTile> _newTaskAction(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('See more'));
+  await tester.tap(
+    find.byWidgetPredicate(
+      (widget) =>
+          widget is DropDownButton &&
+          widget.items.whereType<MenuFlyoutItem>().any(
+            (item) =>
+                item.text is Text &&
+                (item.text as Text).data == 'New journal entry',
+          ),
+    ),
+  );
   await tester.pumpAndSettle();
   return tester.widget<FlyoutListTile>(
     find.ancestor(

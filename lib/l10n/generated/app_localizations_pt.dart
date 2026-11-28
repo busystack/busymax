@@ -693,7 +693,15 @@ class AppLocalizationsPt extends AppLocalizations {
       'Choose what to show in Settings, then refresh.';
 
   @override
+  String get scheduleNoVisibleSources =>
+      'No visible calendars, task lists, or journals';
+
+  @override
   String get scheduleNoSearchResults => 'No matching events or tasks';
+
+  @override
+  String get scheduleNoMatchingItems =>
+      'No matching events, tasks, or journal entries';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4117,6 +4125,18 @@ class AppLocalizationsPt extends AppLocalizations {
   String get journals => 'Journals';
 
   @override
+  String get newJournalEntry => 'New journal entry';
+
+  @override
+  String get newJournalSource => 'New journal';
+
+  @override
+  String get editJournalEntry => 'Edit journal entry';
+
+  @override
+  String get noScheduleItems => 'No events, tasks, or journal entries';
+
+  @override
   String get newJournal => 'New entry';
 
   @override
@@ -4153,7 +4173,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get journalCollectionExportRecovery =>
-      'Entries awaiting recovery were left out of the calendar export. Open an affected entry in Journals to review or export its pending request.';
+      'Entries awaiting recovery were left out of the calendar export. Find an affected journal entry in Search to review or export its pending request.';
 
   @override
   String get journalDraftSaved => 'Draft saved on this device';

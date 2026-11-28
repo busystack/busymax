@@ -131,7 +131,7 @@ void main() {
           );
         }
         await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('See more'));
+        await tester.tap(_createMenu());
         await tester.pumpAndSettle();
         final action = tester.widget<FlyoutListTile>(
           find.ancestor(
@@ -532,7 +532,7 @@ void main() {
       );
       expect(planner.initialDate, DateTime(2030, 9, 15));
       expect(container.read(scheduleWorkspaceCommandProvider), isNull);
-      await tester.tap(find.text('Close').last);
+      await tester.tap(find.byTooltip('Close').last);
       await tester.pumpAndSettle();
       container.read(scheduleWorkspaceCommandProvider.notifier).state =
           const ScheduleWorkspaceCommand(ScheduleWorkspaceCommandKind.today, 2);
@@ -617,7 +617,7 @@ void main() {
         findsOneWidget,
       );
       expect(container.read(scheduleWorkspaceCommandProvider), isNull);
-      await tester.tap(find.text('Close').last);
+      await tester.tap(find.byTooltip('Close').last);
       await tester.pumpAndSettle();
       await tester.pumpWidget(const SizedBox.shrink());
     },
@@ -762,11 +762,26 @@ Future<void> _until(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
-IconButton _eventAction(WidgetTester tester) =>
-    tester.widget<IconButton>(find.byKey(const ValueKey('windows-new-event')));
+Finder _createMenu() => find.byWidgetPredicate(
+  (widget) =>
+      widget is DropDownButton &&
+      widget.items.whereType<MenuFlyoutItem>().any(
+        (item) =>
+            item.text is Text &&
+            (item.text as Text).data == 'New journal entry',
+      ),
+);
+
+MenuFlyoutItem _eventAction(WidgetTester tester) => tester
+    .widget<DropDownButton>(_createMenu())
+    .items
+    .whereType<MenuFlyoutItem>()
+    .singleWhere(
+      (item) => item.text is Text && (item.text as Text).data == 'New event',
+    );
 
 Future<FlyoutListTile> _taskAction(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('See more'));
+  await tester.tap(_createMenu());
   await tester.pumpAndSettle();
   return tester.widget<FlyoutListTile>(
     find.ancestor(

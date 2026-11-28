@@ -3,12 +3,22 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/app_bootstrap.dart';
+import '../db/app_database.dart' show DavCollection;
 import '../features/accounts/data/accounts_repository.dart';
 import '../providers/busy_provider.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/task_lists/data/task_lists_repository.dart';
+import '../journal/journal_repository.dart';
+import 'schedule_item.dart';
+import 'schedule_filters.dart';
+import 'schedule_range.dart';
 import 'schedule_sidebar_order.dart';
 import 'schedule_source_visibility.dart';
+
+final scheduleJournalSourcesProvider =
+    StreamProvider.autoDispose<List<DavCollection>>(
+      (ref) => JournalRepository(ref.watch(databaseProvider)).watchSources(),
+    );
 
 String? scheduleAccountSecondaryLabel(AccountEntity account) {
   final secondaryLabel = account.secondaryLabel;
@@ -120,3 +130,41 @@ final sidebarOrderRegistrationProvider = Provider.autoDispose<void>((ref) {
     }
   }, fireImmediately: true);
 });
+
+// A mini-calendar always draws six weeks, independently of full Month's
+// actual week count. Fetch precisely the dates that its markers represent.
+final scheduleMiniCalendarItemsProvider = FutureProvider.autoDispose
+    .family<List<ScheduleItem>, ({DateTime month, int firstWeekday})>((
+      ref,
+      key,
+    ) async {
+      ref.watch(scheduleDataRevisionProvider);
+      final sources = await ref.watch(calendarSourcesStreamProvider.future);
+      final lists = await ref.watch(scheduleTaskListsProvider.future);
+      final visibility = ScheduleSourceVisibility.fromSources(
+        calendarSources: sources,
+        taskLists: lists,
+        journals: await ref.watch(scheduleJournalSourcesProvider.future),
+        settings: ref.watch(appSettingsControllerProvider),
+      );
+      final start = ScheduleRange.month(
+        key.month,
+        firstWeekday: key.firstWeekday,
+      ).start;
+      return ref
+          .watch(scheduleRepositoryProvider)
+          .listItems(
+            range: ScheduleRange.days(start, count: 42),
+            filters: ScheduleFilters(
+              sourceIds: visibility.visibleCalendarSourceIds,
+              taskListKeys: visibility.visibleTaskListKeys,
+              journalSourceIds: visibility.visibleJournalSourceIds,
+              sourceFilterActive: true,
+              taskListFilterActive: true,
+              journalSourceFilterActive: true,
+              includeJournals: true,
+              taskCompletion: ScheduleTaskCompletion.all,
+              showNoDateTasks: false,
+            ),
+          );
+    });

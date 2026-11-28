@@ -5,6 +5,7 @@ import '../common/busymax_glyph.dart';
 
 IconData windowsBusyMaxGlyph(BusyMaxGlyph glyph) => switch (glyph) {
   BusyMaxGlyph.calendar => FluentIcons.calendar_24_regular,
+  BusyMaxGlyph.journal => FluentIcons.book_open_24_regular,
   BusyMaxGlyph.task => FluentIcons.clipboard_task_24_regular,
   BusyMaxGlyph.add => FluentIcons.add_24_regular,
   BusyMaxGlyph.edit => FluentIcons.edit_24_regular,

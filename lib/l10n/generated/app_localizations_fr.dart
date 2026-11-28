@@ -698,8 +698,16 @@ class AppLocalizationsFr extends AppLocalizations {
       'Choisissez les éléments à afficher dans les paramètres, puis actualisez.';
 
   @override
+  String get scheduleNoVisibleSources =>
+      'No visible calendars, task lists, or journals';
+
+  @override
   String get scheduleNoSearchResults =>
       'Aucun événement ni aucune tâche ne correspond';
+
+  @override
+  String get scheduleNoMatchingItems =>
+      'No matching events, tasks, or journal entries';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4120,6 +4128,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get journals => 'Journaux';
+
+  @override
+  String get newJournalEntry => 'New journal entry';
+
+  @override
+  String get newJournalSource => 'New journal';
+
+  @override
+  String get editJournalEntry => 'Edit journal entry';
+
+  @override
+  String get noScheduleItems => 'No events, tasks, or journal entries';
 
   @override
   String get newJournal => 'Nouvelle entrée';

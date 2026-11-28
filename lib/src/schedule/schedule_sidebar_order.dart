@@ -1,6 +1,12 @@
 import 'package:flutter/foundation.dart';
 
-enum SidebarOrderSection { accounts, calendars, taskLists, subscriptions }
+enum SidebarOrderSection {
+  accounts,
+  calendars,
+  taskLists,
+  journals,
+  subscriptions,
+}
 
 /// Local presentation order. Missing IDs remain saved so hiding a source or a
 /// temporary sync snapshot cannot reset its position when it returns.
@@ -10,11 +16,13 @@ class ScheduleSidebarOrder {
     Iterable<String> accountIds = const [],
     Map<String, List<String>> calendarSourceIdsByAccount = const {},
     Map<String, List<String>> taskListIdsByAccount = const {},
+    Map<String, List<String>> journalIdsByAccount = const {},
     Iterable<String> subscriptionSourceIds = const [],
   }) => ScheduleSidebarOrder._(
     _ids(accountIds),
     _groups(calendarSourceIdsByAccount),
     _groups(taskListIdsByAccount),
+    _groups(journalIdsByAccount),
     _ids(subscriptionSourceIds),
   );
 
@@ -22,12 +30,14 @@ class ScheduleSidebarOrder {
     : accountIds = const [],
       calendarSourceIdsByAccount = const {},
       taskListIdsByAccount = const {},
+      journalIdsByAccount = const {},
       subscriptionSourceIds = const [];
 
   const ScheduleSidebarOrder._(
     this.accountIds,
     this.calendarSourceIdsByAccount,
     this.taskListIdsByAccount,
+    this.journalIdsByAccount,
     this.subscriptionSourceIds,
   );
 
@@ -39,6 +49,7 @@ class ScheduleSidebarOrder {
         value['calendarSourceIdsByAccount'],
       ),
       taskListIdsByAccount: _readGroups(value['taskListIdsByAccount']),
+      journalIdsByAccount: _readGroups(value['journalIdsByAccount']),
       subscriptionSourceIds: _readIds(value['subscriptionSourceIds']),
     );
   }
@@ -46,12 +57,15 @@ class ScheduleSidebarOrder {
   final List<String> accountIds;
   final Map<String, List<String>> calendarSourceIdsByAccount;
   final Map<String, List<String>> taskListIdsByAccount;
+  final Map<String, List<String>> journalIdsByAccount;
   final List<String> subscriptionSourceIds;
 
   Map<String, Object?> toJson() => {
     'accountIds': accountIds,
     'calendarSourceIdsByAccount': calendarSourceIdsByAccount,
     'taskListIdsByAccount': taskListIdsByAccount,
+    if (journalIdsByAccount.isNotEmpty)
+      'journalIdsByAccount': journalIdsByAccount,
     'subscriptionSourceIds': subscriptionSourceIds,
   };
 
@@ -62,6 +76,8 @@ class ScheduleSidebarOrder {
           calendarSourceIdsByAccount[accountId] ?? const [],
         SidebarOrderSection.taskLists =>
           taskListIdsByAccount[accountId] ?? const [],
+        SidebarOrderSection.journals =>
+          journalIdsByAccount[accountId] ?? const [],
         SidebarOrderSection.subscriptions => subscriptionSourceIds,
       };
 
@@ -153,6 +169,9 @@ class ScheduleSidebarOrder {
       taskListIdsByAccount: section == SidebarOrderSection.taskLists
           ? {...taskListIdsByAccount, accountId!: ids}
           : taskListIdsByAccount,
+      journalIdsByAccount: section == SidebarOrderSection.journals
+          ? {...journalIdsByAccount, accountId!: ids}
+          : journalIdsByAccount,
       subscriptionSourceIds: section == SidebarOrderSection.subscriptions
           ? ids
           : subscriptionSourceIds,

@@ -18,15 +18,17 @@ class ScheduleEventBlock extends StatefulWidget {
     this.width,
     this.compact = false,
     this.onTap,
+    this.onTaskCompletionChanged,
   });
 
   final SchedulePresentation? presentation;
 
-  final CalendarScheduleItem item;
+  final ScheduleItem item;
   final double height;
   final double? width;
   final bool compact;
   final ScheduleItemTapCallback? onTap;
+  final ValueChanged<bool>? onTaskCompletionChanged;
 
   @override
   State<ScheduleEventBlock> createState() => _ScheduleEventBlockState();
@@ -40,6 +42,7 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
 
   Offset? _pointerDownPosition;
   var _showFocusHighlight = false;
+  var _hovered = false;
 
   @override
   Widget build(BuildContext context) => SchedulePresentationScope(
@@ -49,6 +52,11 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
 
   Widget _build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final item = widget.item;
+    final task = item is TaskScheduleItem ? item : null;
+    final toggleTask = task?.capabilities.canEdit == true
+        ? widget.onTaskCompletionChanged
+        : null;
     final surfaceColors = BusyMaxSurfaceColors.of(context);
     final blockHeight = scheduleSafeBlockHeight(widget.height);
     final blockWidth = scheduleSafeBlockWidth(widget.width);
@@ -72,7 +80,7 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
       enabled: interactive,
       label: _semanticsLabel(context),
       onTap: interactive ? _activateWithoutPointer : null,
-      excludeSemantics: true,
+      excludeSemantics: task == null,
       child: FocusableActionDetector(
         enabled: interactive,
         mouseCursor: !interactive
@@ -91,6 +99,9 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
           if (_showFocusHighlight != value) {
             setState(() => _showFocusHighlight = value);
           }
+        },
+        onShowHoverHighlight: (value) {
+          if (_hovered != value) setState(() => _hovered = value);
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -124,7 +135,9 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
                     vertical: verticalPadding,
                   ),
                   decoration: BoxDecoration(
-                    color: surfaceColors.control,
+                    color: _hovered
+                        ? surfaceColors.controlActive
+                        : surfaceColors.control,
                     borderRadius: BorderRadius.circular(ScheduleRadius.sm),
                     border: Border(
                       left: BorderSide(
@@ -143,22 +156,81 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
                     ),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisAlignment: showTime
                         ? MainAxisAlignment.spaceBetween
                         : MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.max,
                     children: [
                       Flexible(
-                        child: Text(
-                          widget.item.title,
-                          maxLines: titleMaxLines,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: colorScheme.onSurface,
-                              ),
+                        child: LayoutBuilder(
+                          builder: (context, bounds) {
+                            final iconSize = dense
+                                ? 14.0
+                                : ScheduleSizes.iconSm;
+                            final showIcon = bounds.maxWidth >= iconSize;
+                            return Row(
+                              children: [
+                                if (showIcon) ...[
+                                  SizedBox.square(
+                                    dimension: iconSize,
+                                    child: task == null
+                                        ? Icon(
+                                            SchedulePresentation.of(context)
+                                                .itemIcon(item),
+                                            size: iconSize,
+                                            color: sourceAccent,
+                                          )
+                                        : FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: ScheduleCheckbox(
+                                              value: task.completed,
+                                              onChanged: toggleTask == null
+                                                  ? null
+                                                  : (value) => toggleTask(
+                                                      value ?? false,
+                                                    ),
+                                            ),
+                                          ),
+                                  ),
+                                  if (bounds.maxWidth >=
+                                      iconSize + ScheduleSpacing.xs)
+                                    const SizedBox(width: ScheduleSpacing.xs),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    item.title.isEmpty &&
+                                            item is JournalScheduleItem
+                                        ? context.l10n.untitledJournal
+                                        : item.title,
+                                    maxLines: titleMaxLines,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          color: task?.completed == true
+                                              ? colorScheme.onSurfaceVariant
+                                              : colorScheme.onSurface,
+                                          decoration: task?.completed == true
+                                              ? TextDecoration.lineThrough
+                                              : null,
+                                        ),
+                                  ),
+                                ),
+                                if (bounds.maxWidth >= 60 &&
+                                    (item is JournalScheduleItem &&
+                                            item.recurring ||
+                                        item is CalendarScheduleItem &&
+                                            item.providerRecurringEventId !=
+                                                null))
+                                  Icon(
+                                    SchedulePresentation.of(context)
+                                        .recurrenceIcon,
+                                    size: 12,
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                       if (showTime && timeRange.isNotEmpty)
@@ -181,21 +253,23 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
   }
 
   String _tooltipDetails(BuildContext context) {
+    final event = widget.item;
     final parts = <String>[
       if (!widget.item.allDay && widget.item.start != null) _timeRange(context),
-      if (widget.item.location != null && widget.item.location!.isNotEmpty)
-        widget.item.location!,
+      if (event is CalendarScheduleItem && event.location?.isNotEmpty == true)
+        event.location!,
       ScheduleProjection.sourceLabelForScheduleItem(widget.item),
     ];
     return parts.join(' · ');
   }
 
   String _semanticsLabel(BuildContext context) {
+    final event = widget.item;
     return <String>[
       widget.item.title,
       scheduleTimeRange(context, widget.item),
-      if (widget.item.location != null && widget.item.location!.isNotEmpty)
-        widget.item.location!,
+      if (event is CalendarScheduleItem && event.location?.isNotEmpty == true)
+        event.location!,
       ScheduleProjection.sourceLabelForScheduleItem(widget.item),
     ].where((part) => part.isNotEmpty).join(', ');
   }

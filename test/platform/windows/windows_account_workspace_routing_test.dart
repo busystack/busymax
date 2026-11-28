@@ -398,19 +398,19 @@ void main() {
     tester,
   ) async {
     await _pumpRoutedApp(tester);
-    final eventButton = tester.widget<IconButton>(
-      find.byKey(const ValueKey('windows-new-event')),
+    await tester.tap(
+      find.byKey(const ValueKey('windows-create-schedule-item')),
     );
-    expect(eventButton.onPressed, isNull);
-    await tester.tap(find.byTooltip('See more'));
     await tester.pumpAndSettle();
-    final taskButton = tester.widget<FlyoutListTile>(
-      find.ancestor(
-        of: find.text('New task'),
-        matching: find.byType(FlyoutListTile),
-      ),
-    );
-    expect(taskButton.onPressed, isNull);
+    for (final label in ['New event', 'New task', 'New journal entry']) {
+      final action = tester.widget<FlyoutListTile>(
+        find.ancestor(
+          of: find.text(label),
+          matching: find.byType(FlyoutListTile),
+        ),
+      );
+      expect(action.onPressed, isNull);
+    }
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     Focus.of(

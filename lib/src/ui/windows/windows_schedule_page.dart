@@ -1,6 +1,11 @@
 import '../../features/sync/sync_request.dart';
 import '../../features/sync/sync_activity_icon.dart';
 import 'windows_sync_feedback.dart';
+import 'windows_journal_page.dart';
+import '../../journal/presentation/journal_pane.dart';
+import '../../schedule/schedule_sidebar_sources.dart'
+    show scheduleJournalSourcesProvider;
+import '../../dav/storage/dav_collection_capabilities.dart';
 
 import 'package:busymax/src/l10n/time_format_scope.dart';
 
@@ -324,6 +329,9 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             final visibility = ScheduleSourceVisibility.fromSources(
               calendarSources: sources,
               taskLists: taskLists,
+              journals:
+                  ref.watch(scheduleJournalSourcesProvider).valueOrNull ??
+                  const [],
               settings: settings,
             );
             return _buildPage(
@@ -352,6 +360,15 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     if (_searchActive && _searchCriteria == null) _initializeSearch();
     final settings = ref.read(appSettingsControllerProvider);
     final allCalendars = writableCalendarSources(sources);
+    final creationJournal =
+        (ref.watch(scheduleJournalSourcesProvider).valueOrNull ?? const [])
+            .where(
+              (source) =>
+                  visibility.visibleJournalSourceIds.contains(source.id) &&
+                  collectionCapabilitiesFromStored(source)
+                      .canAttemptCreateJournal,
+            )
+            .firstOrNull;
     final visibleCalendars = allCalendars
         .where(
           (source) => visibility.visibleCalendarSourceIds.contains(source.id),
@@ -601,6 +618,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 commandBar: SizedBox(
                   width: double.infinity,
                   child: CommandBar(
+                    key: ValueKey((
+                      _searchActive,
+                      _mode == ScheduleViewMode.agenda,
+                      showSourcePane,
+                    )),
                     compactBreakpointWidth: BusyMaxBreakpoints.compact,
                     primaryItems: [
                       if (!showSourcePane)
@@ -649,23 +671,58 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                           onPressed: () => _movePeriod(1),
                         ),
                       ],
-                      CommandBarButton(
-                        icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
-                        label: Text(l10n.newEvent),
-                        key: const ValueKey('windows-new-event'),
-                        onPressed: _creationCalendar == null
-                            ? null
-                            : () => unawaited(_createEvent()),
+                      CommandBarBuilderItem(
+                        wrappedItem: CommandBarButton(
+                          icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                          label: Text(l10n.create),
+                          onPressed: null,
+                        ),
+                        builder: (context, mode, _) => DropDownButton(
+                          key: const ValueKey('windows-create-schedule-item'),
+                          leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                          title: Text(l10n.create),
+                          items: [
+                            MenuFlyoutItem(
+                              leading: Icon(
+                                windowsBusyMaxGlyph(BusyMaxGlyph.calendar),
+                              ),
+                              text: Text(
+                                l10n.newEvent,
+                                key: const ValueKey('windows-new-event'),
+                              ),
+                              onPressed: _creationCalendar == null
+                                  ? null
+                                  : () => unawaited(_createEvent()),
+                            ),
+                            MenuFlyoutItem(
+                              leading: Icon(
+                                windowsBusyMaxGlyph(BusyMaxGlyph.task),
+                              ),
+                              text: Text(l10n.newTask),
+                              onPressed: _creationTaskList == null
+                                  ? null
+                                  : () => unawaited(_createTask()),
+                            ),
+                            MenuFlyoutItem(
+                              leading: Icon(
+                                windowsBusyMaxGlyph(BusyMaxGlyph.journal),
+                              ),
+                              text: Text(l10n.newJournalEntry),
+                              onPressed: creationJournal == null
+                                  ? null
+                                  : () => unawaited(
+                                      showWindowsJournalDialog(
+                                        context,
+                                        JournalPaneAction.create,
+                                        sourceId: creationJournal.id,
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                     secondaryItems: [
-                      CommandBarButton(
-                        icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
-                        label: Text(l10n.newTask),
-                        onPressed: _creationTaskList == null
-                            ? null
-                            : () => unawaited(_createTask()),
-                      ),
                       CommandBarButton(
                         icon: SyncActivityIcon(
                           scope: allSyncScope,
@@ -869,6 +926,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               ],
               locale: locale,
               onOpen: _showItemDetails,
+              onTaskCompletionChanged: _setTaskCompleted,
               searchCriteria: criteria,
               searchQuery: query,
               taskMutationIntent: mutationIntent,
@@ -1200,6 +1258,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       firstWeekday: _firstWeekday,
       sourceIds: visibility.visibleCalendarSourceIds,
       taskListKeys: visibility.visibleTaskListKeys,
+      journalSourceIds: visibility.visibleJournalSourceIds,
     ).remapTaskLists(ref.read(taskListIdReplacementsProvider));
     _searchCriteria = _initialSearchCriteria;
   }
@@ -1239,6 +1298,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       ],
       sources: sources,
       taskLists: taskLists,
+      journalSources:
+          ref.read(scheduleJournalSourcesProvider).valueOrNull ?? const [],
       onChanged: (value) {
         setState(
           () => _searchCriteria = value.copyWith(
@@ -1313,6 +1374,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required int agendaTaskLimit,
   }) {
     final calendarIds = visibility.visibleCalendarSourceIds.toList()..sort();
+    final journalIds = visibility.visibleJournalSourceIds.toList()..sort();
     final taskKeys =
         visibility.visibleTaskListKeys
             .map((key) => '${key.accountId}/${key.taskListId}')
@@ -1327,6 +1389,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       range.end.toIso8601String(),
       accountIds.join(','),
       calendarIds.join(','),
+      journalIds.join(','),
       taskKeys.join(','),
     ].join('|');
     if (_normalItemsKey == normalKey && _normalItemsFuture != null) {
@@ -1338,8 +1401,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       accountIds: accountIds.toSet(),
       sourceIds: visibility.visibleCalendarSourceIds,
       taskListKeys: visibility.visibleTaskListKeys,
+      journalSourceIds: visibility.visibleJournalSourceIds,
       sourceFilterActive: true,
       taskListFilterActive: true,
+      journalSourceFilterActive: true,
+      includeJournals: true,
       includeCalendarEvents: true,
       includeTasks: true,
       taskCompletion: ScheduleTaskCompletion.all,
@@ -1395,6 +1461,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             range: range,
             sourceIds: filters.sourceIds,
             taskListKeys: filters.taskListKeys,
+            journalSourceIds: filters.journalSourceIds,
             accountIds: filters.accountIds,
             overdueLimit: agendaTaskLimit,
             noDateLimit: agendaTaskLimit,
@@ -1630,6 +1697,14 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   Future<void> _showItemDetails(ScheduleItem item) async {
+    if (item is JournalScheduleItem) {
+      await showWindowsJournalDialog(
+        context,
+        JournalPaneAction.open,
+        item: item,
+      );
+      return;
+    }
     final locationDestination = await resolveSavedScheduleLocation(
       item: item,
       repository: ref.read(locationResolutionRepositoryProvider),
@@ -1785,23 +1860,22 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           ),
         ),
         actions: [
+          windowsScheduleDetailButton(l10n.export, FluentIcons.share, () {
+            Navigator.pop(dialogContext);
+            unawaited(_export(item));
+          }),
           if (item.capabilities.canEdit)
-            Button(
-              onPressed: () {
+            windowsScheduleDetailButton(
+              item is TaskScheduleItem ? l10n.editTask : l10n.editEvent,
+              windowsBusyMaxGlyph(BusyMaxGlyph.edit),
+              () {
                 Navigator.pop(dialogContext);
                 unawaited(_edit(item));
               },
-              child: Text(
-                item is TaskScheduleItem ? l10n.editTask : l10n.editEvent,
-              ),
             ),
           if (item.capabilities.canDelete)
-            Button(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                unawaited(_delete(item));
-              },
-              child: Text(switch (item) {
+            windowsScheduleDetailButton(
+              switch (item) {
                 CalendarScheduleItem(isNextcloudAttendee: true) =>
                   l10n.nextcloudDeclineAndRemove,
                 CalendarScheduleItem(
@@ -1810,18 +1884,17 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 ) =>
                   l10n.nextcloudCancelMeeting,
                 _ => l10n.delete,
-              }),
+              },
+              windowsBusyMaxGlyph(BusyMaxGlyph.delete),
+              () {
+                Navigator.pop(dialogContext);
+                unawaited(_delete(item));
+              },
             ),
-          Button(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              unawaited(_export(item));
-            },
-            child: Text(l10n.export),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(l10n.close),
+          windowsScheduleDetailButton(
+            l10n.close,
+            windowsBusyMaxGlyph(BusyMaxGlyph.close),
+            () => Navigator.pop(dialogContext),
           ),
         ],
       ),
@@ -2186,6 +2259,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     }
     try {
       switch (item) {
+        case JournalScheduleItem():
+          return;
         case CalendarScheduleItem():
           final accountId = await ref
               .read(calendarRepositoryProvider)
@@ -2340,6 +2415,7 @@ class _ScheduleModeView extends StatelessWidget {
         locale: locale,
         onOpen: onOpen,
         onSelectDate: onSelectDate,
+        onTaskCompletionChanged: onTaskCompletionChanged,
       ),
       ScheduleViewMode.year => WindowsScheduleYearView(
         firstWeekday: firstWeekday,
@@ -2356,6 +2432,7 @@ class _ScheduleModeView extends StatelessWidget {
         locale: locale,
         onOpen: onOpen,
         onLoadMore: onLoadMoreAgenda,
+        onTaskCompletionChanged: onTaskCompletionChanged,
         taskMutationIntent: taskMutationIntent,
         onTaskMutationConsumed: onTaskMutationConsumed,
       ),
@@ -2384,6 +2461,7 @@ class _AgendaList extends StatelessWidget {
     required this.locale,
     required this.onOpen,
     this.onLoadMore,
+    this.onTaskCompletionChanged,
     this.taskMutationIntent,
     this.onTaskMutationConsumed,
     this.emptyBuilder,
@@ -2395,6 +2473,7 @@ class _AgendaList extends StatelessWidget {
   final String locale;
   final ValueChanged<ScheduleItem> onOpen;
   final VoidCallback? onLoadMore;
+  final void Function(TaskScheduleItem, bool)? onTaskCompletionChanged;
   final TaskListMutationIntent? taskMutationIntent;
   final ValueChanged<TaskListMutationIntent>? onTaskMutationConsumed;
   final WidgetBuilder? emptyBuilder;
@@ -2421,7 +2500,7 @@ class _AgendaList extends StatelessWidget {
       emptyBuilder:
           emptyBuilder ??
           (context) =>
-              Center(child: Text(AppLocalizations.of(context).noEventsOrTasks)),
+              Center(child: Text(AppLocalizations.of(context).noScheduleItems)),
       padding: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 24),
       footer: onLoadMore == null
           ? null
@@ -2467,6 +2546,12 @@ class _AgendaList extends StatelessWidget {
               completedOverride: item is TaskScheduleItem
                   ? _displayedCompletion(item)
                   : null,
+              onCompletion:
+                  item is TaskScheduleItem &&
+                      item.capabilities.canEdit &&
+                      onTaskCompletionChanged != null
+                  ? (value) => onTaskCompletionChanged!(item, value)
+                  : null,
               onPressed: () => onOpen(item),
             ),
           ],
@@ -2509,6 +2594,7 @@ class WindowsScheduleMonthView extends StatelessWidget {
     required this.locale,
     required this.onOpen,
     required this.onSelectDate,
+    this.onTaskCompletionChanged,
   });
 
   final DateTime selectedDate;
@@ -2519,6 +2605,7 @@ class WindowsScheduleMonthView extends StatelessWidget {
   final String locale;
   final ValueChanged<ScheduleItem> onOpen;
   final ValueChanged<DateTime> onSelectDate;
+  final void Function(TaskScheduleItem, bool)? onTaskCompletionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -2620,6 +2707,15 @@ class WindowsScheduleMonthView extends StatelessWidget {
                                   child: _CompactScheduleItem(
                                     item: item,
                                     locale: locale,
+                                    onCompletion:
+                                        item is TaskScheduleItem &&
+                                            item.capabilities.canEdit &&
+                                            onTaskCompletionChanged != null
+                                        ? (value) => onTaskCompletionChanged!(
+                                            item,
+                                            value,
+                                          )
+                                        : null,
                                     onPressed: () => onOpen(item),
                                   ),
                                 ),
@@ -2672,6 +2768,12 @@ class WindowsScheduleMonthView extends StatelessWidget {
               _CompactScheduleItem(
                 item: item,
                 locale: locale,
+                onCompletion:
+                    item is TaskScheduleItem &&
+                        item.capabilities.canEdit &&
+                        onTaskCompletionChanged != null
+                    ? (value) => onTaskCompletionChanged!(item, value)
+                    : null,
                 onPressed: () {
                   Navigator.pop(dialogContext);
                   onOpen(item);
@@ -2865,11 +2967,13 @@ class _CompactScheduleItem extends StatelessWidget {
     required this.item,
     required this.locale,
     required this.onPressed,
+    this.onCompletion,
   });
 
   final ScheduleItem item;
   final String locale;
   final VoidCallback onPressed;
+  final ValueChanged<bool>? onCompletion;
 
   @override
   Widget build(BuildContext context) {
@@ -2890,16 +2994,24 @@ class _CompactScheduleItem extends StatelessWidget {
           onPressed: onPressed,
           child: Row(
             children: [
-              Icon(
-                windowsBusyMaxGlyph(
-                  task != null
-                      ? task.completed
-                            ? BusyMaxGlyph.check
-                            : BusyMaxGlyph.task
-                      : BusyMaxGlyph.calendar,
-                ),
-                size: 13,
-                color: _compactItemColor(context, item),
+              SizedBox.square(
+                dimension: 16,
+                child: task == null
+                    ? Icon(
+                        windowsBusyMaxGlyph(
+                          item is JournalScheduleItem
+                              ? BusyMaxGlyph.journal
+                              : BusyMaxGlyph.calendar,
+                        ),
+                        size: 16,
+                        color: _compactItemColor(context, item),
+                      )
+                    : Checkbox(
+                        checked: task.completed,
+                        onChanged: onCompletion == null
+                            ? null
+                            : (value) => onCompletion!(value ?? false),
+                      ),
               ),
               const SizedBox(width: 4),
               Expanded(
@@ -2944,10 +3056,10 @@ class _WindowsScheduleEmptyState extends StatelessWidget {
             searching
                 ? noVisibleSources
                       ? l10n.searchNoSources
-                      : l10n.scheduleNoSearchResults
+                      : l10n.scheduleNoMatchingItems
                 : noVisibleSources
                 ? l10n.scheduleNoSources
-                : l10n.noEventsOrTasks,
+                : l10n.noScheduleItems,
             style: FluentTheme.of(context).typography.subtitle,
           ),
           if (searching) ...[
@@ -2969,6 +3081,7 @@ class _ScheduleItemCard extends StatelessWidget {
     required this.onPressed,
     this.animateCompletion = false,
     this.completedOverride,
+    this.onCompletion,
   });
 
   final ScheduleSearchCriteria? searchCriteria;
@@ -2978,6 +3091,7 @@ class _ScheduleItemCard extends StatelessWidget {
   final VoidCallback onPressed;
   final bool animateCompletion;
   final bool? completedOverride;
+  final ValueChanged<bool>? onCompletion;
 
   @override
   Widget build(BuildContext context) {
@@ -2987,12 +3101,23 @@ class _ScheduleItemCard extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Card(
         child: ListTile(
-          leading: Icon(
-            windowsBusyMaxGlyph(
-              item.kind == ScheduleItemKind.task
-                  ? BusyMaxGlyph.task
-                  : BusyMaxGlyph.calendar,
-            ),
+          leading: SizedBox.square(
+            dimension: 20,
+            child: task == null
+                ? Icon(
+                    windowsBusyMaxGlyph(
+                      item is JournalScheduleItem
+                          ? BusyMaxGlyph.journal
+                          : BusyMaxGlyph.calendar,
+                    ),
+                    size: 18,
+                  )
+                : Checkbox(
+                    checked: completed,
+                    onChanged: onCompletion == null
+                        ? null
+                        : (value) => onCompletion!(value ?? false),
+                  ),
           ),
           title: AnimatedDefaultTextStyle(
             duration:
@@ -3008,7 +3133,11 @@ class _ScheduleItemCard extends StatelessWidget {
                           ? FluentTheme.of(context).inactiveColor
                           : null,
                     ),
-            child: Text(item.title),
+            child: Text(
+              item is JournalScheduleItem && item.title.isEmpty
+                  ? AppLocalizations.of(context).untitledJournal
+                  : item.title,
+            ),
           ),
           subtitle: Text(
             searchCriteria != null

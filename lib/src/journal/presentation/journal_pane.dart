@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -27,9 +28,10 @@ import '../../db/app_database.dart';
 import '../../features/attachments/presentation/dav_attachment_file_name.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/sync/sync_request.dart';
-import '../../platform/common/desktop_services.dart';
+import '../../l10n/time_format_scope.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_commands.dart';
+import '../../schedule/schedule_item.dart';
 import '../journal_component.dart';
 import '../journal_import_review.dart';
 import '../journal_repository.dart';
@@ -68,20 +70,6 @@ final _relatedEntries = FutureProvider.autoDispose
       ref.watch(scheduleDataRevisionProvider);
       return ref.watch(_journalRepository).relatedEntries(origin);
     });
-final _subscriptionJournals = StreamProvider.autoDispose(
-  (ref) => watchJournalSubscriptions(ref.watch(databaseProvider)),
-);
-final _journalEntries = StreamProvider.autoDispose
-    .family<List<DavJournalEntry>, (String, String, JournalDateFilter, int)>(
-      (ref, filter) => ref
-          .watch(_journalRepository)
-          .watchEntries(
-            collectionId: filter.$1.isEmpty ? null : filter.$1,
-            search: filter.$2,
-            dateFilter: filter.$3,
-            offset: filter.$4,
-          ),
-    );
 final _pending = StreamProvider.autoDispose.family<PendingOp?, String>(
   (ref, id) => ref.watch(_journalRepository).watchPending(id),
 );
@@ -117,55 +105,182 @@ String _linkLabel(JournalLinkTarget target, AppLocalizations l10n) =>
       UnresolvedJournalLink(:final value) => value,
     };
 
-class JournalWorkspace extends ConsumerStatefulWidget {
-  const JournalWorkspace({
+enum JournalPaneAction {
+  open,
+  create,
+  import,
+  createCollection,
+  renameCollection,
+  removeCollection,
+  exportCollection,
+}
+
+enum JournalDetailAction { share, edit, delete, close }
+
+String journalPaneTitle(AppLocalizations l10n, JournalPaneAction action) =>
+    switch (action) {
+      JournalPaneAction.open => l10n.journalDetails,
+      JournalPaneAction.create => l10n.newJournalEntry,
+      JournalPaneAction.import => l10n.importIcsFile,
+      JournalPaneAction.createCollection => l10n.newJournalSource,
+      JournalPaneAction.renameCollection => l10n.rename,
+      JournalPaneAction.removeCollection => l10n.journalDeleteCollection,
+      JournalPaneAction.exportCollection => l10n.journalExportCollection,
+    };
+
+class JournalPane extends ConsumerStatefulWidget {
+  const JournalPane({
     required this.controls,
     this.files,
     this.navigationCoordinator,
     this.openScheduleItem,
     this.onRefresh,
+    required this.action,
+    this.item,
+    this.sourceId,
+    this.accountId,
+    this.initialDate,
+    required this.onClose,
+    this.detailActions,
     super.key,
   });
 
   final JournalControls controls;
   final JournalFileActions? files;
   final Future<void> Function(SyncScope)? onRefresh;
+  final JournalPaneAction action;
+  final JournalScheduleItem? item;
+  final String? sourceId;
+  final String? accountId;
+  final DateTime? initialDate;
+  final VoidCallback onClose;
+  final Widget Function(
+    List<({String label, JournalDetailAction icon, VoidCallback? run})> actions,
+  )?
+  detailActions;
   final BusyMaxWindowCloseCoordinator? navigationCoordinator;
   final Future<void> Function(BuildContext, ScheduleWorkspaceCommand)?
   openScheduleItem;
 
   @override
-  ConsumerState<JournalWorkspace> createState() => _JournalWorkspaceState();
+  ConsumerState<JournalPane> createState() => _JournalPaneState();
 }
 
-class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
-  String _source = '';
-  String _query = '';
-  final _search = TextEditingController();
-  JournalDateFilter _dates = JournalDateFilter.all;
-  int _offset = 0;
+class _JournalPaneState extends ConsumerState<JournalPane> {
   String? _error;
   JournalSnapshot? _open;
   JournalSubscriptionEntry? _subscriptionEntry;
   JournalOccurrenceDraft? _occurrenceEdit;
   DavCollection? _create;
   bool _busy = false;
-  bool _createCollection = false;
-  bool _renameCollection = false;
-  bool _confirmCollectionRemoval = false;
-  bool _showImportReview = false;
+  bool _editing = false;
+  bool _confirmReadDelete = false;
+  bool _loadingPane = false;
   String? _moveSource;
   String? _notice;
   final _recoveryChoices = <String?, int>{};
-  String _accountId = '';
   final _collectionName = TextEditingController();
-  final _rename = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.action
+        case JournalPaneAction.open ||
+            JournalPaneAction.create ||
+            JournalPaneAction.import ||
+            JournalPaneAction.renameCollection) {
+      _loadingPane = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_loadPane(widget.action));
+      });
+    }
+  }
+
+  Future<void> _loadPane(JournalPaneAction action) async {
+    await _run(() async {
+      final repository = ref.read(_journalRepository);
+      switch (action) {
+        case JournalPaneAction.open:
+          final item = widget.item!;
+          if (item.subscription case final entry?) {
+            if (mounted) setState(() => _subscriptionEntry = entry);
+          } else if (item.entry case final entry?) {
+            final current = await repository.read(entry);
+            if (mounted) setState(() => _open = current);
+          }
+        case JournalPaneAction.create:
+          final sources = await repository.watchSources().first;
+          final writable = sources.where(
+            (source) =>
+                collectionCapabilitiesFromStored(source)
+                    .canAttemptCreateJournal,
+          );
+          final source =
+              writable
+                  .where((source) => source.id == widget.sourceId)
+                  .firstOrNull ??
+              writable.firstOrNull;
+          if (mounted) setState(() => _create = source);
+        case JournalPaneAction.import:
+          if (await ref.read(_importReviews).watch().first != null) return;
+          if (!mounted) return;
+          final files = widget.files;
+          if (files == null) return;
+          final sources = await repository.watchSources().first;
+          final writable = sources.where((source) {
+            final caps = collectionCapabilitiesFromStored(source);
+            return caps.canAttemptCreateJournal || caps.canAttemptUpdateJournal;
+          });
+          final source =
+              writable
+                  .where((source) => source.id == widget.sourceId)
+                  .firstOrNull ??
+              writable.firstOrNull;
+          if (source == null || !mounted) return;
+          final bytes = await files.read();
+          if (!mounted) return;
+          if (bytes == null) {
+            widget.onClose();
+            return;
+          }
+          final preview = ref
+              .read(icalImportServiceProvider)
+              .parsePreview(bytes)
+              .nativePreview;
+          await ref
+              .read(_importReviews)
+              .begin(
+                source,
+                JournalImportReview(
+                  NextcloudNativeImportPreview(
+                    preview.resources
+                        .where((entry) => entry.componentType == 'VJOURNAL')
+                        .toList(),
+                    preview.rejected,
+                    preview.schedulingMethod,
+                  ),
+                  bytes,
+                ),
+              );
+        case JournalPaneAction.renameCollection:
+          final source = (await repository.watchSources().first)
+              .where((source) => source.id == widget.sourceId)
+              .firstOrNull;
+          if (mounted && source != null) {
+            _collectionName.text = source.displayName;
+          }
+        case JournalPaneAction.createCollection ||
+            JournalPaneAction.removeCollection ||
+            JournalPaneAction.exportCollection:
+          break;
+      }
+    });
+    if (mounted) setState(() => _loadingPane = false);
+  }
 
   @override
   void dispose() {
     _collectionName.dispose();
-    _rename.dispose();
-    _search.dispose();
     super.dispose();
   }
 
@@ -220,13 +335,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
     };
   }
 
-  void _closeEntry() => setState(() {
-    _open = null;
-    _create = null;
-    _occurrenceEdit = null;
-    _moveSource = null;
-    _recoveryChoices.clear();
-  });
+  void _closeEntry() => widget.onClose();
 
   Future<void> _openReference(
     JournalSnapshot origin,
@@ -253,6 +362,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         setState(() {
           _open = next;
           _occurrenceEdit = null;
+          _editing = false;
         });
       case LinkedXml(:final uri):
         if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
@@ -284,10 +394,8 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         if (widget.openScheduleItem case final open?) {
           await open(context, command);
         } else {
+          widget.onClose();
           ref.read(scheduleWorkspaceCommandProvider.notifier).state = command;
-          ref
-              .read(desktopNavigationServiceProvider)
-              .open(DesktopNavigationDestination.schedule);
         }
     }
   });
@@ -297,19 +405,11 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
     final l10n = AppLocalizations.of(context);
     final ui = widget.controls;
     final repository = ref.watch(_journalRepository);
-    final sourcesState = ref.watch(_journalSources);
-    final sources = sourcesState.valueOrNull ?? const [];
-    final subscriptions =
-        ref.watch(_subscriptionJournals).valueOrNull ??
-        const <JournalSubscriptionEntry>[];
-    final subscriptionSources = {
-      for (final entry in subscriptions)
-        'webcal:${entry.source.id}': entry.source,
-    };
-    final subscriptionSource = subscriptionSources.containsKey(_source)
-        ? _source
-        : null;
-    final filteredSource = sources.where((s) => s.id == _source).firstOrNull;
+    final sources =
+        ref.watch(_journalSources).valueOrNull ?? const <DavCollection>[];
+    final filteredSource = sources
+        .where((source) => source.id == widget.sourceId)
+        .firstOrNull;
     final current = _open;
     final editorSource = current == null
         ? _create
@@ -341,30 +441,12 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                   editorSource?.journalInventoryComplete == true) &&
               caps?.canAttemptUpdateJournal == true &&
               pending?.state != 'conflict';
-    final filterSource = subscriptionSource ?? filteredSource?.id ?? '';
-    final entries = ref.watch(
-      _journalEntries((filterSource, _query, _dates, _offset)),
-    );
-    final accountChoices =
-        (ref.watch(accountsStreamProvider).valueOrNull ?? const [])
-            .where(
-              (account) =>
-                  account.journalsEnabled &&
-                  (account.provider == BusyProvider.caldav ||
-                      account.provider == BusyProvider.nextcloud),
-            )
-            .map(
-              (account) => (
-                id: account.id,
-                label: account.displayName ?? account.providerAccountId,
-              ),
-            )
-            .toList();
-    final selectedAccount =
-        accountChoices
-            .where((account) => account.id == _accountId)
-            .firstOrNull ??
-        accountChoices.firstOrNull;
+    if (_loadingPane &&
+        current == null &&
+        _create == null &&
+        _subscriptionEntry == null) {
+      return Center(child: Text(l10n.scheduleLoading));
+    }
 
     if (_subscriptionEntry case final entry?) {
       return ListView(
@@ -385,10 +467,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                   ? null
                   : () => _run(() => widget.files!.export(entry.resource())),
             ),
-          ui.button(
-            l10n.close,
-            _busy ? null : () => setState(() => _subscriptionEntry = null),
-          ),
+          ui.button(l10n.close, _busy ? null : _closeEntry),
         ],
       );
     }
@@ -526,6 +605,144 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
       );
     }
 
+    if (current != null &&
+        widget.action == JournalPaneAction.open &&
+        !_editing &&
+        conflict == null) {
+      final occurrence =
+          widget.item?.entry?.componentId == current.entry.componentId
+          ? widget.item?.occurrence
+          : null;
+      final journal = occurrence == null
+          ? current.component
+          : JournalComponent(occurrence.effectiveComponent.documentComponent);
+      final item = widget.item;
+      final start = item?.entry?.componentId == current.entry.componentId
+          ? item?.start
+          : null;
+      final date = start == null
+          ? journal.start?.rawValue ?? l10n.noDate
+          : DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag())
+                .format(start);
+      final actions =
+          <({String label, JournalDetailAction icon, VoidCallback? run})>[
+            if (widget.files != null)
+              (
+                label: l10n.export,
+                icon: JournalDetailAction.share,
+                run: _busy
+                    ? null
+                    : () => _run(
+                        () => widget.files!.export(current.effectiveRawIcs),
+                      ),
+              ),
+            (
+              label: l10n.editJournalEntry,
+              icon: JournalDetailAction.edit,
+              run: _busy ? null : () => setState(() => _editing = true),
+            ),
+            if (caps?.canAttemptDeleteJournal == true)
+              (
+                label: l10n.delete,
+                icon: JournalDetailAction.delete,
+                run: _busy
+                    ? null
+                    : () => setState(() => _confirmReadDelete = true),
+              ),
+            (
+              label: l10n.close,
+              icon: JournalDetailAction.close,
+              run: _busy ? null : _closeEntry,
+            ),
+          ];
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(journal.title ?? l10n.untitledJournal),
+          Text(current.collection.displayName),
+          Text(
+            [
+              date,
+              if (start != null && item?.allDay == false)
+                BusyMaxTimeFormatScope.of(context).format(start),
+            ].join(' · '),
+          ),
+          if (journal.status case final status?) Text(status),
+          if (pending != null)
+            Text(pending.lastErrorMessage ?? l10n.pendingSync),
+          for (final body in journal.descriptions) Text(body.decodedTextValue),
+          if (!writable) Text(l10n.readOnlySharedCollection),
+          if (_error != null) Semantics(liveRegion: true, child: Text(_error!)),
+          if (widget.detailActions case final buildActions?)
+            buildActions(actions)
+          else
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final action in actions)
+                  ui.button(action.label, action.run),
+              ],
+            ),
+          if (_confirmReadDelete) ...[
+            Text(l10n.journalDeleteSeries),
+            Wrap(
+              spacing: 8,
+              children: [
+                ui.button(
+                  l10n.cancel,
+                  () => setState(() => _confirmReadDelete = false),
+                ),
+                ui.button(
+                  l10n.delete,
+                  _busy
+                      ? null
+                      : () => _run(() async {
+                          if (await repository.readDraft(
+                                'entry:${current.entry.componentId}',
+                              ) !=
+                              null) {
+                            setState(() => _editing = true);
+                            return;
+                          }
+                          await repository.deleteResource(current);
+                          if (mounted) _closeEntry();
+                        }),
+                ),
+              ],
+            ),
+          ],
+          if (occurrence != null && writable && !_confirmReadDelete)
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final future in [false, true])
+                  ui.button(
+                    future
+                        ? l10n.journalEditFuture
+                        : l10n.journalEditOccurrence,
+                    _busy
+                        ? null
+                        : () => _run(() async {
+                            final draft = repository.inspectOccurrence(
+                              current,
+                              occurrence,
+                              thisAndFuture: future,
+                            );
+                            if (mounted) {
+                              setState(() {
+                                _occurrenceEdit = draft;
+                                _editing = true;
+                              });
+                            }
+                          }),
+                  ),
+              ],
+            ),
+        ],
+      );
+    }
+
     if (current != null || _create != null) {
       final occurrence = _occurrenceEdit;
       final editing = occurrence?.component ?? current;
@@ -558,6 +775,19 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         ui: ui,
         navigationCoordinator: widget.navigationCoordinator,
         snapshot: editing,
+        initialDate: widget.initialDate,
+        destinationChoices: current == null
+            ? [
+                for (final source in sources)
+                  if (collectionCapabilitiesFromStored(source)
+                      .canAttemptCreateJournal)
+                    (id: source.id, label: _journalSourceName(source)),
+              ]
+            : const [],
+        changeDestination: (sourceId) => setState(
+          () =>
+              _create = sources.singleWhere((source) => source.id == sourceId),
+        ),
         relatedEntries: editing == null
             ? const []
             : ref.watch(_relatedEntries(editing)).valueOrNull ?? const [],
@@ -781,20 +1011,9 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
       );
     }
 
-    final newSource =
-        (subscriptionSource != null
-                ? const <DavCollection>[]
-                : filteredSource == null
-                ? sources
-                : [filteredSource])
-            .where(
-              (src) =>
-                  collectionCapabilitiesFromStored(src).canAttemptCreateJournal,
-            )
-            .firstOrNull;
     final reviewState = ref.watch(_importReview);
     final review = reviewState.valueOrNull;
-    if (_showImportReview && review != null) {
+    if (widget.action == JournalPaneAction.import && review != null) {
       final pendingImport = review.preview;
       final destinations = sources.where((source) {
         final caps = collectionCapabilitiesFromStored(source);
@@ -874,10 +1093,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                       ),
                 primary: true,
               ),
-              ui.button(
-                l10n.close,
-                _busy ? null : () => setState(() => _showImportReview = false),
-              ),
+              ui.button(l10n.close, _busy ? null : _closeEntry),
               if (widget.files?.exportDraft != null)
                 ui.button(
                   l10n.journalExportRecovery,
@@ -893,7 +1109,7 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
                     ? null
                     : () => _run(() async {
                         await ref.read(_importReviews).discard(review);
-                        if (mounted) setState(() => _showImportReview = false);
+                        if (mounted) _closeEntry();
                       }),
               ),
             ],
@@ -901,495 +1117,166 @@ class _JournalWorkspaceState extends ConsumerState<JournalWorkspace> {
         ],
       );
     }
-    final results = entries.valueOrNull ?? const [];
-    final subscriptionResults =
-        (filterSource.isNotEmpty && subscriptionSource == null
-                ? const <JournalSubscriptionEntry>[]
-                : subscriptions)
-            .where((entry) {
-              if (subscriptionSource != null &&
-                  subscriptionSource != 'webcal:${entry.source.id}') {
-                return false;
-              }
-              final dated = entry.journal.start != null;
-              return (_dates == JournalDateFilter.all ||
-                      dated == (_dates == JournalDateFilter.dated)) &&
-                  entry.journal.searchText.contains(
-                    _query.trim().toLowerCase(),
-                  );
-            })
-            .skip(_offset)
-            .take(100)
-            .toList();
-    final settings = filteredSource == null
-        ? null
-        : ref
-              .watch(davCollectionsStreamProvider)
-              .valueOrNull
-              ?.where((collection) => collection.id == filteredSource.id)
-              .firstOrNull;
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ui.button(
-                      l10n.newJournal,
-                      !_busy && newSource != null
-                          ? () => setState(() {
-                              _error = null;
-                              _create = newSource;
-                            })
-                          : null,
-                      primary: true,
-                    ),
-                    ui.button(
-                      l10n.newJournalCollection,
-                      !_busy && accountChoices.isNotEmpty
-                          ? () => setState(
-                              () => _createCollection = !_createCollection,
-                            )
-                          : null,
-                    ),
-                    if (filteredSource != null &&
-                        widget.files?.exportCollection != null)
-                      ui.button(
-                        l10n.journalExportCollection,
-                        _busy
-                            ? null
-                            : () => _run(() async {
-                                final exported =
-                                    await DavNativeExportService(
-                                      repository.database,
-                                    ).collectionForReview(
-                                      filteredSource.accountId,
-                                      filteredSource.id,
-                                    );
-                                final path =
-                                    await widget.files!.exportCollection!(
-                                      exported.resources
-                                          .where(
-                                            (item) =>
-                                                item.componentType ==
-                                                'VJOURNAL',
-                                          )
-                                          .toList(),
-                                    );
-                                if (mounted &&
-                                    (path != null ||
-                                        exported.excludedJournalCount > 0)) {
-                                  setState(
-                                    () => _notice = [
-                                      if (path != null) l10n.exportedFile(path),
-                                      if (exported.excludedJournalCount > 0)
-                                        l10n.journalCollectionExportRecovery,
-                                    ].join('\n'),
-                                  );
-                                }
-                              }),
-                      ),
-                    if (settings?.capabilities.canMutateCollection == true &&
-                        filteredSource != null)
-                      ui.button(
-                        l10n.rename,
-                        _busy
-                            ? null
-                            : () => setState(() {
-                                _rename.text = filteredSource.displayName;
-                                _renameCollection = !_renameCollection;
-                                _confirmCollectionRemoval = false;
-                              }),
-                      ),
-                    if (settings?.canRemoveCollection == true &&
-                        filteredSource != null)
-                      ui.button(
-                        l10n.journalDeleteCollection,
-                        _busy
-                            ? null
-                            : () => setState(() {
-                                _confirmCollectionRemoval =
-                                    !_confirmCollectionRemoval;
-                                _renameCollection = false;
-                              }),
-                      ),
-                    if (widget.files != null && reviewState.hasError)
-                      Text(l10n.journalOperationFailed),
-                    if (widget.files != null)
-                      ui.button(
-                        l10n.importIcsFile,
-                        _busy ||
-                                !reviewState.hasValue ||
-                                (newSource == null && review == null)
-                            ? null
-                            : () => _run(() async {
-                                if (review != null) {
-                                  setState(() => _showImportReview = true);
-                                  return;
-                                }
-                                final bytes = await widget.files!.read();
-                                if (bytes == null || !mounted) return;
-                                final preview = ref
-                                    .read(icalImportServiceProvider)
-                                    .parsePreview(bytes)
-                                    .nativePreview;
-                                await ref
-                                    .read(_importReviews)
-                                    .begin(
-                                      newSource!,
-                                      JournalImportReview(
-                                        NextcloudNativeImportPreview(
-                                          preview.resources
-                                              .where(
-                                                (resource) =>
-                                                    resource.componentType ==
-                                                    'VJOURNAL',
-                                              )
-                                              .toList(),
-                                          preview.rejected,
-                                          preview.schedulingMethod,
-                                        ),
-                                        bytes,
-                                      ),
-                                    );
-                                if (mounted) {
-                                  setState(() {
-                                    _notice = null;
-                                    _showImportReview = true;
-                                  });
-                                }
-                              }),
-                      ),
-                    ui.button(
-                      l10n.refresh,
-                      _busy
-                          ? null
-                          : () => _run(() async {
-                              final scope = subscriptionSource != null
-                                  ? calendarSyncScope(
-                                      subscriptionSources[subscriptionSource]!
-                                          .accountId,
-                                      subscriptionSources[subscriptionSource]!
-                                          .id,
-                                    )
-                                  : filteredSource == null
-                                  ? allSyncScope
-                                  : davCollectionSyncScope(
-                                      filteredSource.accountId,
-                                      filteredSource.id,
-                                    );
-                              if (widget.onRefresh case final refresh?) {
-                                await refresh(scope);
-                                return;
-                              }
-                              final result = await ref.read(
-                                manualSyncRunnerProvider,
-                              )(scope);
-                              if (result.needsAttention && mounted) {
-                                setState(
-                                  () => _error = l10n.journalOperationFailed,
-                                );
-                              }
-                            }),
-                    ),
-                  ],
+    return _collectionPane(context, widget.action, filteredSource);
+  }
+
+  String _journalSourceName(DavCollection source) {
+    final account = ref
+        .watch(accountsStreamProvider)
+        .valueOrNull
+        ?.where((account) => account.id == source.accountId)
+        .firstOrNull;
+    return account == null
+        ? source.displayName
+        : '${source.displayName} · ${account.displayLabel}';
+  }
+
+  Widget _collectionPane(
+    BuildContext context,
+    JournalPaneAction action,
+    DavCollection? source,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    final ui = widget.controls;
+    final accountId = source?.accountId ?? widget.accountId;
+    final account = ref
+        .watch(accountsStreamProvider)
+        .valueOrNull
+        ?.where((account) => account.id == accountId)
+        .firstOrNull;
+    final repository = ref.watch(_journalRepository);
+    final collectionAction = switch (action) {
+      JournalPaneAction.createCollection => (
+        l10n.create,
+        () async {
+          final result = await ref
+              .read(
+                davCalendarCollectionMutationServiceForAccountProvider(
+                  accountId!,
                 ),
-                if (_createCollection && selectedAccount != null) ...[
-                  ui.choose(
-                    l10n.accounts,
-                    selectedAccount.id,
-                    accountChoices,
-                    (value) => setState(() => _accountId = value),
-                  ),
-                  ui.input(l10n.title, controller: _collectionName),
-                  ui.button(
-                    l10n.save,
-                    _busy
-                        ? null
-                        : () => _run(() async {
-                            final name = _collectionName.text.trim();
-                            final result = await ref
-                                .read(
-                                  davCalendarCollectionMutationServiceForAccountProvider(
-                                    selectedAccount.id,
-                                  ),
-                                )
-                                .createJournalCollection(name);
-                            final created =
-                                (await repository.watchSources().first)
-                                    .where(
-                                      (source) =>
-                                          source.accountId ==
-                                              selectedAccount.id &&
-                                          Uri.parse(source.requestUri) ==
-                                              result.memberUri,
-                                    )
-                                    .firstOrNull;
-                            if (mounted) {
-                              _collectionName.clear();
-                              setState(() {
-                                _createCollection = false;
-                                if (created != null) {
-                                  _source = created.id;
-                                  _offset = 0;
-                                }
-                                if (result.refreshPending) {
-                                  _notice = l10n.pendingSync;
-                                }
-                              });
-                            }
-                          }),
-                  ),
-                ],
-                if (_renameCollection &&
-                    filteredSource != null &&
-                    settings != null) ...[
-                  ui.input(l10n.title, controller: _rename),
-                  ui.button(
-                    l10n.save,
-                    _busy
-                        ? null
-                        : () => _run(() async {
-                            final value = _rename.text.trim();
-                            if (value.isEmpty) {
-                              throw const FormatException(
-                                'A collection name is required.',
-                              );
-                            }
-                            final changes = {
-                              const DavPropertyName(
-                                davNamespace,
-                                'displayname',
-                              ): value,
-                            };
-                            if (settings.provider == BusyProvider.nextcloud) {
-                              await ref
-                                  .read(
-                                    nextcloudCollectionServiceProvider(
-                                      filteredSource.accountId,
-                                    ),
-                                  )
-                                  .update(filteredSource.id, changes);
-                            } else {
-                              await ref
-                                  .read(
-                                    davCollectionAdministrationProvider(
-                                      filteredSource.accountId,
-                                    ),
-                                  )
-                                  .update(filteredSource.id, changes);
-                            }
-                            if (mounted) {
-                              setState(() => _renameCollection = false);
-                            }
-                          }),
-                    primary: true,
-                  ),
-                ],
-                if (_confirmCollectionRemoval &&
-                    filteredSource != null &&
-                    settings != null) ...[
-                  Text(
-                    settings.provider == BusyProvider.nextcloud
-                        ? l10n.deleteCalendarConfirmation(
-                            filteredSource.displayName,
-                          )
-                        : l10n.journalDeleteCollectionConfirmation,
-                  ),
-                  ui.button(
-                    l10n.delete,
-                    _busy
-                        ? null
-                        : () => _run(() async {
-                            if (await repository.hasDrafts(filteredSource.id)) {
-                              throw DavException(
-                                kind: DavErrorKind.conflict,
-                                code: 'DavJournalDraftsRemain',
-                                safeMessage: l10n.journalCollectionHasDrafts,
-                              );
-                            }
-                            if (settings.provider == BusyProvider.nextcloud) {
-                              await ref
-                                  .read(
-                                    nextcloudCollectionServiceProvider(
-                                      filteredSource.accountId,
-                                    ),
-                                  )
-                                  .remove(filteredSource.id);
-                            } else {
-                              await ref
-                                  .read(
-                                    davCollectionAdministrationProvider(
-                                      filteredSource.accountId,
-                                    ),
-                                  )
-                                  .remove(filteredSource.id);
-                            }
-                            if (mounted) {
-                              setState(() {
-                                _source = '';
-                                _confirmCollectionRemoval = false;
-                                _offset = 0;
-                              });
-                            }
-                          }),
-                  ),
-                ],
-                if (_error != null)
-                  Semantics(liveRegion: true, child: Text(_error!)),
-                if (_notice != null)
-                  Semantics(liveRegion: true, child: Text(_notice!)),
-                const SizedBox(height: 12),
-                ui.input(
-                  l10n.windowsSearch,
-                  controller: _search,
-                  onChanged: (value) => setState(() {
-                    _query = value;
-                    _offset = 0;
-                  }),
-                ),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  children: [
-                    ui.choose(
-                      l10n.journalCollection,
-                      filterSource,
-                      [
-                        (id: '', label: l10n.all),
-                        for (final source in sources)
-                          (id: source.id, label: source.displayName),
-                        for (final source in subscriptionSources.entries)
-                          (id: source.key, label: source.value.summary),
-                      ],
-                      (value) => setState(() {
-                        _source = value;
-                        _renameCollection = false;
-                        _confirmCollectionRemoval = false;
-                        _offset = 0;
-                      }),
-                    ),
-                    ui.choose(
-                      l10n.journalDate,
-                      _dates.name,
-                      [
-                        (id: JournalDateFilter.all.name, label: l10n.all),
-                        (
-                          id: JournalDateFilter.dated.name,
-                          label: l10n.journalDated,
-                        ),
-                        (
-                          id: JournalDateFilter.undated.name,
-                          label: l10n.noDate,
-                        ),
-                      ],
-                      (value) => setState(() {
-                        _dates = JournalDateFilter.values.byName(value);
-                        _offset = 0;
-                      }),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
-          if (results.isEmpty && subscriptionResults.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Text(
-                  entries.hasError || sourcesState.hasError
-                      ? l10n.journalOperationFailed
-                      : entries.isLoading || sourcesState.isLoading
-                      ? l10n.scheduleLoading
-                      : l10n.journalNoEntries,
-                ),
-              ),
-            )
-          else
-            SliverList.builder(
-              itemCount: results.length + subscriptionResults.length,
-              itemBuilder: (_, index) {
-                if (index >= results.length) {
-                  final entry = subscriptionResults[index - results.length];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: ui.button(
-                      [
-                        entry.journal.title ?? l10n.untitledJournal,
-                        entry.source.summary,
-                        entry.journal.start?.rawValue ?? l10n.noDate,
-                      ].join(' · '),
-                      () => setState(() => _subscriptionEntry = entry),
-                    ),
-                  );
-                }
-                final item = results[index];
-                final source = sources
-                    .where((s) => s.id == item.collectionId)
-                    .firstOrNull;
-                return Consumer(
-                  builder: (_, itemRef, _) {
-                    final pending = itemRef
-                        .watch(_pending(item.davObjectId))
-                        .valueOrNull;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: ui.button(
-                        [
-                          item.title ?? l10n.untitledJournal,
-                          source?.displayName,
-                          item.startValue ?? l10n.noDate,
-                          item.status,
-                          if (pending != null)
-                            pending.state == 'pending' ||
-                                    pending.state == 'in_progress'
-                                ? l10n.pendingSync
-                                : l10n.journalOperationFailed,
-                        ].nonNulls.join(' · '),
-                        _busy
-                            ? null
-                            : () => _run(() async {
-                                final snapshot = await repository.read(item);
-                                if (mounted) {
-                                  setState(() => _open = snapshot);
-                                }
-                              }),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          if (_offset > 0 ||
-              results.length == 100 ||
-              subscriptionResults.length == 100)
-            SliverToBoxAdapter(
-              child: Wrap(
-                spacing: 8,
-                children: [
-                  ui.button(
-                    '‹',
-                    _offset > 0 ? () => setState(() => _offset -= 100) : null,
-                  ),
-                  ui.button(
-                    '›',
-                    results.length == 100 || subscriptionResults.length == 100
-                        ? () => setState(() => _offset += 100)
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-        ],
+              )
+              .createJournalCollection(_collectionName.text.trim());
+          if (mounted && result.refreshPending) {
+            setState(() => _notice = l10n.pendingSync);
+          }
+        },
       ),
+      JournalPaneAction.renameCollection => (
+        l10n.save,
+        () async {
+          final name = _collectionName.text.trim();
+          if (name.isEmpty) {
+            throw const FormatException('A collection name is required.');
+          }
+          final changes = {
+            const DavPropertyName(davNamespace, 'displayname'): name,
+          };
+          if (account?.provider == BusyProvider.nextcloud) {
+            await ref
+                .read(nextcloudCollectionServiceProvider(accountId!))
+                .update(source!.id, changes);
+          } else {
+            await ref
+                .read(davCollectionAdministrationProvider(accountId!))
+                .update(source!.id, changes);
+          }
+        },
+      ),
+      JournalPaneAction.removeCollection => (
+        l10n.delete,
+        () async {
+          if (await repository.hasDrafts(source!.id)) {
+            throw DavException(
+              kind: DavErrorKind.conflict,
+              code: 'DavJournalDraftsRemain',
+              safeMessage: l10n.journalCollectionHasDrafts,
+            );
+          }
+          if (account?.provider == BusyProvider.nextcloud) {
+            await ref
+                .read(nextcloudCollectionServiceProvider(accountId!))
+                .remove(source.id);
+          } else {
+            await ref
+                .read(davCollectionAdministrationProvider(accountId!))
+                .remove(source.id);
+          }
+        },
+      ),
+      JournalPaneAction.exportCollection
+          when widget.files?.exportCollection != null =>
+        (
+          l10n.export,
+          () async {
+            final exported = await DavNativeExportService(repository.database)
+                .collectionForReview(accountId!, source!.id);
+            final path = await widget.files!.exportCollection!(
+              exported.resources
+                  .where((item) => item.componentType == 'VJOURNAL')
+                  .toList(),
+            );
+            if (mounted) {
+              setState(
+                () => _notice = [
+                  if (path != null) l10n.exportedFile(path),
+                  if (exported.excludedJournalCount > 0)
+                    l10n.journalCollectionExportRecovery,
+                ].join('\n'),
+              );
+            }
+          },
+        ),
+      _ => null,
+    };
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (source != null) Text(source.displayName),
+        if (action == JournalPaneAction.removeCollection)
+          Text(
+            account?.provider == BusyProvider.nextcloud && source != null
+                ? l10n.deleteCalendarConfirmation(source.displayName)
+                : l10n.journalDeleteCollectionConfirmation,
+          ),
+        if (action == JournalPaneAction.createCollection ||
+            action == JournalPaneAction.renameCollection)
+          ui.input(l10n.title, controller: _collectionName),
+        if (collectionAction == null && _error == null)
+          Text(l10n.scheduleUnavailable),
+        if (_notice?.isNotEmpty == true)
+          Semantics(liveRegion: true, child: Text(_notice!)),
+        if (_error != null) Semantics(liveRegion: true, child: Text(_error!)),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: Wrap(
+            spacing: 8,
+            children: [
+              ui.button(
+                collectionAction == null ? l10n.close : l10n.cancel,
+                _busy ? null : _closeEntry,
+              ),
+              if (collectionAction case (final label, final run))
+                ui.button(
+                  label,
+                  _busy ||
+                          accountId == null ||
+                          (source == null &&
+                              action != JournalPaneAction.createCollection)
+                      ? null
+                      : () => _run(() async {
+                          await run();
+                          if (mounted &&
+                              _notice == null &&
+                              action != JournalPaneAction.exportCollection) {
+                            _closeEntry();
+                          }
+                        }),
+                  primary: true,
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1510,6 +1397,9 @@ class _JournalEditor extends StatefulWidget {
     this.export,
     this.move,
     this.recoverAsNew,
+    this.destinationChoices = const [],
+    this.changeDestination,
+    this.initialDate,
     required this.relatedEntries,
     required this.openReference,
   });
@@ -1539,6 +1429,9 @@ class _JournalEditor extends StatefulWidget {
   final Widget? move;
   final Future<void> Function(String content)? recoverAsNew;
   final List<JournalLinkTarget> relatedEntries;
+  final List<JournalChoice> destinationChoices;
+  final ValueChanged<String>? changeDestination;
+  final DateTime? initialDate;
   final Future<void> Function(JournalLinkTarget) openReference;
 
   @override
@@ -1602,12 +1495,20 @@ class _JournalEditorState extends State<_JournalEditor> {
   late final _original = widget.snapshot?.component.component.firstProperty(
     'DTSTART',
   );
-  late final _date = TextEditingController(text: _original?.rawValue);
+  late final _date = TextEditingController(
+    text:
+        _original?.rawValue ??
+        (widget.snapshot == null && widget.initialDate != null
+            ? DateFormat('yyyyMMdd').format(widget.initialDate!)
+            : null),
+  );
   late final _zone = TextEditingController(
     text: _original?.parameterValue('TZID'),
   );
   late String _status = widget.snapshot?.component.status ?? '';
-  late String _mode = widget.snapshot?.component.start?.kind.name ?? '';
+  late String _mode =
+      widget.snapshot?.component.start?.kind.name ??
+      (widget.snapshot == null && widget.initialDate != null ? 'date' : '');
   String _frequency = '';
   DateTime? _occurrenceMonth;
   late final _descriptions = [
@@ -2296,11 +2197,26 @@ class _JournalEditorState extends State<_JournalEditor> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text(
-                  widget.source?.displayName ??
-                      snapshot?.collection.displayName ??
-                      '',
-                ),
+                if (widget.destinationChoices.isNotEmpty &&
+                    widget.source != null)
+                  ui.choose(
+                    l10n.journalCollection,
+                    widget.source!.id,
+                    widget.destinationChoices,
+                    (destination) async {
+                      if (destination != widget.source!.id &&
+                          await _flushDraft() &&
+                          mounted) {
+                        widget.changeDestination?.call(destination);
+                      }
+                    },
+                  )
+                else
+                  Text(
+                    widget.source?.displayName ??
+                        snapshot?.collection.displayName ??
+                        '',
+                  ),
                 if (widget.occurrenceScope case final future?)
                   Text(
                     future

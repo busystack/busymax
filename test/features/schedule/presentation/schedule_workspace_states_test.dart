@@ -124,49 +124,17 @@ void main() {
     expect(refreshed, isTrue);
   });
 
-  testWidgets('empty agenda presents native peer creation actions', (
+  testWidgets('empty agenda leaves creation in the header menu', (
     tester,
   ) async {
-    tester.view
-      ..devicePixelRatio = 1
-      ..physicalSize = const Size(900, 600);
-    addTearDown(tester.view.reset);
-    var newEventOpened = false;
-    var newTaskOpened = false;
-
     await tester.pumpWidget(
-      localizedTestApp(
-        child: Scaffold(
-          body: ScheduleEmptyState(
-            onNewEvent: () => newEventOpened = true,
-            onNewTask: () => newTaskOpened = true,
-          ),
-        ),
-      ),
+      localizedTestApp(child: const Scaffold(body: ScheduleEmptyState())),
     );
     await tester.pumpAndSettle();
-
-    expect(find.byType(YaruInfoBox), findsNothing);
     expect(find.byIcon(YaruIcons.calendar_day), findsOneWidget);
-    expect(find.byIcon(YaruIcons.calendar_new), findsOneWidget);
-    expect(find.byIcon(YaruIcons.task_list), findsOneWidget);
-    expect(find.byType(FilledButton), findsNWidgets(2));
+    expect(find.text('No events, tasks, or journal entries'), findsOneWidget);
+    expect(find.byType(FilledButton), findsNothing);
     expect(find.byType(ElevatedButton), findsNothing);
-
-    final eventButton = find.ancestor(
-      of: find.text('New event'),
-      matching: find.byType(FilledButton),
-    );
-    final taskButton = find.ancestor(
-      of: find.text('New task'),
-      matching: find.byType(FilledButton),
-    );
-    expect(tester.getCenter(eventButton).dy, tester.getCenter(taskButton).dy);
-
-    await tester.tap(find.text('New event'));
-    await tester.tap(find.text('New task'));
-    expect(newEventOpened, isTrue);
-    expect(newTaskOpened, isTrue);
   });
 
   testWidgets('schedule exposes a labeled loading state', (tester) async {

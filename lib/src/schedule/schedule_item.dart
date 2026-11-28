@@ -1,12 +1,15 @@
 import 'package:busymax/src/providers/busy_provider.dart';
 
+import '../dav/ical/ical_recurrence.dart';
+import '../db/app_database.dart' show DavJournalEntry;
 import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
 import '../features/tasks/domain/task_source_links.dart';
 import '../features/maps/domain/geographic_point.dart';
+import '../journal/journal_subscription_repository.dart';
 import 'event_attachment_link.dart';
 
-enum ScheduleItemKind { calendarEvent, task, localReminder }
+enum ScheduleItemKind { calendarEvent, task, journal, localReminder }
 
 class ScheduleItemCapabilities {
   const ScheduleItemCapabilities({
@@ -42,6 +45,54 @@ sealed class ScheduleItem {
   List<String> get categories;
   ScheduleItemKind get kind;
   ScheduleItemCapabilities get capabilities;
+}
+
+class JournalScheduleItem implements ScheduleItem {
+  const JournalScheduleItem({
+    required this.id,
+    required this.accountId,
+    required this.provider,
+    required this.sourceId,
+    required this.title,
+    required this.start,
+    required this.allDay,
+    required this.searchText,
+    this.entry,
+    this.subscription,
+    this.occurrence,
+    this.sourceName,
+    this.accountDisplayName,
+    this.accountEmail,
+    this.colorHex,
+    this.recurring = false,
+    this.capabilities = ScheduleItemCapabilities.readOnly,
+  });
+
+  @override
+  final String id, accountId, sourceId, title;
+  @override
+  final BusyProvider provider;
+  @override
+  final DateTime? start;
+  @override
+  final bool allDay;
+  @override
+  final String? sourceName, accountDisplayName, accountEmail;
+  @override
+  final ScheduleItemCapabilities capabilities;
+  final String searchText;
+  final String? colorHex;
+  final bool recurring;
+  final DavJournalEntry? entry;
+  final JournalSubscriptionEntry? subscription;
+  final IcalOccurrence? occurrence;
+
+  @override
+  DateTime? get end => null;
+  @override
+  List<String> get categories => const [];
+  @override
+  ScheduleItemKind get kind => ScheduleItemKind.journal;
 }
 
 class CalendarScheduleItem implements ScheduleItem {

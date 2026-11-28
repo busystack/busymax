@@ -1,6 +1,6 @@
 import '../../app/busymax_design.dart';
 import '../../ui/common/flutter_material.dart';
-import 'journal_workspace.dart';
+import 'journal_pane.dart';
 import 'journal_material_pickers.dart';
 
 final class LinuxJournalControls implements JournalControls {

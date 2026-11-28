@@ -14,23 +14,18 @@ void main() {
       isNative: () => Platform.isWindows,
       fixture: () => desktopJournalFixture(provider),
       app: () => const WindowsBusyMaxApp(),
-      openJournals: (_, _) async => windowsAppRouter.go('/journals'),
-      input: (label) => find.descendant(
-        of: find.byWidgetPredicate(
-          (widget) =>
-              widget is InfoLabel && widget.label.toPlainText() == label,
-        ),
-        matching: find.byType(TextBox),
-      ),
+      openSchedule: (_, _) async => windowsAppRouter.go('/schedule'),
+      input: (label) => label == 'Search'
+          ? journalScheduleSearchInput()
+          : find.descendant(
+              of: find.byWidgetPredicate(
+                (widget) =>
+                    widget is InfoLabel && widget.label.toPlainText() == label,
+              ),
+              matching: find.byType(TextBox),
+            ),
       button: (label, primary) =>
           find.widgetWithText(primary ? FilledButton : Button, label),
-      enabledRefresh: () => find.byWidgetPredicate(
-        (widget) =>
-            widget is Button &&
-            widget.onPressed != null &&
-            widget.child is Text &&
-            (widget.child as Text).data == 'Refresh',
-      ),
     );
   }
 }

@@ -1,3 +1,5 @@
+import '../../db/app_database.dart' show DavCollection;
+
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -19,6 +21,7 @@ class WindowsScheduleSearchPane extends StatelessWidget {
     required this.accounts,
     required this.sources,
     required this.taskLists,
+    this.journalSources = const [],
   });
   final ScheduleSearchCriteria value;
   final ValueChanged<ScheduleSearchCriteria> onChanged;
@@ -26,6 +29,7 @@ class WindowsScheduleSearchPane extends StatelessWidget {
   final List<AccountEntity> accounts;
   final List<CalendarSourceEntity> sources;
   final List<TaskListEntity> taskLists;
+  final List<DavCollection> journalSources;
 
   @override
   Widget build(BuildContext context) {
@@ -79,11 +83,12 @@ class WindowsScheduleSearchPane extends StatelessWidget {
             value.person,
             (v) => onChanged(value.copyWith(person: v)),
           ),
-        _text(
-          l.location,
-          value.location,
-          (v) => onChanged(value.copyWith(location: v)),
-        ),
+        if (value.includesEvents || value.includesTasks)
+          _text(
+            l.location,
+            value.location,
+            (v) => onChanged(value.copyWith(location: v)),
+          ),
         Text(
           l.searchSources,
           style: FluentTheme.of(context).typography.bodyStrong,
@@ -145,6 +150,36 @@ class WindowsScheduleSearchPane extends StatelessWidget {
                     }
                     onChanged(value.copyWith(taskListKeys: keys));
                   },
+                ),
+              ),
+          if (value.includesJournals)
+            for (final (id, label) in [
+              for (final source in journalSources.where(
+                (source) => source.accountId == account.id,
+              ))
+                (source.id, source.displayName),
+              for (final source in sources.where(
+                (source) =>
+                    source.accountId == account.id &&
+                    account.isSubscription &&
+                    !source.isDeleted,
+              ))
+                (source.id, source.summary),
+            ])
+              Padding(
+                padding: const EdgeInsetsDirectional.only(bottom: 8),
+                child: _sourceToggle(
+                  label,
+                  BusyMaxGlyph.journal,
+                  checked: value.journalSourceIds.contains(id),
+                  onChanged: (selected) => onChanged(
+                    value.copyWith(
+                      journalSourceIds: {
+                        ...value.journalSourceIds.where((entry) => entry != id),
+                        if (selected == true) id,
+                      },
+                    ),
+                  ),
                 ),
               ),
         ],

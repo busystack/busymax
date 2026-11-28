@@ -690,8 +690,16 @@ class AppLocalizationsVi extends AppLocalizations {
       'Chọn nội dung cần hiển thị trong Cài đặt, sau đó làm mới lịch biểu.';
 
   @override
+  String get scheduleNoVisibleSources =>
+      'No visible calendars, task lists, or journals';
+
+  @override
   String get scheduleNoSearchResults =>
       'Không có sự kiện hoặc công việc phù hợp';
+
+  @override
+  String get scheduleNoMatchingItems =>
+      'No matching events, tasks, or journal entries';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4084,6 +4092,18 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get journals => 'Nhật ký';
+
+  @override
+  String get newJournalEntry => 'New journal entry';
+
+  @override
+  String get newJournalSource => 'New journal';
+
+  @override
+  String get editJournalEntry => 'Edit journal entry';
+
+  @override
+  String get noScheduleItems => 'No events, tasks, or journal entries';
 
   @override
   String get newJournal => 'Mục mới';

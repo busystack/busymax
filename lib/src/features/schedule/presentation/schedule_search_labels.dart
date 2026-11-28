@@ -6,9 +6,12 @@ String searchTypeLabel(AppLocalizations l, ScheduleSearchType v) => switch (v) {
   ScheduleSearchType.all => l.all,
   ScheduleSearchType.events => l.calendarEvents,
   ScheduleSearchType.tasks => l.tasks,
+  ScheduleSearchType.journals => l.journals,
 };
 String searchDateLabel(AppLocalizations l, ScheduleSearchDate v) => switch (v) {
   ScheduleSearchDate.any => l.searchAnyDate,
+  ScheduleSearchDate.dated => l.journalDated,
+  ScheduleSearchDate.undated => l.noDate,
   ScheduleSearchDate.today => l.today,
   ScheduleSearchDate.tomorrow => l.tomorrow,
   ScheduleSearchDate.thisWeek => l.searchThisWeek,

@@ -12,6 +12,10 @@ import '../calendar_providers/calendar_colors.dart';
 import '../calendar_providers/calendar_description.dart';
 import '../microsoft_calendar/microsoft_shared_calendar_address.dart';
 import '../core/time/stored_temporal_projection.dart';
+import '../dav/dav_errors.dart';
+import '../dav/ical/ical_recurrence.dart';
+import '../dav/ical/ical_semantics.dart';
+import '../dav/ical/ical_timezone.dart';
 import '../dav/storage/dav_collection_capabilities.dart';
 import '../db/app_database.dart';
 import '../features/accounts/data/accounts_repository.dart';
@@ -22,6 +26,9 @@ import '../features/tasks/domain/task_checklist_item.dart';
 import '../features/tasks/domain/google_task_assignment_policy.dart';
 import '../features/tasks/domain/task_source_links.dart';
 import '../features/tasks/domain/task_occurrence.dart';
+import '../journal/journal_component.dart';
+import '../journal/journal_repository.dart';
+import '../journal/journal_subscription_repository.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
 import 'event_attachment_link.dart';
@@ -94,6 +101,9 @@ class ScheduleRepository {
             _database.calendarColors,
             _database.davCollections,
             _database.davAccountServices,
+            _database.davJournalEntries,
+            _database.pendingOps,
+            _database.webCalSubscriptions,
             _database.scheduleItemOverrides,
           ]),
         )
@@ -330,12 +340,149 @@ class ScheduleRepository {
           context.accountDisplayNames,
           context.accountEmails,
         ),
+      if (filters.includeJournals)
+        ...await _journalItems(range, filters, context),
     ];
     final filtered = items
         .where((item) => matchesScheduleFilters(item, filters, range: range))
         .toList();
     filtered.sort(compareScheduleItems);
     return filtered;
+  }
+
+  Future<List<JournalScheduleItem>> _journalItems(
+    ScheduleRange range,
+    ScheduleFilters filters,
+    _ScheduleAccountContext context,
+  ) async {
+    if (filters.journalSourceFilterActive && filters.journalSourceIds.isEmpty) {
+      return const [];
+    }
+    bool visible(String account, String source) =>
+        context.providers.containsKey(account) &&
+        (!filters.journalSourceFilterActive ||
+            filters.journalSourceIds.contains(source));
+
+    final journals = JournalRepository(_database);
+    final sources = {
+      for (final source in await journals.listSources())
+        if (visible(source.accountId, source.id)) source.id: source,
+    };
+    final byObject = <String, List<DavJournalEntry>>{};
+    for (final entry in await journals.listEntries(
+      collectionIds: sources.keys.toSet(),
+    )) {
+      byObject.putIfAbsent(entry.davObjectId, () => []).add(entry);
+    }
+    final items = <JournalScheduleItem>[];
+    for (final entries in byObject.values) {
+      final seed = entries.firstWhere(
+        (entry) => entry.recurrenceIdKey == null,
+        orElse: () => entries.first,
+      );
+      final source = sources[seed.collectionId]!;
+      final capabilities = collectionCapabilitiesFromStored(source);
+      List<_JournalOccurrence> occurrences;
+      try {
+        final snapshot = await journals.read(seed);
+        occurrences = _journalOccurrences(
+          snapshot.effectiveRawIcs,
+          range,
+          filters.ignoreDateRange,
+        );
+      } on DavException {
+        // Keep the projected entry accessible for Diagnostics and recovery.
+        occurrences = [
+          for (final entry in entries) _JournalOccurrence.fromEntry(entry),
+        ];
+      }
+      for (final occurrence in occurrences) {
+        final entry = entries.firstWhere(
+          (entry) => entry.recurrenceIdKey == occurrence.componentKey,
+          orElse: () => seed,
+        );
+        items.add(
+          JournalScheduleItem(
+            id: '${entry.componentId}:${occurrence.identity ?? ''}',
+            entry: entry,
+            occurrence: occurrence.occurrence,
+            accountId: source.accountId,
+            provider: context.providers[source.accountId]!,
+            sourceId: source.id,
+            sourceName: source.displayName,
+            accountDisplayName: context.accountDisplayNames[source.accountId],
+            accountEmail: context.accountEmails[source.accountId],
+            title: occurrence.title,
+            searchText: occurrence.searchText,
+            start: occurrence.start,
+            allDay: occurrence.allDay,
+            colorHex: source.color,
+            recurring: occurrence.recurring,
+            capabilities: ScheduleItemCapabilities(
+              canEdit: capabilities.canAttemptUpdateJournal,
+              canDelete: capabilities.canAttemptDeleteJournal,
+            ),
+          ),
+        );
+      }
+    }
+
+    final subscriptionEntries =
+        context.providers.containsValue(BusyProvider.webCal)
+        ? await listJournalSubscriptions(
+            _database,
+            sourceIds: filters.journalSourceFilterActive
+                ? filters.journalSourceIds
+                : null,
+          )
+        : const <JournalSubscriptionEntry>[];
+    final subscriptions = <(String, String), JournalSubscriptionEntry>{};
+    for (final entry in subscriptionEntries) {
+      if (!visible(entry.source.accountId, entry.source.id)) continue;
+      final uid = entry.journal.component.firstProperty('UID')?.rawValue;
+      if (uid != null) {
+        subscriptions.putIfAbsent((entry.source.id, uid), () => entry);
+      }
+    }
+    for (final MapEntry(key: (sourceId, uid), value: entry)
+        in subscriptions.entries) {
+      try {
+        for (final occurrence in _journalOccurrences(
+          entry.resource(),
+          range,
+          filters.ignoreDateRange,
+        )) {
+          items.add(
+            JournalScheduleItem(
+              id: '$sourceId:$uid:${occurrence.identity ?? ''}',
+              subscription: occurrence.component == null
+                  ? entry
+                  : JournalSubscriptionEntry(
+                      entry.source,
+                      entry.subscription,
+                      occurrence.component!,
+                    ),
+              accountId: entry.source.accountId,
+              provider: BusyProvider.webCal,
+              sourceId: sourceId,
+              sourceName: entry.source.summary,
+              accountDisplayName:
+                  context.accountDisplayNames[entry.source.accountId],
+              accountEmail: context.accountEmails[entry.source.accountId],
+              title: occurrence.title,
+              searchText: occurrence.searchText,
+              start: occurrence.start,
+              allDay: occurrence.allDay,
+              colorHex: entry.source.backgroundColor,
+              recurring: occurrence.recurring,
+            ),
+          );
+        }
+      } on DavException {
+        // Invalid data from one feed must leave other sources visible.
+      }
+    }
+    return items;
   }
 
   /// Lists every visible task without applying a calendar date window.
@@ -1735,4 +1882,115 @@ List<Object?> _googleDefaultReminderMinutes(CalendarSource? source) {
   } on FormatException {
     return const [];
   }
+}
+
+List<_JournalOccurrence> _journalOccurrences(
+  String raw,
+  ScheduleRange range,
+  bool ignoreDateRange,
+) {
+  final document = IcalSemanticDocument.parse(raw);
+  final resolver = IcalTimeZoneResolver.fromDocument(document);
+  final recurring =
+      document.components.length > 1 ||
+      document.components.any(
+        (component) =>
+            component.recurrenceId != null ||
+            component.recurrenceRules.isNotEmpty ||
+            component.recurrenceDates.isNotEmpty,
+      );
+  _JournalOccurrence project(
+    IcalSemanticComponent component, {
+    IcalOccurrence? occurrence,
+  }) {
+    final journal = JournalComponent(component.documentComponent);
+    final temporal = occurrence?.start ?? component.start;
+    return _JournalOccurrence(
+      component: journal,
+      componentKey:
+          occurrence?.identityComponent.recurrenceIdKey ??
+          component.recurrenceIdKey,
+      identity: occurrence?.occurrenceKey ?? component.recurrenceIdKey,
+      occurrence: occurrence,
+      start: temporal == null ? null : _journalDisplayTime(temporal, resolver),
+      allDay: temporal?.isDate ?? false,
+      title: occurrence?.summary ?? journal.title ?? '',
+      searchText: journal.searchText,
+      recurring: recurring,
+    );
+  }
+
+  if (ignoreDateRange || !recurring) {
+    return [for (final component in document.components) project(component)];
+  }
+  // The recurrence expander uses UTC wall fields for floating values and DATE.
+  // Include both boundary days, then apply the visible range in display time.
+  final instances = IcalRecurrenceExpander().expand(
+    document,
+    rangeStartUtc: range.start.toUtc().subtract(const Duration(days: 1)),
+    rangeEndUtc: range.end.toUtc().add(const Duration(days: 1)),
+  );
+  return [
+    for (final component in document.components)
+      if (component.start == null) project(component),
+    for (final instance in instances)
+      if (!instance.isCancelled)
+        project(instance.effectiveComponent, occurrence: instance),
+  ];
+}
+
+DateTime _journalDisplayTime(
+  IcalTemporalValue value,
+  IcalTimeZoneResolver resolver,
+) {
+  if (value.kind == IcalTemporalKind.utcDateTime ||
+      value.kind == IcalTemporalKind.tzidDateTime) {
+    return resolver.toUtc(value).toLocal();
+  }
+  final wall = value.localValue;
+  return DateTime(
+    wall.year,
+    wall.month,
+    wall.day,
+    wall.hour,
+    wall.minute,
+    wall.second,
+  );
+}
+
+class _JournalOccurrence {
+  const _JournalOccurrence({
+    this.component,
+    this.componentKey,
+    this.identity,
+    this.occurrence,
+    required this.start,
+    required this.allDay,
+    required this.title,
+    required this.searchText,
+    this.recurring = false,
+  });
+
+  factory _JournalOccurrence.fromEntry(DavJournalEntry entry) {
+    final value = entry.startValue;
+    final date = value == null ? null : DateTime.tryParse(value);
+    return _JournalOccurrence(
+      componentKey: entry.recurrenceIdKey,
+      identity: entry.recurrenceIdKey,
+      start: date?.toLocal(),
+      allDay: entry.startKind == IcalTemporalKind.date.name,
+      title: entry.title ?? '',
+      searchText: entry.searchText,
+    );
+  }
+
+  final JournalComponent? component;
+  final String? componentKey;
+  final String? identity;
+  final IcalOccurrence? occurrence;
+  final DateTime? start;
+  final bool allDay;
+  final String title;
+  final String searchText;
+  final bool recurring;
 }

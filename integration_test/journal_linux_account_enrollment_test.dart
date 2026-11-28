@@ -285,7 +285,7 @@ void main() {
           ))!.single.id,
           account.id,
         );
-        router.go('/journals');
+        router.go('/schedule');
         await waitJournalWidget(tester, find.text(title));
         debugPrint(
           'JOURNAL_WORKFLOW_CASE $provider account-connect-and-discover PASS',

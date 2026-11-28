@@ -250,7 +250,7 @@ void main() {
         taskListId: 'visible-list',
       );
       await tester.pumpAndSettle();
-      expect(find.text('Edit Task'), findsWidgets);
+      expect(find.byTooltip('Edit Task'), findsWidgets);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       await tester.binding.handlePopRoute();
@@ -1896,7 +1896,7 @@ void main() {
     );
     addTearDown(harness.dispose);
 
-    expect(find.text('No events or tasks'), findsOneWidget);
+    expect(find.text('No events, tasks, or journal entries'), findsOneWidget);
     waiting = true;
     await tester.tap(find.byKey(const ValueKey('android-workspace-menu')));
     await tester.pumpAndSettle();
@@ -1904,12 +1904,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 220));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('No events or tasks'), findsNothing);
+    expect(find.text('No events, tasks, or journal entries'), findsNothing);
 
     destination.complete();
     await tester.pumpAndSettle();
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.text('No events or tasks'), findsOneWidget);
+    expect(find.text('No events, tasks, or journal entries'), findsOneWidget);
 
     await harness.dispose();
   });
@@ -1950,7 +1950,7 @@ void main() {
           final details = find.byKey(
             const ValueKey('android-schedule-details-scroll'),
           );
-          final edit = find.text('Edit Task');
+          final edit = find.byTooltip('Edit Task');
           expect(details, findsOneWidget, reason: label);
           expect(find.text(_longScheduleDetailsNotes), findsOneWidget);
           expect(edit, findsOneWidget, reason: label);
@@ -2133,7 +2133,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Invitation event'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Export'));
+      await tester.tap(find.byTooltip('Export'));
       await tester.pumpAndSettle();
       expect(find.text('This event'), findsOneWidget);
       expect(find.text('Entire series'), findsOneWidget);

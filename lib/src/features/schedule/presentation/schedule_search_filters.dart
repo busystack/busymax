@@ -2,6 +2,7 @@ import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../db/app_database.dart' show DavCollection;
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_search_criteria.dart';
@@ -24,6 +25,7 @@ class ScheduleSearchFilters extends StatelessWidget {
     required this.accounts,
     required this.sources,
     required this.taskLists,
+    this.journalSources = const [],
     this.sidebar = true,
     this.showEndBorder = true,
   });
@@ -34,6 +36,7 @@ class ScheduleSearchFilters extends StatelessWidget {
   final List<AccountEntity> accounts;
   final List<CalendarSourceEntity> sources;
   final List<TaskListEntity> taskLists;
+  final List<DavCollection> journalSources;
 
   /// Whether this presentation owns the standard Schedule sidebar surface.
   ///
@@ -96,27 +99,29 @@ class ScheduleSearchFilters extends StatelessWidget {
           ],
         ],
       ),
-      BusyMaxGroupedList(
-        filled: true,
-        children: [
-          if (value.includesEvents)
+      if (value.includesEvents || value.includesTasks)
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            if (value.includesEvents)
+              _SearchFilterTextRow(
+                key: const ValueKey('schedule-search-person'),
+                label: l10n.searchPerson,
+                value: value.person,
+                icon: YaruIcons.user,
+                onChanged: (person) =>
+                    onChanged(value.copyWith(person: person)),
+              ),
             _SearchFilterTextRow(
-              key: const ValueKey('schedule-search-person'),
-              label: l10n.searchPerson,
-              value: value.person,
-              icon: YaruIcons.user,
-              onChanged: (person) => onChanged(value.copyWith(person: person)),
+              key: const ValueKey('schedule-search-location'),
+              label: l10n.location,
+              value: value.location,
+              icon: YaruIcons.location,
+              onChanged: (location) =>
+                  onChanged(value.copyWith(location: location)),
             ),
-          _SearchFilterTextRow(
-            key: const ValueKey('schedule-search-location'),
-            label: l10n.location,
-            value: value.location,
-            icon: Icons.location_on_outlined,
-            onChanged: (location) =>
-                onChanged(value.copyWith(location: location)),
-          ),
-        ],
-      ),
+          ],
+        ),
       ..._sourceGroups(),
       if (!value.hasSources)
         BusyMaxGroupedList(
@@ -124,7 +129,7 @@ class ScheduleSearchFilters extends StatelessWidget {
           filled: true,
           children: [
             YaruListTile.square(
-              leading: const Icon(Icons.info_outline),
+              leading: const Icon(YaruIcons.information),
               title: Text(l10n.searchNoSources),
             ),
           ],
@@ -218,6 +223,35 @@ class ScheduleSearchFilters extends StatelessWidget {
                 onChanged(value.copyWith(taskListKeys: keys));
               },
             ),
+        if (value.includesJournals) ...[
+          for (final (id, label) in [
+            for (final source in journalSources.where(
+              (source) => source.accountId == account.id,
+            ))
+              (source.id, source.displayName),
+            for (final source in sources.where(
+              (source) =>
+                  source.accountId == account.id &&
+                  account.isSubscription &&
+                  !source.isDeleted,
+            ))
+              (source.id, source.summary),
+          ])
+            BusyMaxSwitchRow(
+              key: ValueKey(('schedule-search-journal', id)),
+              title: label,
+              value: value.journalSourceIds.contains(id),
+              leading: const Icon(YaruIcons.book),
+              onChanged: (selected) => onChanged(
+                value.copyWith(
+                  journalSourceIds: {
+                    ...value.journalSourceIds.where((oldId) => oldId != id),
+                    if (selected) id,
+                  },
+                ),
+              ),
+            ),
+        ],
       ];
       if (rows.isEmpty) {
         continue;

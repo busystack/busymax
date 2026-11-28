@@ -15,6 +15,8 @@ import '../../schedule/schedule_projection.dart';
 import '../../schedule/schedule_navigation_intent.dart';
 import '../../app/common/busymax_design_values.dart';
 import '../common/schedule/schedule_interactions.dart';
+import '../common/busymax_glyph.dart';
+import 'windows_busymax_glyphs.dart';
 import '../common/schedule/schedule_planner_events.dart';
 import '../common/schedule/schedule_preview_label.dart';
 
@@ -481,19 +483,41 @@ class _WindowsPlannerTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (task != null && height >= 22)
+            if (task != null)
               Padding(
                 padding: const EdgeInsetsDirectional.only(end: 4),
-                child: Checkbox(
-                  checked: task.completed,
-                  onChanged: task.capabilities.canEdit && onCompleted != null
-                      ? (value) => onCompleted!(value ?? false)
-                      : null,
+                child: SizedBox(
+                  width: 16,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Checkbox(
+                      checked: task.completed,
+                      onChanged:
+                          task.capabilities.canEdit && onCompleted != null
+                          ? (value) => onCompleted!(value ?? false)
+                          : null,
+                    ),
+                  ),
+                ),
+              ),
+            if (task == null)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 4),
+                child: Icon(
+                  windowsBusyMaxGlyph(
+                    item is JournalScheduleItem
+                        ? BusyMaxGlyph.journal
+                        : BusyMaxGlyph.calendar,
+                  ),
+                  size: 16,
+                  color: color,
                 ),
               ),
             Expanded(
               child: Text(
-                item.title,
+                item is JournalScheduleItem && item.title.isEmpty
+                    ? AppLocalizations.of(context).untitledJournal
+                    : item.title,
                 maxLines: height < 36 ? 1 : 3,
                 overflow: TextOverflow.ellipsis,
                 style: theme.typography.caption?.copyWith(

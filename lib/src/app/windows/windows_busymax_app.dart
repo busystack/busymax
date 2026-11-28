@@ -28,11 +28,9 @@ import '../../ui/windows/windows_workspace_shell.dart';
 import '../../ui/windows/windows_desktop_runtime.dart';
 import '../../ui/windows/windows_calendar_activation_flows.dart';
 import '../app_bootstrap.dart';
-import '../busymax_window_close.dart';
 import '../common/desktop_calendar_open_readiness.dart';
 
 final windowsRootNavigatorKey = GlobalKey<NavigatorState>();
-final _journalNavigation = BusyMaxWindowCloseCoordinator();
 
 final windowsAppRouter = GoRouter(
   navigatorKey: windowsRootNavigatorKey,
@@ -53,14 +51,7 @@ final windowsAppRouter = GoRouter(
         child: WindowsTasksPage(),
       ),
     ),
-    GoRoute(
-      path: '/journals',
-      onExit: (_, _) => _journalNavigation.requestClose(),
-      builder: (_, _) => WindowsWorkspaceShell(
-        destination: WindowsWorkspaceDestination.journals,
-        child: WindowsJournalPage(navigationCoordinator: _journalNavigation),
-      ),
-    ),
+    GoRoute(path: '/journals', redirect: (_, _) => '/schedule'),
     GoRoute(
       path: '/settings',
       builder: (_, state) => WindowsWorkspaceShell(
@@ -97,7 +88,7 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
 
   @override
   Future<AppExitResponse> didRequestAppExit() async =>
-      await _journalNavigation.requestClose()
+      await windowsJournalNavigation.requestClose()
       ? AppExitResponse.exit
       : AppExitResponse.cancel;
 

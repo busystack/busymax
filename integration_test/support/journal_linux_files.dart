@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:busymax/src/journal/presentation/journal_pane.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,6 +15,8 @@ Future<void> transferLinuxJournalFiles(
   required String title,
   required String importedTitle,
   required String importedUid,
+  required String account,
+  required String source,
 }) async {
   final input = File('${profile.path}/fixture.bin')
     ..writeAsBytesSync(linuxJournalAttachment);
@@ -34,10 +37,10 @@ Future<void> transferLinuxJournalFiles(
   expect(saved.readAsBytesSync(), linuxJournalAttachment);
 
   await _tapEditorAction(tester, find.widgetWithText(ElevatedButton, 'Save'));
-  final label = find.textContaining('$title ·');
+  final label = find.text(title);
   await waitJournalWidget(tester, label);
   await tapLinuxJournalControl(tester, label);
-  await _tapEditorAction(tester, find.text('Export'));
+  await tapLinuxJournalControl(tester, find.byTooltip('Export'));
   final exported = File('${profile.path}/roundtrip.ics');
   await tester.runAsync(() => selectLinuxJournalFile(exported, saving: true));
   await waitForLinuxJournalFile(tester, exported);
@@ -69,19 +72,25 @@ Future<void> transferLinuxJournalFiles(
             'SUMMARY:$importedTitle',
           ),
     );
-  await _tapEditorAction(tester, find.text('Close'));
-  await tapLinuxJournalControl(tester, find.text('Import .ics file'));
+  await tapLinuxJournalControl(tester, find.byTooltip('Close'));
+  await journalCollectionAction(
+    tester,
+    'Import .ics file',
+    account: account,
+    source: source,
+  );
   await tester.runAsync(() => selectLinuxJournalFile(imported, saving: false));
   await tapLinuxJournalControl(tester, find.text('Save'));
   await waitJournalWidget(tester, find.text(importedUid));
   await tapLinuxJournalControl(tester, find.text('Close'));
-  await waitJournalWidget(tester, find.textContaining('$importedTitle ·'));
-  expect(label, findsOneWidget);
+  await openJournalSearch(tester);
+  await tester.enterText(journalScheduleSearchInput(), importedTitle);
+  await waitJournalWidget(tester, find.text(importedTitle));
 }
 
 Future<void> _tapEditorAction(WidgetTester tester, Finder control) async {
   final editor = find.descendant(
-    of: find.byType(ListView),
+    of: find.byType(JournalPane),
     matching: find.byType(Scrollable),
   );
   await waitJournalWidget(tester, editor);
