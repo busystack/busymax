@@ -281,7 +281,12 @@ python3 test/interop/caldav/verify-vjournal.py \
 
 The command runs independent raw admission and REPORT probes, configured
 BusyMax DAV tests, and the Linux journal workflow in the active graphical
-session. Add `--android-device SERIAL --android-aapt /path/to/aapt` to run
+session. Use `vjournal-nextcloud.py start /tmp --postgres` to qualify the
+same stock Nextcloud image with a separate PostgreSQL fixture. Its
+database image, version and backend are recorded in `identity.json`.
+Keep SQLite when reproducing an earlier run on that database.
+
+Add `--android-device SERIAL --android-aapt /path/to/aapt` to run
 the Android workflow on an authorized device. The runner verifies each
 test-signed QA APK's application ID and signer, safely updates the isolated
 package, and uses Flutter's integration driver to launch that exact prebuilt
