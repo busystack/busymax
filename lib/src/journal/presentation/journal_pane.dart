@@ -214,6 +214,18 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
           } else if (item.entry case final entry?) {
             final current = await repository.read(entry);
             if (!mounted) return;
+            // Conflicts already have their own review flow. Open it directly
+            // so a blocked journal can be resolved from the item's normal tap.
+            if (widget.onEditRequested case final review?) {
+              final pending = await ref.read(
+                _pending(entry.davObjectId).future,
+              );
+              if (!mounted) return;
+              if (pending?.state == 'conflict') {
+                review(null);
+                return;
+              }
+            }
             setState(() {
               _open = current;
               _editing = widget.editOnOpen;

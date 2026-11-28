@@ -32,8 +32,11 @@ Future<void> showLinuxJournalDetails(
           files: journalDesktopFiles,
           detailActions: _detailActions,
           onClose: () => Navigator.of(context).pop(),
-          onEditRequested: (future) =>
-              Navigator.of(context).pop((future: future)),
+          onEditRequested: (future) {
+            if (ModalRoute.of(context)?.isCurrent == true) {
+              Navigator.of(context).pop((future: future));
+            }
+          },
         ),
       ),
     ),
