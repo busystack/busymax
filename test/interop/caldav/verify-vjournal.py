@@ -369,6 +369,7 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
                 expected = f'Android offline journal {stage} across processes on {provider}'
             private.write_text(json.dumps(stage_defines))
             if not run(f'{prefix}-build', ['flutter', 'build', 'apk', '--debug',
+                       '--no-android-gradle-daemon',
                        '--target=' + native, define], extra_env=flags):
                 return 'not run: APK build failed'
             apk = BUSYMAX / 'build/app/outputs/flutter-apk/app-debug.apk'
@@ -545,7 +546,7 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
                                    and commit(BUSYMAX) == evidence['busymax']
                                    and commit(server) == evidence['server'])
     if args.native_only:
-        evidence['nextcloudRawAdmission'] = {'status': 'not run: native-only retry'}
+        evidence['nextcloudRawAdmission'] = 'not run: native-only retry'
     else:
         try:
             nextcloud_records = [json.loads(line) for line in
