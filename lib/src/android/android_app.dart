@@ -204,6 +204,9 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       return;
     }
     await ref.read(androidNotificationServiceProvider).refreshReadiness();
+    if (!mounted) {
+      return;
+    }
     try {
       await withSyncTrigger(
         SyncTrigger.foreground,
@@ -211,6 +214,9 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
       );
     } on Object {
       // SyncRuns and account state expose the individual failure.
+    }
+    if (!mounted) {
+      return;
     }
     await ref.read(notificationReconcilerProvider).reconcile();
   }

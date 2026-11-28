@@ -89,6 +89,28 @@ final _longScheduleDetailsNotes = List.generate(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('Android foreground refresh can finish after the shell closes', (
+    tester,
+  ) async {
+    final syncStarted = Completer<void>();
+    final syncFinished = Completer<void>();
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      onForegroundSync: () {
+        syncStarted.complete();
+        return syncFinished.future;
+      },
+    );
+    addTearDown(harness.dispose);
+    expect(syncStarted.isCompleted, isTrue);
+
+    await tester.pumpWidget(const SizedBox());
+    syncFinished.complete();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Schedule can hide an account or open its settings without collapsing it',
     (tester) async {
@@ -9263,6 +9285,7 @@ Future<_AndroidAppHarness> _pumpApp(
   String? localTimeZone,
   Future<void> Function(AppDatabase database)? seedDatabase,
   Future<void> Function(String accountId)? onCalendarSync,
+  Future<void> Function()? onForegroundSync,
   FeedbackSubmissionService? feedbackService,
   CloudCalendarClient? calendarClient,
   GoogleCalendarApiClient? googleSharingClient,
@@ -9360,7 +9383,9 @@ Future<_AndroidAppHarness> _pumpApp(
       localSettingsStoreProvider.overrideWithValue(
         MemorySettingsStore(settings.toJson()),
       ),
-      allAccountsSyncRunnerProvider.overrideWithValue(() async {}),
+      allAccountsSyncRunnerProvider.overrideWithValue(
+        onForegroundSync ?? () async {},
+      ),
       notificationReconcilerProvider.overrideWithValue(
         CallbackNotificationReconciler(() async {}),
       ),
