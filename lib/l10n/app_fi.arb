@@ -1471,5 +1471,11 @@
   "journalDuplicate": "Monista merkintä",
   "journalDeleteSeries": "Poistetaanko koko merkintä toistoineen?",
   "journalFloatingTime": "Paikallinen aika",
-  "journalZonedTime": "Aika ja aikavyöhyke"
+  "journalZonedTime": "Aika ja aikavyöhyke",
+  "newJournalEntry": "Uusi päiväkirjamerkintä",
+  "newJournalSource": "Uusi päiväkirja",
+  "editJournalEntry": "Muokkaa päiväkirjamerkintää",
+  "noScheduleItems": "Ei tapahtumia, tehtäviä tai päiväkirjamerkintöjä",
+  "scheduleNoMatchingItems": "Ei vastaavia tapahtumia, tehtäviä tai päiväkirjamerkintöjä",
+  "scheduleNoVisibleSources": "Ei näkyviä kalentereita, tehtäväluetteloita tai päiväkirjoja"
 }

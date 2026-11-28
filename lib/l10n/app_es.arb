@@ -1534,5 +1534,11 @@
   "journalDuplicate": "Duplicar entrada",
   "journalDeleteSeries": "¿Eliminar la entrada completa y sus repeticiones?",
   "journalFloatingTime": "Hora local",
-  "journalZonedTime": "Hora con zona horaria"
+  "journalZonedTime": "Hora con zona horaria",
+  "newJournalEntry": "Nueva entrada de diario",
+  "newJournalSource": "Nuevo diario",
+  "editJournalEntry": "Editar entrada de diario",
+  "noScheduleItems": "No hay eventos, tareas ni entradas de diario",
+  "scheduleNoMatchingItems": "No hay eventos, tareas ni entradas de diario coincidentes",
+  "scheduleNoVisibleSources": "No hay calendarios, listas de tareas ni diarios visibles"
 }

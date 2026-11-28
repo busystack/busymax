@@ -684,7 +684,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+      'Nähtavaid kalendreid, ülesandeloendeid ega päevikuid pole';
 
   @override
   String get scheduleNoSearchResults =>
@@ -692,7 +692,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+      'Sobivaid sündmusi, ülesandeid ega päevikukandeid ei leitud';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4084,16 +4084,16 @@ class AppLocalizationsEt extends AppLocalizations {
   String get journals => 'Päevikud';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => 'Uus päevikukanne';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => 'Uus päevik';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => 'Muuda päevikukannet';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => 'Sündmusi, ülesandeid ega päevikukandeid pole';
 
   @override
   String get newJournal => 'Uus sissekanne';

@@ -688,14 +688,14 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+      'هیچ تقویم، فهرست کار یا دفتر روزنوشت قابل نمایشی وجود ندارد';
 
   @override
   String get scheduleNoSearchResults => 'هیچ رویداد یا کار منطبقی وجود ندارد';
 
   @override
   String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+      'هیچ رویداد، کار یا روزنوشت منطبقی وجود ندارد';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4137,16 +4137,16 @@ class AppLocalizationsFa extends AppLocalizations {
   String get journals => 'یادداشت‌های روزانه';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => 'روزنوشت جدید';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => 'دفتر روزنوشت جدید';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => 'ویرایش روزنوشت';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => 'هیچ رویداد، کار یا روزنوشتی وجود ندارد';
 
   @override
   String get newJournal => 'مدخل جدید';

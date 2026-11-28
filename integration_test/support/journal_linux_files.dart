@@ -37,7 +37,7 @@ Future<void> transferLinuxJournalFiles(
   expect(saved.readAsBytesSync(), linuxJournalAttachment);
 
   await _tapEditorAction(tester, find.widgetWithText(ElevatedButton, 'Save'));
-  final label = find.text(title);
+  final label = journalResultTitle(title);
   await waitJournalWidget(tester, label);
   await tapLinuxJournalControl(tester, label);
   await tapLinuxJournalControl(tester, find.byTooltip('Export'));
@@ -85,7 +85,7 @@ Future<void> transferLinuxJournalFiles(
   await tapLinuxJournalControl(tester, find.text('Close'));
   await openJournalSearch(tester);
   await tester.enterText(journalScheduleSearchInput(), importedTitle);
-  await waitJournalWidget(tester, find.text(importedTitle));
+  await waitJournalWidget(tester, journalResultTitle(importedTitle));
 }
 
 Future<void> _tapEditorAction(WidgetTester tester, Finder control) async {

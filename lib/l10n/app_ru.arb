@@ -1471,5 +1471,11 @@
   "journalDuplicate": "Создать копию записи",
   "journalDeleteSeries": "Удалить всю запись со всеми повторениями?",
   "journalFloatingTime": "Местное время",
-  "journalZonedTime": "Время с часовым поясом"
+  "journalZonedTime": "Время с часовым поясом",
+  "newJournalEntry": "Новая запись в журнале",
+  "newJournalSource": "Новый журнал",
+  "editJournalEntry": "Изменить запись в журнале",
+  "noScheduleItems": "Нет событий, задач или записей в журналах",
+  "scheduleNoMatchingItems": "Подходящих событий, задач или записей в журналах нет",
+  "scheduleNoVisibleSources": "Нет видимых календарей, списков задач или журналов"
 }

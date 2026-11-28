@@ -252,7 +252,12 @@ void main() {
       expect(scheduleAgenda, isNot(contains('scheduleAgendaRowBackground')));
       expect(scheduleAgenda, isNot(contains('surfaceColor:')));
       expect(scheduleAgenda, contains('ScheduleProjection.colorForItem'));
-      expect(scheduleAgenda, contains('leading: _AgendaItemMarker'));
+      expect(
+        scheduleAgenda,
+        matches(
+          r'leading: task == null\s*\? _AgendaItemMarker\(item: item\)\s*: ScheduleCheckbox\(',
+        ),
+      );
       expect(scheduleAgenda, isNot(contains('class _AgendaDayHeader')));
       expect(scheduleAgenda, isNot(contains('class _AgendaPlainHeader')));
 

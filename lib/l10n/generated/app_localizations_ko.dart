@@ -666,15 +666,13 @@ class AppLocalizationsKo extends AppLocalizations {
   String get scheduleNoSourcesDescription => '설정에서 표시할 항목을 선택한 다음 새로 고침하세요.';
 
   @override
-  String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+  String get scheduleNoVisibleSources => '표시할 캘린더, 할 일 목록 또는 일지가 없습니다';
 
   @override
   String get scheduleNoSearchResults => '일치하는 일정 또는 할 일이 없습니다';
 
   @override
-  String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+  String get scheduleNoMatchingItems => '일치하는 일정, 할 일 또는 일지 항목이 없습니다';
 
   @override
   String get scheduleNoSearchResultsDescription => '다른 검색어를 사용하거나 현재 필터를 지우세요.';
@@ -3999,16 +3997,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get journals => '일지';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => '새 일지 항목';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => '새 일지';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => '일지 항목 편집';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => '일정, 할 일 또는 일지 항목이 없습니다';
 
   @override
   String get newJournal => '새 항목';

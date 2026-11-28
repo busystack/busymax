@@ -201,7 +201,8 @@ void main() {
     for (final section in SidebarOrderSection.values) {
       final accountId =
           section == SidebarOrderSection.calendars ||
-              section == SidebarOrderSection.taskLists
+              section == SidebarOrderSection.taskLists ||
+              section == SidebarOrderSection.journals
           ? 'account'
           : null;
       await controller.registerSidebarIds(section, [

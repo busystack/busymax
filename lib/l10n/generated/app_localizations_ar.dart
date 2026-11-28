@@ -693,14 +693,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+      'لا توجد تقويمات أو قوائم مهام أو يوميات ظاهرة';
 
   @override
   String get scheduleNoSearchResults => 'لا توجد أحداث أو مهام مطابقة';
 
   @override
   String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+      'لا توجد أحداث أو مهام أو إدخالات يومية مطابقة';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4148,16 +4148,16 @@ class AppLocalizationsAr extends AppLocalizations {
   String get journals => 'اليوميات';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => 'إدخال يومية جديد';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => 'يومية جديدة';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => 'تعديل إدخال اليومية';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => 'لا توجد أحداث أو مهام أو إدخالات يومية';
 
   @override
   String get newJournal => 'إدخال جديد';

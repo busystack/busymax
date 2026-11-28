@@ -4960,8 +4960,16 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
       'Escolha o que pretende mostrar nas Definições e atualize a agenda.';
 
   @override
+  String get scheduleNoVisibleSources =>
+      'Sem calendários, listas de tarefas ou diários visíveis';
+
+  @override
   String get scheduleNoSearchResults =>
       'Nenhum evento ou tarefa correspondente';
+
+  @override
+  String get scheduleNoMatchingItems =>
+      'Nenhum evento, tarefa ou entrada de diário correspondente';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -8390,6 +8398,18 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get journals => 'Diários';
+
+  @override
+  String get newJournalEntry => 'Nova entrada de diário';
+
+  @override
+  String get newJournalSource => 'Novo diário';
+
+  @override
+  String get editJournalEntry => 'Editar entrada de diário';
+
+  @override
+  String get noScheduleItems => 'Sem eventos, tarefas ou entradas de diário';
 
   @override
   String get newJournal => 'Nova entrada';

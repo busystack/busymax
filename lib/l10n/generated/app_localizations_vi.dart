@@ -691,7 +691,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+      'Không có lịch, danh sách công việc hoặc nhật ký nào đang hiển thị';
 
   @override
   String get scheduleNoSearchResults =>
@@ -699,7 +699,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+      'Không có sự kiện, công việc hoặc mục nhật ký phù hợp';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4094,16 +4094,16 @@ class AppLocalizationsVi extends AppLocalizations {
   String get journals => 'Nhật ký';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => 'Mục nhật ký mới';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => 'Nhật ký mới';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => 'Chỉnh sửa mục nhật ký';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => 'Không có sự kiện, công việc hoặc mục nhật ký';
 
   @override
   String get newJournal => 'Mục mới';

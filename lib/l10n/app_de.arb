@@ -1534,5 +1534,11 @@
   "journalDuplicate": "Eintrag duplizieren",
   "journalDeleteSeries": "Den gesamten Eintrag mit Wiederholungen löschen?",
   "journalFloatingTime": "Ortszeit",
-  "journalZonedTime": "Zeit mit Zeitzone"
+  "journalZonedTime": "Zeit mit Zeitzone",
+  "newJournalEntry": "Neuer Journaleintrag",
+  "newJournalSource": "Neues Journal",
+  "editJournalEntry": "Journaleintrag bearbeiten",
+  "noScheduleItems": "Keine Termine, Aufgaben oder Journaleinträge",
+  "scheduleNoMatchingItems": "Keine passenden Termine, Aufgaben oder Journaleinträge",
+  "scheduleNoVisibleSources": "Keine sichtbaren Kalender, Aufgabenlisten oder Journale"
 }

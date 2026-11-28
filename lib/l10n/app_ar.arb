@@ -1471,5 +1471,11 @@
   "journalDuplicate": "تكرار الإدخال",
   "journalDeleteSeries": "هل تريد حذف الإدخال بالكامل مع تكراراته؟",
   "journalFloatingTime": "الوقت المحلي",
-  "journalZonedTime": "وقت بمنطقة زمنية"
+  "journalZonedTime": "وقت بمنطقة زمنية",
+  "newJournalEntry": "إدخال يومية جديد",
+  "newJournalSource": "يومية جديدة",
+  "editJournalEntry": "تعديل إدخال اليومية",
+  "noScheduleItems": "لا توجد أحداث أو مهام أو إدخالات يومية",
+  "scheduleNoMatchingItems": "لا توجد أحداث أو مهام أو إدخالات يومية مطابقة",
+  "scheduleNoVisibleSources": "لا توجد تقويمات أو قوائم مهام أو يوميات ظاهرة"
 }

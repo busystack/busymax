@@ -642,15 +642,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleNoSourcesDescription => '请在设置中选择要显示的内容，然后刷新。';
 
   @override
-  String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+  String get scheduleNoVisibleSources => '没有可见的日历、任务列表或日志';
 
   @override
   String get scheduleNoSearchResults => '没有匹配的日程或任务';
 
   @override
-  String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+  String get scheduleNoMatchingItems => '没有匹配的日程、任务或日志条目';
 
   @override
   String get scheduleNoSearchResultsDescription => '请尝试其他搜索内容或清除当前筛选条件。';
@@ -3916,16 +3914,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get journals => '日志';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => '新建日志条目';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => '新建日志';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => '编辑日志条目';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => '没有日程、任务或日志条目';
 
   @override
   String get newJournal => '新建条目';
@@ -4692,7 +4690,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get scheduleNoSourcesDescription => '请在设置中选择要显示的内容，然后刷新。';
 
   @override
+  String get scheduleNoVisibleSources => '没有可见的日历、任务列表或日志';
+
+  @override
   String get scheduleNoSearchResults => '没有匹配的日程或任务';
+
+  @override
+  String get scheduleNoMatchingItems => '没有匹配的日程、任务或日志条目';
 
   @override
   String get scheduleNoSearchResultsDescription => '请尝试其他搜索内容或清除当前筛选条件。';
@@ -7958,6 +7962,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get journals => '日志';
 
   @override
+  String get newJournalEntry => '新建日志条目';
+
+  @override
+  String get newJournalSource => '新建日志';
+
+  @override
+  String get editJournalEntry => '编辑日志条目';
+
+  @override
+  String get noScheduleItems => '没有日程、任务或日志条目';
+
+  @override
   String get newJournal => '新建条目';
 
   @override
@@ -8722,7 +8738,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get scheduleNoSourcesDescription => '請在設定中選擇要顯示的內容，然後重新整理。';
 
   @override
+  String get scheduleNoVisibleSources => '沒有可見的行事曆、待辦清單或日誌';
+
+  @override
   String get scheduleNoSearchResults => '沒有相符的活動或待辦事項';
+
+  @override
+  String get scheduleNoMatchingItems => '沒有相符的活動、待辦事項或日誌項目';
 
   @override
   String get scheduleNoSearchResultsDescription => '請嘗試其他搜尋內容或清除目前的篩選條件。';
@@ -11987,6 +12009,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get journals => '日誌';
+
+  @override
+  String get newJournalEntry => '新增日誌項目';
+
+  @override
+  String get newJournalSource => '新增日誌';
+
+  @override
+  String get editJournalEntry => '編輯日誌項目';
+
+  @override
+  String get noScheduleItems => '沒有活動、待辦事項或日誌項目';
 
   @override
   String get newJournal => '新增項目';

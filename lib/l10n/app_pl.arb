@@ -2152,5 +2152,11 @@
   "journalDuplicate": "Powiel wpis",
   "journalDeleteSeries": "Usunąć cały wpis i jego powtórzenia?",
   "journalFloatingTime": "Czas lokalny",
-  "journalZonedTime": "Czas ze strefą czasową"
+  "journalZonedTime": "Czas ze strefą czasową",
+  "newJournalEntry": "Nowy wpis w dzienniku",
+  "newJournalSource": "Nowy dziennik",
+  "editJournalEntry": "Edytuj wpis w dzienniku",
+  "noScheduleItems": "Brak wydarzeń, zadań i wpisów w dzienniku",
+  "scheduleNoMatchingItems": "Brak pasujących wydarzeń, zadań i wpisów w dzienniku",
+  "scheduleNoVisibleSources": "Brak widocznych kalendarzy, list zadań i dzienników"
 }

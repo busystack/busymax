@@ -1561,5 +1561,11 @@
   "journalDuplicate": "تکثیر مدخل",
   "journalDeleteSeries": "مدخل و همهٔ تکرارهای آن حذف شوند؟",
   "journalFloatingTime": "زمان محلی",
-  "journalZonedTime": "زمان با منطقهٔ زمانی"
+  "journalZonedTime": "زمان با منطقهٔ زمانی",
+  "newJournalEntry": "روزنوشت جدید",
+  "newJournalSource": "دفتر روزنوشت جدید",
+  "editJournalEntry": "ویرایش روزنوشت",
+  "noScheduleItems": "هیچ رویداد، کار یا روزنوشتی وجود ندارد",
+  "scheduleNoMatchingItems": "هیچ رویداد، کار یا روزنوشت منطبقی وجود ندارد",
+  "scheduleNoVisibleSources": "هیچ تقویم، فهرست کار یا دفتر روزنوشت قابل نمایشی وجود ندارد"
 }

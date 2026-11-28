@@ -91,18 +91,25 @@ void main() {
       of: find.byType(JournalPane),
       matching: find.text('Save'),
     );
-    await tester.scrollUntilVisible(
-      save,
-      220,
-      scrollable: find
-          .descendant(
-            of: find.byType(JournalPane),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.tap(save.first);
-    await waitJournalWidget(tester, find.byType(JournalPane), absent: true);
+    Future<void> saveEditor() async {
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        save,
+        220,
+        scrollable: find
+            .descendant(
+              of: find.byType(JournalPane),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await waitJournalWidget(tester, save.hitTestable());
+      await tester.tap(save.hitTestable());
+      await waitJournalWidget(tester, find.byType(JournalPane), absent: true);
+    }
+
+    await saveEditor();
     await waitJournalWidget(tester, find.text('Edited on Android Schedule'));
     await tester.tap(find.byTooltip('Create'));
     final create = find
@@ -120,18 +127,7 @@ void main() {
       findsOneWidget,
     );
     await tester.enterText(title, 'Created on Android Schedule');
-    await tester.scrollUntilVisible(
-      save,
-      220,
-      scrollable: find
-          .descendant(
-            of: find.byType(JournalPane),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.tap(save.first);
-    await waitJournalWidget(tester, find.byType(JournalPane), absent: true);
+    await saveEditor();
     await waitJournalWidget(tester, find.text('Created on Android Schedule'));
     binding.reportData = {
       'journalTest': 'Android integrated journal creation and details',

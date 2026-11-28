@@ -1471,5 +1471,11 @@
   "journalDuplicate": "항목 복제",
   "journalDeleteSeries": "항목과 모든 반복을 삭제할까요?",
   "journalFloatingTime": "현지 시각",
-  "journalZonedTime": "시간대가 있는 시각"
+  "journalZonedTime": "시간대가 있는 시각",
+  "newJournalEntry": "새 일지 항목",
+  "newJournalSource": "새 일지",
+  "editJournalEntry": "일지 항목 편집",
+  "noScheduleItems": "일정, 할 일 또는 일지 항목이 없습니다",
+  "scheduleNoMatchingItems": "일치하는 일정, 할 일 또는 일지 항목이 없습니다",
+  "scheduleNoVisibleSources": "표시할 캘린더, 할 일 목록 또는 일지가 없습니다"
 }

@@ -1471,5 +1471,11 @@
   "journalDuplicate": "エントリを複製",
   "journalDeleteSeries": "エントリとすべての繰り返しを削除しますか？",
   "journalFloatingTime": "現地時刻",
-  "journalZonedTime": "タイムゾーン付き時刻"
+  "journalZonedTime": "タイムゾーン付き時刻",
+  "newJournalEntry": "新しい日誌の項目",
+  "newJournalSource": "新しい日誌",
+  "editJournalEntry": "日誌の項目を編集",
+  "noScheduleItems": "予定、タスク、日誌の項目はありません",
+  "scheduleNoMatchingItems": "一致する予定、タスク、日誌の項目はありません",
+  "scheduleNoVisibleSources": "表示できるカレンダー、タスクリスト、日誌がありません"
 }

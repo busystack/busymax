@@ -708,14 +708,14 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+      'Brak widocznych kalendarzy, list zadań i dzienników';
 
   @override
   String get scheduleNoSearchResults => 'Brak pasujących wydarzeń i zadań';
 
   @override
   String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+      'Brak pasujących wydarzeń, zadań i wpisów w dzienniku';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4284,16 +4284,16 @@ class AppLocalizationsPl extends AppLocalizations {
   String get journals => 'Dzienniki';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => 'Nowy wpis w dzienniku';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => 'Nowy dziennik';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => 'Edytuj wpis w dzienniku';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => 'Brak wydarzeń, zadań i wpisów w dzienniku';
 
   @override
   String get newJournal => 'Nowy wpis';

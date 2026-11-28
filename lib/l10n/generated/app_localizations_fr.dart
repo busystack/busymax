@@ -699,7 +699,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+      'Aucun calendrier, aucune liste de tâches ni aucun journal visible';
 
   @override
   String get scheduleNoSearchResults =>
@@ -707,7 +707,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+      'Aucun événement, aucune tâche ni entrée de journal ne correspond';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4130,16 +4130,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get journals => 'Journaux';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => 'Nouvelle entrée de journal';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => 'Nouveau journal';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => 'Modifier l’entrée de journal';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems =>
+      'Aucun événement, aucune tâche ni entrée de journal';
 
   @override
   String get newJournal => 'Nouvelle entrée';

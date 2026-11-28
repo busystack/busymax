@@ -193,7 +193,11 @@ void runJournalWorkflow({
       await waitJournalWidget(tester, search);
       await tester.enterText(search, title);
       await tester.pump(const Duration(milliseconds: 350));
-      await waitJournalWidget(tester, find.text(title), absent: absent);
+      await waitJournalWidget(
+        tester,
+        journalResultTitle(title),
+        absent: absent,
+      );
     }
 
     Future<void> refresh({
@@ -245,7 +249,7 @@ void runJournalWorkflow({
         await openSchedule(tester, container);
         await searchFor(offlineCreation);
         await searchFor(offlineEdit);
-        await _tapVisible(tester, find.text(offlineEdit));
+        await _tapVisible(tester, journalResultTitle(offlineEdit));
         await waitJournalWidget(
           tester,
           find.text('Draft saved on this device'),
@@ -412,11 +416,11 @@ void runJournalWorkflow({
       ))!;
       expect(changed.statusCode, anyOf(200, 204));
       await refresh();
-      await waitJournalWidget(tester, find.textContaining('Peer edit'));
+      await waitJournalWidget(tester, journalResultTitle('Peer edit'));
       await openJournalSearch(tester);
       await tester.enterText(input('Search'), 'second body');
-      await waitJournalWidget(tester, find.textContaining('Peer edit'));
-      await _tapVisible(tester, find.textContaining('Peer edit'));
+      await waitJournalWidget(tester, journalResultTitle('Peer edit'));
+      await _tapVisible(tester, journalResultTitle('Peer edit'));
       await enterJournalEditor(tester);
       await waitJournalWidget(tester, input('Title'));
       await tester.enterText(input('Title'), 'Local edit');
@@ -438,8 +442,8 @@ void runJournalWorkflow({
       await _editorAction(tester, button('Close', false));
       await waitJournalWidget(tester, input('Search'));
       expect(inputValue(tester, input('Search')), 'second body');
-      await waitJournalWidget(tester, find.text('Peer edit'));
-      await _tapVisible(tester, find.textContaining('Peer edit'));
+      await waitJournalWidget(tester, journalResultTitle('Peer edit'));
+      await _tapVisible(tester, journalResultTitle('Peer edit'));
       await enterJournalEditor(tester);
       await waitJournalWidget(tester, input('Title'));
       expect(inputValue(tester, input('Title')), 'Local edit');
@@ -461,16 +465,16 @@ void runJournalWorkflow({
       }
       record('editor-draft-close-and-reopen');
       await _editorAction(tester, button('Save', true));
-      await waitJournalWidget(tester, find.textContaining('Local edit'));
+      await waitJournalWidget(tester, journalResultTitle('Local edit'));
       expect(inputValue(tester, input('Search')), 'second body');
       await tester.enterText(input('Search'), 'absent from journal');
       await waitJournalWidget(
         tester,
-        find.textContaining('Local edit'),
+        journalResultTitle('Local edit'),
         absent: true,
       );
       await tester.enterText(input('Search'), '');
-      await waitJournalWidget(tester, find.textContaining('Local edit'));
+      await waitJournalWidget(tester, journalResultTitle('Local edit'));
       await refresh();
       final edited = (await tester.runAsync(
         () => request('GET', object.requestUri),
@@ -512,14 +516,14 @@ void runJournalWorkflow({
         setOnline(false);
         await create(offlineCreation);
         await searchFor('Local edit');
-        await _tapVisible(tester, find.text('Local edit'));
+        await _tapVisible(tester, journalResultTitle('Local edit'));
         await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         await tester.enterText(input('Title'), offlineEdit);
         await _editorAction(tester, button('Save', true));
         await searchFor(offlineEdit);
         await searchFor(offlineDeletion);
-        await _tapVisible(tester, find.text(offlineDeletion));
+        await _tapVisible(tester, journalResultTitle(offlineDeletion));
         await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         await _editorAction(tester, button('Delete', false));
@@ -529,7 +533,7 @@ void runJournalWorkflow({
         );
         await searchFor(offlineDeletion, absent: true);
         await searchFor(offlineEdit);
-        await _tapVisible(tester, find.text(offlineEdit));
+        await _tapVisible(tester, journalResultTitle(offlineEdit));
         await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         await tester.enterText(input('Title'), offlineDraft);
@@ -580,7 +584,7 @@ void runJournalWorkflow({
           final localTitle = 'Local conflict choice $number';
           final remoteTitle = 'Remote conflict choice $number';
           setOnline(false);
-          final current = find.text(currentTitle);
+          final current = journalResultTitle(currentTitle);
           await waitJournalWidget(tester, current);
           await _tapVisible(tester, current);
           await enterJournalEditor(tester);
@@ -643,7 +647,7 @@ void runJournalWorkflow({
           currentTitle = preserveLocal ? localTitle : remoteTitle;
           if (number == 1) {
             // Keep server adopts the confirmed snapshot locally and sends no write.
-            await waitJournalWidget(tester, find.text(currentTitle));
+            await waitJournalWidget(tester, journalResultTitle(currentTitle));
           } else {
             await refresh(
               confirmPartial: true,
@@ -678,7 +682,7 @@ void runJournalWorkflow({
             expect(duplicate.primaryUid, isNot(object.primaryUid));
           }
         }
-        final finalEntry = find.text(currentTitle);
+        final finalEntry = journalResultTitle(currentTitle);
         await waitJournalWidget(tester, finalEntry);
         await _tapVisible(tester, finalEntry);
         await enterJournalEditor(tester);
@@ -734,7 +738,7 @@ void runJournalWorkflow({
             return fetched;
           }))!;
           await searchFor(moveTitle);
-          await _tapVisible(tester, find.text(moveTitle));
+          await _tapVisible(tester, journalResultTitle(moveTitle));
           await enterJournalEditor(tester);
           await waitJournalWidget(tester, input('Title'));
           await _selectMoveDestination(tester, destinationTitle);
@@ -821,7 +825,7 @@ void runJournalWorkflow({
         expect(createdSeries.statusCode, 201);
         await refresh();
         await searchFor(seriesTitle);
-        final series = find.text(seriesTitle);
+        final series = journalResultTitle(seriesTitle);
         await waitJournalWidget(tester, series);
         await _tapVisible(tester, series);
         await enterJournalEditor(tester);
@@ -887,6 +891,7 @@ void runJournalWorkflow({
             newTitle == futureTitle,
           );
         }
+        await searchFor(seriesTitle);
         await _tapVisible(tester, series);
         await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
@@ -910,7 +915,7 @@ void runJournalWorkflow({
         final importedUid = 'gtk-import-$marker@example.invalid';
         await searchFor(title);
         await tester.enterText(input('Search'), '');
-        await _tapVisible(tester, find.text(title));
+        await _tapVisible(tester, journalResultTitle(title));
         await enterJournalEditor(tester);
         final attachment = await transferFiles(
           tester,
@@ -982,7 +987,7 @@ void runJournalWorkflow({
           .innerText;
       expect(syncToken, isNotEmpty);
 
-      await _tapVisible(tester, find.text('Local edit'));
+      await _tapVisible(tester, journalResultTitle('Local edit'));
       await enterJournalEditor(tester);
       await waitJournalWidget(tester, input('Title'));
       await _editorAction(tester, button('Delete', false));
@@ -991,7 +996,11 @@ void runJournalWorkflow({
         button('Delete the entire entry and its recurrence?', false),
       );
       await waitJournalWidget(tester, input('Search'));
-      await waitJournalWidget(tester, find.text('Local edit'), absent: true);
+      await waitJournalWidget(
+        tester,
+        journalResultTitle('Local edit'),
+        absent: true,
+      );
       await refresh();
       final deleted = (await tester.runAsync(
         () => request('GET', object.requestUri),
@@ -1083,7 +1092,7 @@ void runJournalWorkflow({
       if (slowCollectionRemoval) {
         accountClient.delayRemovalResponses = true;
       }
-      await _tapVisible(tester, button('Delete', false));
+      await _tapVisible(tester, button('Delete', true));
       await waitJournalWidget(
         tester,
         confirmation,
@@ -1231,6 +1240,11 @@ Finder journalMaterialInput(String label) => find.byWidgetPredicate(
   (widget) => widget is TextField && widget.decoration?.labelText == label,
 );
 
+Finder journalResultTitle(String title) => find.byWidgetPredicate(
+  (widget) => widget is Text && widget.data == title,
+  description: 'schedule result titled "$title"',
+);
+
 Finder journalScheduleSearchInput() {
   if (Platform.isLinux) {
     return find.descendant(
@@ -1364,7 +1378,7 @@ Future<void> _selectMoveDestination(WidgetTester tester, String title) async {
   const label = 'Move journal entry';
   if (Platform.isAndroid) {
     await _editorAction(tester, find.byKey(const ValueKey((label, ''))));
-    final choice = find.text(title).hitTestable();
+    final choice = journalResultTitle(title).hitTestable();
     await waitJournalWidget(tester, choice);
     await _tapVisible(tester, choice);
     return;

@@ -1471,5 +1471,11 @@
   "journalDuplicate": "复制条目",
   "journalDeleteSeries": "删除整条日志及其重复项？",
   "journalFloatingTime": "本地时间",
-  "journalZonedTime": "带时区的时间"
+  "journalZonedTime": "带时区的时间",
+  "newJournalEntry": "新建日志条目",
+  "newJournalSource": "新建日志",
+  "editJournalEntry": "编辑日志条目",
+  "noScheduleItems": "没有日程、任务或日志条目",
+  "scheduleNoMatchingItems": "没有匹配的日程、任务或日志条目",
+  "scheduleNoVisibleSources": "没有可见的日历、任务列表或日志"
 }

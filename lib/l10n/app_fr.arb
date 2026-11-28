@@ -1534,5 +1534,11 @@
   "journalDuplicate": "Dupliquer l’entrée",
   "journalDeleteSeries": "Supprimer l’entrée entière et ses répétitions ?",
   "journalFloatingTime": "Heure locale",
-  "journalZonedTime": "Heure avec fuseau horaire"
+  "journalZonedTime": "Heure avec fuseau horaire",
+  "newJournalEntry": "Nouvelle entrée de journal",
+  "newJournalSource": "Nouveau journal",
+  "editJournalEntry": "Modifier l’entrée de journal",
+  "noScheduleItems": "Aucun événement, aucune tâche ni entrée de journal",
+  "scheduleNoMatchingItems": "Aucun événement, aucune tâche ni entrée de journal ne correspond",
+  "scheduleNoVisibleSources": "Aucun calendrier, aucune liste de tâches ni aucun journal visible"
 }

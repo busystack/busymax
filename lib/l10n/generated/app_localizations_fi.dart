@@ -699,14 +699,14 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+      'Ei näkyviä kalentereita, tehtäväluetteloita tai päiväkirjoja';
 
   @override
   String get scheduleNoSearchResults => 'Ei vastaavia tapahtumia tai tehtäviä';
 
   @override
   String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+      'Ei vastaavia tapahtumia, tehtäviä tai päiväkirjamerkintöjä';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4137,16 +4137,17 @@ class AppLocalizationsFi extends AppLocalizations {
   String get journals => 'Päiväkirjat';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => 'Uusi päiväkirjamerkintä';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => 'Uusi päiväkirja';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => 'Muokkaa päiväkirjamerkintää';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems =>
+      'Ei tapahtumia, tehtäviä tai päiväkirjamerkintöjä';
 
   @override
   String get newJournal => 'Uusi merkintä';

@@ -1785,7 +1785,7 @@ void main() {
       find.byKey(const ValueKey('android-schedule-details-scroll')),
       findsOneWidget,
     );
-    expect(find.text('Edit Task'), findsOneWidget);
+    expect(find.byTooltip('Edit Task'), findsOneWidget);
 
     await harness.dispose();
   });
@@ -2177,7 +2177,7 @@ void main() {
     );
     addTearDown(harness.dispose);
     final today = DateTime.now();
-    final noon = DateTime.utc(today.year, today.month, today.day, 12);
+    final noon = DateTime(today.year, today.month, today.day, 12).toUtc();
     await (harness.database.update(
       harness.database.calendarEvents,
     )..where((row) => row.id.equals('overnight'))).write(
@@ -6004,7 +6004,9 @@ void main() {
       await tester.tap(task);
       await tester.pumpAndSettle();
       final edit = tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Edit Task'))
+          .widget<IconButton>(
+            find.widgetWithIcon(IconButton, Icons.edit_outlined),
+          )
           .onPressed!;
       edit();
       edit();
@@ -6087,7 +6089,7 @@ void main() {
       final acknowledgedOpen = tester.widget<ListTile>(tile).onTap!;
       oldOpen();
       await tester.pumpAndSettle();
-      final edit = find.widgetWithText(FilledButton, 'Edit Task');
+      final edit = find.byTooltip('Edit Task');
       await tester.ensureVisible(edit);
       await tester.tap(edit);
       await tester.pump();
@@ -9251,8 +9253,7 @@ Future<void> _scrollUntilBuilt(WidgetTester tester, Finder target) async {
 Future<void> _pumpUntilFound(WidgetTester tester, Finder target) async {
   await tester.pumpAndSettle();
   for (var attempt = 0; attempt < 20 && target.evaluate().isEmpty; attempt++) {
-    final edit = find.widgetWithText(
-      FilledButton,
+    final edit = find.byTooltip(
       tester.element(find.byType(Scaffold).last).l10n.editTask,
     );
     if (edit.evaluate().isNotEmpty) {

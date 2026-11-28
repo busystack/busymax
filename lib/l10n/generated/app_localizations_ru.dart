@@ -689,14 +689,14 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+      'Нет видимых календарей, списков задач или журналов';
 
   @override
   String get scheduleNoSearchResults => 'Подходящих событий или задач нет';
 
   @override
   String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+      'Подходящих событий, задач или записей в журналах нет';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4144,16 +4144,16 @@ class AppLocalizationsRu extends AppLocalizations {
   String get journals => 'Журналы';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => 'Новая запись в журнале';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => 'Новый журнал';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => 'Изменить запись в журнале';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => 'Нет событий, задач или записей в журналах';
 
   @override
   String get newJournal => 'Новая запись';

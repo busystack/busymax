@@ -1649,5 +1649,11 @@
   "journalDuplicate": "Tee kirjest koopia",
   "journalDeleteSeries": "Kas kustutada kogu kirje koos kordustega?",
   "journalFloatingTime": "Kohalik kellaaeg",
-  "journalZonedTime": "Kellaaeg koos ajavööndiga"
+  "journalZonedTime": "Kellaaeg koos ajavööndiga",
+  "newJournalEntry": "Uus päevikukanne",
+  "newJournalSource": "Uus päevik",
+  "editJournalEntry": "Muuda päevikukannet",
+  "noScheduleItems": "Sündmusi, ülesandeid ega päevikukandeid pole",
+  "scheduleNoMatchingItems": "Sobivaid sündmusi, ülesandeid ega päevikukandeid ei leitud",
+  "scheduleNoVisibleSources": "Nähtavaid kalendreid, ülesandeloendeid ega päevikuid pole"
 }

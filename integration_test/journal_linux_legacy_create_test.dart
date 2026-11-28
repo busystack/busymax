@@ -61,7 +61,7 @@ void main() {
       container.read(appRouterProvider).go('/schedule');
       await openJournalSearch(tester);
       await tester.enterText(journalScheduleSearchInput(), 'Series');
-      final label = find.text('Series');
+      final label = journalResultTitle('Series');
       await waitJournalWidget(tester, label);
       await tester.tap(label);
 

@@ -1471,5 +1471,11 @@
   "journalDuplicate": "Duplica voce",
   "journalDeleteSeries": "Eliminare l’intera voce con le sue ricorrenze?",
   "journalFloatingTime": "Ora locale",
-  "journalZonedTime": "Ora con fuso orario"
+  "journalZonedTime": "Ora con fuso orario",
+  "newJournalEntry": "Nuova voce del diario",
+  "newJournalSource": "Nuovo diario",
+  "editJournalEntry": "Modifica voce del diario",
+  "noScheduleItems": "Nessun evento, attività o voce del diario",
+  "scheduleNoMatchingItems": "Nessun evento, attività o voce del diario corrispondente",
+  "scheduleNoVisibleSources": "Nessun calendario, elenco di attività o diario visibile"
 }

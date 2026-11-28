@@ -1471,5 +1471,11 @@
   "journalDuplicate": "Duplicar entrada",
   "journalDeleteSeries": "Eliminar toda a entrada e as suas repetições?",
   "journalFloatingTime": "Hora local",
-  "journalZonedTime": "Hora com fuso horário"
+  "journalZonedTime": "Hora com fuso horário",
+  "newJournalEntry": "Nova entrada de diário",
+  "newJournalSource": "Novo diário",
+  "editJournalEntry": "Editar entrada de diário",
+  "noScheduleItems": "Sem eventos, tarefas ou entradas de diário",
+  "scheduleNoMatchingItems": "Nenhum evento, tarefa ou entrada de diário correspondente",
+  "scheduleNoVisibleSources": "Sem calendários, listas de tarefas ou diários visíveis"
 }

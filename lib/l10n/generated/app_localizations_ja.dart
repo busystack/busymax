@@ -663,15 +663,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get scheduleNoSourcesDescription => '設定で表示する項目を選択してから、更新してください。';
 
   @override
-  String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+  String get scheduleNoVisibleSources => '表示できるカレンダー、タスクリスト、日誌がありません';
 
   @override
   String get scheduleNoSearchResults => '一致する予定またはタスクはありません';
 
   @override
-  String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+  String get scheduleNoMatchingItems => '一致する予定、タスク、日誌の項目はありません';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -3993,16 +3991,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get journals => 'ジャーナル';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => '新しい日誌の項目';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => '新しい日誌';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => '日誌の項目を編集';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => '予定、タスク、日誌の項目はありません';
 
   @override
   String get newJournal => '新規エントリ';

@@ -696,7 +696,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get scheduleNoVisibleSources =>
-      'No visible calendars, task lists, or journals';
+      'Nessun calendario, elenco di attività o diario visibile';
 
   @override
   String get scheduleNoSearchResults =>
@@ -704,7 +704,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get scheduleNoMatchingItems =>
-      'No matching events, tasks, or journal entries';
+      'Nessun evento, attività o voce del diario corrispondente';
 
   @override
   String get scheduleNoSearchResultsDescription =>
@@ -4134,16 +4134,16 @@ class AppLocalizationsIt extends AppLocalizations {
   String get journals => 'Diari';
 
   @override
-  String get newJournalEntry => 'New journal entry';
+  String get newJournalEntry => 'Nuova voce del diario';
 
   @override
-  String get newJournalSource => 'New journal';
+  String get newJournalSource => 'Nuovo diario';
 
   @override
-  String get editJournalEntry => 'Edit journal entry';
+  String get editJournalEntry => 'Modifica voce del diario';
 
   @override
-  String get noScheduleItems => 'No events, tasks, or journal entries';
+  String get noScheduleItems => 'Nessun evento, attività o voce del diario';
 
   @override
   String get newJournal => 'Nuova voce';
