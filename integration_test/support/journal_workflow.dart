@@ -572,7 +572,7 @@ void runJournalWorkflow({
           expect(changed.statusCode, anyOf(200, 204));
           setOnline(true);
           accountClient.preconditionFailures.clear();
-          await _refresh(tester, enabledRefresh());
+          await _refresh(tester, enabledRefresh(), confirmPartial: number == 2);
           expect(
             accountClient.preconditionFailures,
             contains((
@@ -616,6 +616,7 @@ void runJournalWorkflow({
             await _refresh(
               tester,
               enabledRefresh(),
+              confirmPartial: true,
               failureContext: () =>
                   '$action did not finish refreshing. DAV ${accountClient.trace}.',
             );
@@ -1194,11 +1195,26 @@ Future<void> _tapVisible(WidgetTester tester, Finder target) async {
 Future<void> _refresh(
   WidgetTester tester,
   Finder enabled, {
+  bool confirmPartial = false,
   String Function()? failureContext,
 }) async {
   await waitJournalWidget(tester, enabled);
   await _tapVisible(tester, enabled);
   await tester.pump();
+  if (Platform.isAndroid && confirmPartial) {
+    final dialog = find.widgetWithText(
+      AlertDialog,
+      'Refresh partially completed',
+    );
+    await waitJournalWidget(tester, dialog);
+    await _tapVisible(
+      tester,
+      find.descendant(
+        of: dialog,
+        matching: find.widgetWithText(TextButton, 'Retry'),
+      ),
+    );
+  }
   await waitJournalWidget(
     tester,
     enabled,
