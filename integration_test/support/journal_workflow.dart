@@ -989,7 +989,7 @@ void runJournalWorkflow({
           tester,
           find.descendant(
             of: occurrenceHeader,
-            matching: button('Close', false),
+            matching: find.text('Close'),
           ),
         );
         await _editorAction(tester, button('Close', false));
