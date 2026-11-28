@@ -1192,12 +1192,14 @@ final class DavPendingOperationQueue {
       destinationAccountId ?? accountId,
       destinationCollectionId,
     );
+    final entityType = _entityType(target.componentType);
+    final event = entityType == 'event';
+    final journal = entityType == 'journal';
     final providerSupportsMove = source.provider.isDav;
     if (!providerSupportsMove ||
-        (destination.provider != source.provider &&
-            target.componentType != 'VEVENT') ||
-        (destination.account.id != accountId &&
-            target.componentType != 'VEVENT') ||
+        (!event &&
+            (destination.provider != source.provider ||
+                destination.account.id != accountId)) ||
         source.collection.id == destination.collection.id) {
       throw _invalidPendingOperation();
     }
@@ -1207,12 +1209,10 @@ final class DavPendingOperationQueue {
     final destinationCapabilities = collectionCapabilitiesFromStored(
       destination.collection,
     );
-    final journal = target.componentType.toUpperCase() == 'VJOURNAL';
     if ((source.provider == BusyProvider.caldav || journal) &&
         !sourceCapabilities.supportsMove) {
       throw _invalidPendingOperation();
     }
-    final event = _componentIsEvent(target.componentType);
     final canDelete = journal
         ? source.account.journalsEnabled &&
               source.collection.journalInventoryComplete &&
@@ -1322,7 +1322,7 @@ final class DavPendingOperationQueue {
         id: id,
         accountId: accountId,
         provider: Value(source.provider.storageValue),
-        entityType: _entityType(target.componentType),
+        entityType: entityType,
         operation: 'dav_move',
         operationType: const Value('dav.move'),
         davCollectionId: Value(sourceCollectionId),
@@ -1595,6 +1595,7 @@ final class DavPendingOperationsReplayer {
             'dav.create' =>
               _decodeCreate(op.requestJson).componentType == 'VEVENT',
             'dav.update' => _decodePatch(op).target.componentType == 'VEVENT',
+            'dav.move' => _moveComponentType(op) == 'VEVENT',
             _ => _deleteIsEvent(op),
           };
           final journal = op.entityType == 'journal';
@@ -1930,10 +1931,12 @@ final class DavPendingOperationsReplayer {
       );
     }
     final reconcileFirst = _davOperationNeedsReconciliation(op);
-    final allowDeletedMoveSource =
-        op.operationType == 'dav.move' && reconcileFirst;
-    if (op.operationType == 'dav.move') {
-      if ((account.provider == 'caldav' || op.entityType == 'journal') &&
+    final moveComponentType = op.operationType == 'dav.move'
+        ? _moveComponentType(op)
+        : null;
+    final allowDeletedMoveSource = moveComponentType != null && reconcileFirst;
+    if (moveComponentType != null) {
+      if ((account.provider == 'caldav' || moveComponentType == 'VJOURNAL') &&
           !capabilities.supportsMove) {
         throw const DavException(
           kind: DavErrorKind.protocol,
@@ -1944,6 +1947,7 @@ final class DavPendingOperationsReplayer {
       await _requiredMoveSource(
         op,
         collection,
+        componentType: moveComponentType,
         allowServerDeleted: allowDeletedMoveSource,
       );
     }
@@ -1979,8 +1983,7 @@ final class DavPendingOperationsReplayer {
           );
       }
     }
-    if (op.operationType == 'dav.move' &&
-        _deleteIsEvent(op) &&
+    if (moveComponentType == 'VEVENT' &&
         (account.provider == 'caldav' ||
             _moveDestinationAccountId(op) != _accountId)) {
       final destination = await _requiredDestinationCollection(op);
@@ -2100,7 +2103,7 @@ final class DavPendingOperationsReplayer {
         destinationUri: _moveDestinationRequestUri(op, destinationCollection!),
         baselineEtag: _required(op.baselineEtag),
         baselineRawIcs: _required(op.baselineRawIcs),
-        isEvent: _deleteIsEvent(op),
+        componentType: moveComponentType!,
         sourceCapabilities: capabilities,
         destinationCapabilities: collectionCapabilitiesFromStored(
           destinationCollection,
@@ -2636,25 +2639,24 @@ final class DavPendingOperationsReplayer {
   Future<DavObject> _requiredMoveSource(
     PendingOp op,
     DavCollection collection, {
+    required String componentType,
     required bool allowServerDeleted,
   }) async {
-    if (op.operationType != 'dav.move') throw _invalidPendingOperation();
     final object = await _requiredObject(
       op,
       collection,
       allowServerDeleted: allowServerDeleted,
     );
     final baseline = IcalSemanticDocument.parse(_required(op.baselineRawIcs));
-    final expectedComponentType = _deleteIsEvent(op) ? 'VEVENT' : 'VTODO';
     if (baseline.primaryUid == null ||
         baseline.components.isEmpty ||
         baseline.components.any(
           (component) =>
               component.uid != baseline.primaryUid ||
-              component.componentType != expectedComponentType,
+              component.componentType != componentType,
         ) ||
         object.primaryUid != baseline.primaryUid ||
-        object.dominantComponentType != expectedComponentType) {
+        object.dominantComponentType != componentType) {
       throw _invalidPendingOperation();
     }
     return object;
@@ -3125,10 +3127,11 @@ String _entityType(String componentType) =>
       _ => throw _invalidPendingOperation(),
     };
 
-bool _componentIsEvent(String componentType) =>
-    switch (componentType.toUpperCase()) {
-      'VEVENT' => true,
-      'VTODO' => false,
+String _moveComponentType(PendingOp operation) =>
+    switch (operation.entityType) {
+      'event' => 'VEVENT',
+      'task' => 'VTODO',
+      'journal' => 'VJOURNAL',
       _ => throw _invalidPendingOperation(),
     };
 

@@ -789,7 +789,7 @@ final class DavConditionalMutationService {
     required Uri destinationUri,
     required String baselineEtag,
     required String baselineRawIcs,
-    required bool isEvent,
+    required String componentType,
     required CollectionCapabilities sourceCapabilities,
     required CollectionCapabilities destinationCapabilities,
     required String correlationId,
@@ -797,7 +797,25 @@ final class DavConditionalMutationService {
     bool reconcileFirst = false,
   }) async {
     final sourceSemantic = IcalSemanticDocument.parse(baselineRawIcs);
-    final journal = sourceSemantic.dominantComponentType == 'VJOURNAL';
+    if (!const {'VEVENT', 'VTODO', 'VJOURNAL'}.contains(componentType) ||
+        sourceSemantic.primaryUid == null ||
+        sourceSemantic.components.isEmpty ||
+        sourceSemantic.components.any(
+          (component) =>
+              component.componentType != componentType ||
+              component.uid != sourceSemantic.primaryUid,
+        ) ||
+        (postMovePatch != null &&
+            (postMovePatch.target.componentType != componentType ||
+                postMovePatch.target.uid != sourceSemantic.primaryUid))) {
+      throw const DavException(
+        kind: DavErrorKind.invalidCalendarData,
+        code: 'DavMoveObjectInvalid',
+        safeMessage: 'The DAV object could not be moved safely.',
+      );
+    }
+    final journal = componentType == 'VJOURNAL';
+    final isEvent = componentType == 'VEVENT';
     final canDelete = journal
         ? sourceCapabilities.canAttemptDeleteJournal
         : isEvent
@@ -823,24 +841,6 @@ final class DavConditionalMutationService {
         sourceUri.port != destinationUri.port) {
       throw _readOnlyError(correlationId);
     }
-    if (sourceSemantic.components.isEmpty ||
-        sourceSemantic.components.first.componentType !=
-            (journal
-                ? 'VJOURNAL'
-                : isEvent
-                ? 'VEVENT'
-                : 'VTODO') ||
-        (postMovePatch != null &&
-            (postMovePatch.target.componentType !=
-                    sourceSemantic.components.first.componentType ||
-                postMovePatch.target.uid != sourceSemantic.primaryUid))) {
-      throw const DavException(
-        kind: DavErrorKind.invalidCalendarData,
-        code: 'DavMoveObjectInvalid',
-        safeMessage: 'The DAV object could not be moved safely.',
-      );
-    }
-
     var expectedEtag = baselineEtag;
     var expectedRawIcs = baselineRawIcs;
     DavFetchedMember? lastRemote;

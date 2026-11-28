@@ -13,6 +13,7 @@ import 'package:busymax/src/dav/ical/dav_native_import.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
+import 'package:busymax/src/dav/mutation/dav_conflict_repository.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
@@ -40,13 +41,20 @@ void main() {
   final fixture = Platform.environment['BUSYMAX_JOURNAL_LIVE_FIXTURE'];
   final cases = [
     for (final provider in [BusyProvider.caldav, BusyProvider.nextcloud])
-      for (final recovery in [false, true]) (provider, recovery),
+      for (final workflow in ['CRUD', 'recovery', 'move']) (provider, workflow),
   ];
-  for (final (provider, recurrenceRecovery) in cases) {
+  for (final (provider, workflow) in cases) {
+    final recurrenceRecovery = workflow == 'recovery';
+    final moveWorkflow = workflow == 'move';
     test(
-      recurrenceRecovery
-          ? 'journal range and historical queue recovery with independent HTTPS readback on ${provider.name}'
-          : 'journal durable CRUD with independent HTTPS readback on ${provider.name}',
+      switch (workflow) {
+        'recovery' =>
+          'journal range and historical queue recovery with independent HTTPS readback on ${provider.name}',
+        'move' =>
+          'journal MOVE, conflict, and restart reconciliation with independent HTTPS readback on ${provider.name}',
+        _ =>
+          'journal durable CRUD with independent HTTPS readback on ${provider.name}',
+      },
       () async {
         final specs = jsonDecode(File(fixture!).readAsStringSync()) as Map;
         final spec = specs[provider.storageValue] as Map;
@@ -114,8 +122,8 @@ void main() {
                     ? 'caldav_password'
                     : 'nextcloud_app_password',
                 authState: Value(AccountConnectionState.connected.storageValue),
-                calendarsEnabled: Value(!recurrenceRecovery),
-                tasksEnabled: Value(!recurrenceRecovery),
+                calendarsEnabled: Value(workflow == 'CRUD'),
+                tasksEnabled: Value(workflow == 'CRUD'),
                 createdAtUtc: '2026-11-26T00:00:00Z',
                 updatedAtUtc: '2026-11-26T00:00:00Z',
               ),
@@ -173,6 +181,12 @@ void main() {
         }
 
         final collectionUri = await createCollection(['VJOURNAL']);
+        final destinationUri = moveWorkflow
+            ? await createCollection([
+                'VJOURNAL',
+                if (provider == BusyProvider.nextcloud) ...['VEVENT', 'VTODO'],
+              ])
+            : null;
         await DavDiscoveryRepository(database: database)
             .commitSuccessfulInventory(
               await discovery.discover(correlationId: 'journal-inventory'),
@@ -203,21 +217,45 @@ void main() {
           ).synchronize(correlationId: 'journal-pull');
         }
 
-        Future<DavReplaySummary> replay() => DavPendingOperationsReplayer(
-          database: database,
-          accountId: accountId,
-          serviceFactory: ({required account, required collection}) async =>
-              DavConditionalMutationService(
-                remoteClient: DavMutationHttpClient(
-                  transport: transport,
-                  accountId: account.id,
-                  collectionId: collection.id,
-                  credential: credential,
-                ),
-              ),
-        ).replayDueOperations();
+        Future<DavReplaySummary> replay({DateTime? now}) =>
+            DavPendingOperationsReplayer(
+              database: database,
+              accountId: accountId,
+              nowUtc: now == null ? null : () => now,
+              serviceFactory: ({required account, required collection}) async =>
+                  DavConditionalMutationService(
+                    remoteClient: DavMutationHttpClient(
+                      transport: transport,
+                      accountId: account.id,
+                      collectionId: collection.id,
+                      credential: credential,
+                    ),
+                  ),
+            ).replayDueOperations();
         await pull();
         var journals = JournalRepository(database);
+        if (destinationUri != null) {
+          final destination = (await journals.watchSources().first).singleWhere(
+            (row) => Uri.parse(row.requestUri).path == destinationUri.path,
+          );
+          await pull(destination);
+          await _exerciseJournalMoves(
+            source: collection,
+            destination: destination,
+            repository: () => journals,
+            database: () => database,
+            restart: () async {
+              await database.close();
+              database = AppDatabase(NativeDatabase(file));
+              journals = JournalRepository(database);
+            },
+            pull: () => pull(),
+            replay: replay,
+            peer: request,
+            client: accountClient,
+          );
+          return;
+        }
         if (recurrenceRecovery) {
           final legacyFile = File('${directory.path}/legacy.db');
           await legacyFile.writeAsBytes(
@@ -1289,26 +1327,219 @@ void main() {
   }
 }
 
+Future<void> _exerciseJournalMoves({
+  required DavCollection source,
+  required DavCollection destination,
+  required JournalRepository Function() repository,
+  required AppDatabase Function() database,
+  required Future<void> Function() restart,
+  required Future<void> Function() pull,
+  required Future<DavReplaySummary> Function({DateTime? now}) replay,
+  required Future<http.Response> Function(
+    String method,
+    Uri target, {
+    String? body,
+    Map<String, String> headers,
+  })
+  peer,
+  required _JournalMutationClient client,
+}) async {
+  for (final scenario in ['success', 'stale', 'lost-response']) {
+    final uid = 'journal-move-$scenario@example.invalid';
+    final beforeUri = Uri.parse(source.requestUri).resolve('$scenario.ics');
+    final afterUri = Uri.parse(destination.requestUri).resolve('$scenario.ics');
+    final body = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//BusyMax//Journal MOVE QA//EN',
+      'BEGIN:VJOURNAL',
+      'UID:$uid',
+      'DTSTAMP:20261126T000000Z',
+      'DTSTART;VALUE=DATE:20261126',
+      'RRULE:FREQ=DAILY;COUNT=3',
+      'SUMMARY:Original journal',
+      'DESCRIPTION;LANGUAGE=en:Original body',
+      'DESCRIPTION;LANGUAGE=fr:Deuxième description',
+      'X-BUSYMAX-QA:Retain this field',
+      'END:VJOURNAL',
+      'BEGIN:VJOURNAL',
+      'UID:$uid',
+      'DTSTAMP:20261126T000000Z',
+      'RECURRENCE-ID;VALUE=DATE:20261127',
+      'DTSTART;VALUE=DATE:20261128',
+      'SUMMARY:Detached journal',
+      'END:VJOURNAL',
+      'END:VCALENDAR',
+      '',
+    ].join('\r\n');
+    final put = await peer(
+      'PUT',
+      beforeUri,
+      headers: {'Content-Type': 'text/calendar', 'If-None-Match': '*'},
+      body: body,
+    );
+    expect(put.statusCode, 201);
+    final baseline = await peer('GET', beforeUri);
+    expect(baseline.statusCode, 200);
+    final etag = baseline.headers['etag'];
+    expect(etag, isNotNull);
+    await pull();
+
+    final entry =
+        (await repository().watchEntries(collectionId: source.id).first)
+            .singleWhere(
+              (entry) => entry.uid == uid && entry.recurrenceIdKey == null,
+            );
+    await repository().move(await repository().read(entry), destination);
+    final pending = (await database().select(database().pendingOps).get())
+        .singleWhere((operation) => operation.davObjectId == entry.davObjectId);
+    expect(pending.operationType, 'dav.move');
+    expect(pending.entityType, 'journal');
+    expect(pending.eventId, isNull);
+    expect(pending.taskId, isNull);
+    await restart();
+
+    if (scenario == 'stale') {
+      final changed = await peer(
+        'PUT',
+        beforeUri,
+        headers: {'Content-Type': 'text/calendar', 'If-Match': etag!},
+        body: body.replaceFirst('Original journal', 'Peer edited journal'),
+      );
+      expect(changed.statusCode, 204);
+    }
+    client.mutations.clear();
+    if (scenario == 'lost-response') client.dropMoveResponse = true;
+    var result = await replay();
+    final sent = client.mutations.single;
+    expect(sent.$1, 'MOVE');
+    expect(sent.$2, beforeUri);
+    expect(sent.$3['if-match'], etag);
+    expect(sent.$3['overwrite'], 'F');
+    expect(sent.$3['destination'], afterUri.toString());
+
+    if (scenario == 'stale') {
+      expect(result.conflictCount, 1, reason: client.trace.toString());
+      expect(result.appliedCount, 0);
+      final conflicted = await database().pendingOpsDao.getOp(pending.id);
+      expect(conflicted?.state, 'conflict');
+      final retained = await peer('GET', beforeUri);
+      expect(retained.statusCode, 200);
+      expect(retained.body, contains('SUMMARY:Peer edited journal'));
+      expect((await peer('GET', afterUri)).statusCode, 404);
+      final conflict = await database()
+          .select(database().davConflictSnapshots)
+          .getSingle();
+      expect(conflict.id, conflicted?.conflictSnapshotId);
+      expect(conflict.conflictCode, 'DavConflictStaleMove');
+      expect(conflict.baselineEtag, etag);
+      expect(
+        conflict.localCandidateRawIcs,
+        contains('SUMMARY:Original journal'),
+      );
+      expect(conflict.remoteRawIcs, retained.body);
+      expect(conflict.remoteEtag, retained.headers['etag']);
+      await DavConflictResolutionService(database: database())
+          .resolve(conflict.id, DavConflictResolution.keepServer);
+      expect(await database().pendingOpsDao.getOp(pending.id), isNull);
+      final restored =
+          (await repository().watchEntries(collectionId: source.id).first)
+              .singleWhere(
+                (entry) => entry.uid == uid && entry.recurrenceIdKey == null,
+              );
+      expect(restored.title, 'Peer edited journal');
+      expect(client.mutations, hasLength(1));
+      continue;
+    }
+
+    // This independent request bypasses the fault injected into the BusyMax
+    // client's confirmation reads after the server committed the MOVE.
+    expect((await peer('GET', beforeUri)).statusCode, 404);
+    final moved = await peer('GET', afterUri);
+    expect(moved.statusCode, 200);
+    expect(moved.bodyBytes, baseline.bodyBytes);
+    if (scenario == 'lost-response') {
+      expect(result.retryCount, 1, reason: client.trace.toString());
+      final retry = (await database().pendingOpsDao.getOp(pending.id))!;
+      expect(retry.attemptCount, 1);
+      expect(isDavPartiallyCompletedMove(retry), isTrue);
+      await restart();
+      client.blockConfirmationReads = false;
+      result = await replay(
+        now: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      );
+      expect(
+        client.mutations,
+        hasLength(1),
+        reason: 'Replay must reconcile without a second MOVE.',
+      );
+    }
+    expect(result.appliedCount, 1, reason: client.trace.toString());
+    expect(result.mutatedCollectionIds, {source.id, destination.id});
+    expect(await database().pendingOpsDao.getOp(pending.id), isNull);
+    expect(
+      (await repository().watchEntries(collectionId: source.id).first).where(
+        (row) => row.uid == uid,
+      ),
+      isEmpty,
+    );
+    final entries =
+        (await repository().watchEntries(collectionId: destination.id).first)
+            .where((entry) => entry.uid == uid)
+            .toList();
+    expect(entries, hasLength(2));
+    final master = entries.singleWhere(
+      (entry) => entry.recurrenceIdKey == null,
+    );
+    final snapshot = await repository().read(master);
+    expect(snapshot.entry.davObjectId, isNot(entry.davObjectId));
+    final cached = await (database().select(database().davObjects)).get();
+    final stored = cached.singleWhere((row) => row.id == master.davObjectId);
+    expect(stored.requestUri, afterUri.toString());
+    expect(stored.etag, moved.headers['etag']);
+    expect(stored.rawIcsBody, moved.body);
+  }
+}
+
 final class _JournalMutationClient extends http.BaseClient {
   _JournalMutationClient(this.inner, this.mutations);
 
   final http.Client inner;
   final List<(String, Uri, Map<String, String>)> mutations;
   final trace = JournalHttpTrace();
+  bool dropMoveResponse = false;
+  bool blockConfirmationReads = false;
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) {
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
     if (const {'PUT', 'DELETE', 'MOVE', 'COPY'}.contains(request.method)) {
       mutations.add((
         request.method,
         request.url,
         {
-          for (final name in const ['if-match', 'if-none-match'])
+          for (final name in const [
+            'if-match',
+            'if-none-match',
+            'destination',
+            'overwrite',
+          ])
             if (request.headers[name] case final value?) name: value,
         },
       ));
     }
-    return trace.send(inner, request);
+    if (blockConfirmationReads && request.method == 'GET') {
+      throw http.ClientException('Injected confirmation outage', request.url);
+    }
+    final response = await trace.send(inner, request);
+    if (dropMoveResponse &&
+        request.method == 'MOVE' &&
+        (response.statusCode == 201 || response.statusCode == 204)) {
+      await response.stream.drain<void>();
+      dropMoveResponse = false;
+      blockConfirmationReads = true;
+      throw http.ClientException('Injected loss of MOVE response', request.url);
+    }
+    return response;
   }
 
   @override
