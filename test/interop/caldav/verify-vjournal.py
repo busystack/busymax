@@ -145,6 +145,9 @@ def main():
                         help='Run only the selected native runtime(s) for diagnosis. Omitted cells remain incomplete.')
     parser.add_argument('--native-provider', action='append', choices=('caldav', 'nextcloud'),
                         help='Run native diagnostics only on selected providers. Omitted cells remain incomplete.')
+    parser.add_argument('--native-only', action='store_true',
+                        help='Rerun native cells after a device interruption without repeating provider probes. '
+                             'The result is always an incomplete matrix.')
     parser.add_argument('--linux-process-restart', action='store_true',
                         help='Run the Linux offline workflow in two native processes using an isolated keyring')
     parser.add_argument('--linux-account-enrollment', action='store_true',
@@ -466,32 +469,36 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
                 subprocess.run([*adb, 'reverse', '--remove', tcp], capture_output=True)
             private.unlink(missing_ok=True)
 
-    probe = server / 'qualification/clients/journal-admission.py'
-    for provider, directory, dav_path in (
-        ('caldav', candidate, 'dav/'), ('nextcloud', nextcloud, 'remote.php/dav/')
-    ):
-        profile = profiles[provider]
-        run(f'{provider}-admission', [
-            sys.executable, str(probe), profile['authority'] + dav_path, profile['username'],
-            str(directory / 'owner-app-password'), '--ca-file', profile['caFile'],
+    if args.native_only:
+        for label in ('caldav-admission', 'caldav-reports', 'nextcloud-admission',
+                      'nextcloud-reports', 'nextcloud-permission-views', 'busymax-live'):
+            results[label] = {'status': 'not run: native-only retry'}
+    else:
+        probe = server / 'qualification/clients/journal-admission.py'
+        for provider, directory, dav_path in (
+            ('caldav', candidate, 'dav/'), ('nextcloud', nextcloud, 'remote.php/dav/')
+        ):
+            profile = profiles[provider]
+            run(f'{provider}-admission', [
+                sys.executable, str(probe), profile['authority'] + dav_path, profile['username'],
+                str(directory / 'owner-app-password'), '--ca-file', profile['caFile'],
+            ])
+            run(f'{provider}-reports', [
+                sys.executable, str(FIXTURES / 'journal-provider-reports.py'), str(server),
+                str(fixture), provider,
+            ])
+        run('nextcloud-permission-views', [
+            sys.executable, str(FIXTURES / 'journal-nextcloud-views.py'),
+            str(server), str(nextcloud),
         ])
-        run(f'{provider}-reports', [
-            sys.executable, str(FIXTURES / 'journal-provider-reports.py'), str(server),
-            str(fixture), provider,
-        ])
-    run('nextcloud-permission-views', [
-        sys.executable, str(FIXTURES / 'journal-nextcloud-views.py'),
-        str(server), str(nextcloud),
-    ])
-    # These tests share the provider fixture accounts and enable real HTTPS
-    # traffic. Keep migration and replay checks reproducible on slower hosts.
-    run('busymax-live', ['flutter', 'test', '--concurrency', '1', '--timeout', '90s',
-                        'test/journal', '--reporter', 'expanded'],
-        named=[f'{scenario} with independent HTTPS readback on {provider}'
-               for provider in profiles
-               for scenario in ('journal durable CRUD',
-                                'journal range and historical queue recovery',
-                                'journal MOVE, conflict, and restart reconciliation')])
+        # Keep provider and migration checks serial on shared fixture accounts.
+        run('busymax-live', ['flutter', 'test', '--concurrency', '1', '--timeout', '90s',
+                            'test/journal', '--reporter', 'expanded'],
+            named=[f'{scenario} with independent HTTPS readback on {provider}'
+                   for provider in profiles
+                   for scenario in ('journal durable CRUD',
+                                    'journal range and historical queue recovery',
+                                    'journal MOVE, conflict, and restart reconciliation')])
     for platform in ('linux', 'windows', 'android'):
         if args.native_platform and platform not in args.native_platform:
             continue
@@ -529,17 +536,20 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
     evidence['sourceUnchanged'] = (clean(BUSYMAX) and clean(server)
                                    and commit(BUSYMAX) == evidence['busymax']
                                    and commit(server) == evidence['server'])
-    try:
-        nextcloud_records = [json.loads(line) for line in
-                             (artifact / results['nextcloud-admission']['log']).read_text().splitlines()]
-    except (ValueError, OSError):
-        nextcloud_records = []
-    evidence['nextcloudRawAdmission'] = classify_nextcloud_admission(
-        nextcloud_records, json.loads(corpus.read_bytes()), evidence['admissionCorpusSha256'],
-        nextcloud_info, results['nextcloud-admission']['exitCode'],
-    )
+    if args.native_only:
+        evidence['nextcloudRawAdmission'] = {'status': 'not run: native-only retry'}
+    else:
+        try:
+            nextcloud_records = [json.loads(line) for line in
+                                 (artifact / results['nextcloud-admission']['log']).read_text().splitlines()]
+        except (ValueError, OSError):
+            nextcloud_records = []
+        evidence['nextcloudRawAdmission'] = classify_nextcloud_admission(
+            nextcloud_records, json.loads(corpus.read_bytes()), evidence['admissionCorpusSha256'],
+            nextcloud_info, results['nextcloud-admission']['exitCode'],
+        )
     checkpoint(artifact, evidence)
-    complete = (evidence['sourceUnchanged']
+    complete = (not args.native_only and evidence['sourceUnchanged']
                 and all(isinstance(outcome, dict) and outcome['status'] == 'pass'
                     for outcome in evidence['nativeMatrix'].values())
                 and all(gate.get('exitCode', 0) == 0 and not gate.get('missing')
