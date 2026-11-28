@@ -1647,16 +1647,28 @@ Future<void> _refresh(
       ),
     );
   }
-  final activity = container.read(accountSyncActivityProvider);
-  final deadline = Stopwatch()..start();
-  while (activity.anyRunning &&
-      deadline.elapsed < const Duration(seconds: 90)) {
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
+  Future<void> awaitIdle() async {
+    final activity = container.read(accountSyncActivityProvider);
+    final deadline = Stopwatch()..start();
+    while (activity.anyRunning &&
+        deadline.elapsed < const Duration(seconds: 90)) {
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+    }
+    expect(activity.anyRunning, isFalse, reason: failureContext?.call());
   }
-  expect(activity.anyRunning, isFalse, reason: failureContext?.call());
+
+  await awaitIdle();
+  if (confirmPartial && Platform.isLinux && dialog.evaluate().isNotEmpty) {
+    await _tapVisible(
+      tester,
+      find.descendant(of: dialog, matching: find.text('Retry')),
+    );
+    await tester.pump();
+    await awaitIdle();
+  }
   if (dialog.evaluate().isNotEmpty) {
     await _tapVisible(
       tester,
