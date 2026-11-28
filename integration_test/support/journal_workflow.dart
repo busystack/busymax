@@ -43,7 +43,7 @@ void runJournalWorkflow({
   required Finder Function() enabledRefresh,
   List<Override> Function(AppDatabase)? runtimeOverrides,
   JournalRestartStage? restart,
-  Directory? persistentProfile,
+  Future<Directory> Function()? persistentProfile,
   bool checkConflictChoices = false,
   bool slowCollectionRemoval = false,
 }) {
@@ -77,9 +77,12 @@ void runJournalWorkflow({
           ..setTrustedCertificatesBytes(utf8.encode(profile['ca'] as String)),
       ),
     );
-    final profileDirectory = persistentProfile == null
+    final localProfile = persistentProfile == null
         ? null
-        : Directory('${persistentProfile.path}/$provider');
+        : (await tester.runAsync(persistentProfile))!;
+    final profileDirectory = localProfile == null
+        ? null
+        : Directory('${localProfile.path}/$provider');
     final receipt = profileDirectory == null
         ? null
         : File('${profileDirectory.path}/journal-restart.json');

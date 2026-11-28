@@ -20,7 +20,9 @@ void main() {
       isNative: () => Platform.isLinux,
       fixture: () => desktopJournalFixture(provider),
       restart: stage == null ? null : JournalRestartStage.values.byName(stage),
-      persistentProfile: profile == null ? null : Directory(profile),
+      persistentProfile: profile == null
+          ? null
+          : () async => Directory(profile),
       checkConflictChoices:
           Platform.environment['BUSYMAX_LINUX_JOURNAL_CONFLICTS'] == '1',
       slowCollectionRemoval:

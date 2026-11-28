@@ -137,6 +137,8 @@ def main():
     parser.add_argument('--artifacts', type=Path, required=True)
     parser.add_argument('--android-device', help='Serial of the isolated Android QA device')
     parser.add_argument('--android-aapt', type=Path, help='Official Android build-tools aapt executable')
+    parser.add_argument('--android-process-restart', action='store_true',
+                        help='Test offline queue and replay in separate Android QA processes')
     parser.add_argument('--windows-runner', type=Path,
                         help='Authorized executable that runs the Windows native journal suite')
     parser.add_argument('--native-platform', action='append', choices=('linux', 'windows', 'android'),
@@ -321,10 +323,10 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
         if not port or urlsplit(configuration['authority']).hostname != 'localhost':
             return 'not run: Android fixture requires a TLS localhost endpoint with an explicit port'
         private = artifact / f'android-{provider}-private.json'
-        with os.fdopen(os.open(private, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600), 'w') as stream:
-            json.dump({'BUSYMAX_JOURNAL_PROVIDER': provider,
-                       'BUSYMAX_JOURNAL_NATIVE_FIXTURE': base64.b64encode(
-                           json.dumps(configuration).encode()).decode()}, stream)
+        defines = {'BUSYMAX_JOURNAL_PROVIDER': provider,
+                   'BUSYMAX_JOURNAL_NATIVE_FIXTURE': base64.b64encode(
+                       json.dumps(configuration).encode()).decode()}
+        os.close(os.open(private, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
         serial = args.android_device
         suffix = 'caldavqa' if provider == 'caldav' else 'nextcloudqa'
         package_id = 'io.busystack.busymax.' + suffix
@@ -335,12 +337,17 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
         define = '--dart-define-from-file=' + str(private)
         tcp = f'tcp:{port}'
         adb = ['adb', '-s', serial]
-        mapped = False
-        try:
-            if not run(f'android-{provider}-reverse', [*adb, 'reverse', '--no-rebind', tcp, tcp]):
-                return 'not run: fixture port mapping failed'
-            mapped = True
-            if not run(f'android-{provider}-build', ['flutter', 'build', 'apk', '--debug',
+
+        def stage_run(label, stage=None):
+            stage_defines = dict(defines)
+            expected = f'Android journal collection and editor on {provider}'
+            prefix = f'android-{provider}' if stage is None else label
+            if stage is not None:
+                stage_defines.update(BUSYMAX_JOURNAL_RESTART_STAGE=stage,
+                                     BUSYMAX_JOURNAL_RESTART_RUN=artifact.name.removeprefix('vjournal-'))
+                expected = f'Android offline journal {stage} across processes on {provider}'
+            private.write_text(json.dumps(stage_defines))
+            if not run(f'{prefix}-build', ['flutter', 'build', 'apk', '--debug',
                        '--target=' + native, define], extra_env=flags):
                 return 'not run: APK build failed'
             apk = BUSYMAX / 'build/app/outputs/flutter-apk/app-debug.apk'
@@ -391,17 +398,16 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
                         return 'not run: existing QA signing identity differs; retained installed package and data'
             # A safe update catches other install problems before Flutter's
             # install retry can uninstall a previously installed QA package.
-            if not run(f'android-{provider}-install-check', [*adb, 'install', '-r', '-t', str(apk)]):
+            if not run(f'{prefix}-install-check', [*adb, 'install', '-r', '-t', str(apk)]):
                 return 'not run: the safe QA install/update failed'
             with apk.open('rb') as binary:
                 apk_hash = hashlib.file_digest(binary, 'sha256').hexdigest()
             apk_identity = {'applicationId': package_id, 'preflightSha256': apk_hash,
                             'signerCertificateSha256': sorted(signing_identity)}
-            results[f'android-{provider}-apk'] = apk_identity
-            label = f'android-{provider}-native'
+            results[f'{prefix}-apk'] = apk_identity
             passed = run(label, ['flutter', 'test', native, '-d', serial,
                          '--no-uninstall', define, '--reporter', 'expanded'], extra_env=flags,
-                         named=[f'Android journal collection and editor on {provider}'])
+                         named=[expected])
             with tempfile.TemporaryDirectory(dir=artifact) as directory:
                 local_apk = Path(directory) / 'tested-qa.apk'
                 if read_installed(local_apk) and certificates(local_apk) == signing_identity:
@@ -410,7 +416,35 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
                 else:
                     apk_identity['artifactError'] = 'Installed QA artifact could not be verified after the run.'
                     passed = False
-            return native_result('android', provider, [label], passed)
+            return passed
+
+        mapped = False
+        try:
+            if not run(f'android-{provider}-reverse', [*adb, 'reverse', '--no-rebind', tcp, tcp]):
+                return 'not run: fixture port mapping failed'
+            mapped = True
+            labels = [f'android-{provider}-native']
+            passed = stage_run(labels[0])
+            if isinstance(passed, str):
+                return passed
+            if args.android_process_restart:
+                for stage in ('queue', 'replay'):
+                    if stage == 'replay' and not run(
+                        f'android-{provider}-restart-stop', [*adb, 'shell', 'am', 'force-stop', package_id],
+                    ):
+                        passed = False
+                        break
+                    label = f'android-{provider}-restart-{stage}'
+                    staged = stage_run(label, stage)
+                    if isinstance(staged, str):
+                        results[label] = {'status': staged}
+                        passed = False
+                        break
+                    labels.append(label)
+                    if not staged:
+                        passed = False
+                        break
+            return native_result('android', provider, labels, passed)
         finally:
             if mapped:
                 subprocess.run([*adb, 'reverse', '--remove', tcp], capture_output=True)
