@@ -6,12 +6,9 @@ import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
-import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
-import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
-import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/journal/presentation/journal_workspace.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -134,6 +131,7 @@ void runJournalWorkflow({
       ),
     );
     final peer = client();
+    late final ProviderContainer container;
     final collectionName =
         previous?['collectionName'] as String? ??
         'Journal QA ${const Uuid().v4()}';
@@ -161,14 +159,11 @@ void runJournalWorkflow({
       return http.Response.fromStream(await peer.send(message));
     }
 
-    Future<void> sync({bool full = false, String? collectionId}) async {
+    Future<void> sync({bool full = false}) async {
       if (!online) return;
-      await DavAccountSyncEngine(
-        database: database,
-        secretStore: secrets,
-        httpClient: accountClient,
-        accountId: accountId,
-      ).synchronize(full: full, collectionId: collectionId);
+      await container
+          .read(accountSyncOperationsProvider)
+          .syncAccount(accountId, full: full);
     }
 
     Future<void> searchFor(String title, {bool absent = false}) async {
@@ -184,7 +179,7 @@ void runJournalWorkflow({
       }
     }
 
-    final container = ProviderContainer(
+    container = ProviderContainer(
       overrides: [
         ...?runtimeOverrides?.call(database),
         if (Platform.isAndroid)
@@ -196,20 +191,6 @@ void runJournalWorkflow({
         localTimeZoneProvider.overrideWithValue('UTC'),
         networkConnectivityMonitorProvider.overrideWithValue(network),
         davAccountHttpClientProvider.overrideWith((ref, id) => accountClient),
-        signedInSyncRunnerProvider.overrideWithValue(
-          (_, full) => sync(full: full),
-        ),
-        manualSyncRunnerProvider.overrideWithValue((
-          scope, {
-          strategy = SyncStrategy.ordinary,
-        }) async {
-          await sync(collectionId: scope.resourceId);
-          return SyncOutcome((
-            scope: scope,
-            origin: SyncTrigger.manual,
-            strategy: strategy,
-          ), SyncDisposition.completed);
-        }),
       ],
     );
     tester.testTextInput.register();
