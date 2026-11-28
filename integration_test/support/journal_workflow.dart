@@ -709,11 +709,19 @@ void runJournalWorkflow({
                   '$action did not finish refreshing. DAV ${accountClient.trace}.',
             );
           }
-          final resolved = (await tester.runAsync(
-            () => request('GET', object.requestUri),
-          ))!;
-          expect(resolved.statusCode, 200);
-          expect(resolved.body, contains('SUMMARY:$currentTitle\r\n'));
+          final resolved = await _waitForJournalState(
+            tester,
+            () async {
+              final reply = await request('GET', object.requestUri);
+              return reply.statusCode == 200 &&
+                      reply.body.contains('SUMMARY:$currentTitle\r\n')
+                  ? reply
+                  : null;
+            },
+            () =>
+                '$action did not leave the expected journal on DAV. '
+                'DAV ${accountClient.trace}',
+          );
           expect(resolved.body, contains('DESCRIPTION:First body'));
           expect(resolved.body, contains('DESCRIPTION:Second body'));
           if (number == 3) {
@@ -726,11 +734,19 @@ void runJournalWorkflow({
                         row.requestUri != object.requestUri,
                   ),
             ))!;
-            final copy = (await tester.runAsync(
-              () => request('GET', duplicate.requestUri),
-            ))!;
-            expect(copy.statusCode, 200);
-            expect(copy.body, contains('SUMMARY:$localTitle'));
+            final copy = await _waitForJournalState(
+              tester,
+              () async {
+                final reply = await request('GET', duplicate.requestUri);
+                return reply.statusCode == 200 &&
+                        reply.body.contains('SUMMARY:$localTitle\r\n')
+                    ? reply
+                    : null;
+              },
+              () =>
+                  'The duplicate journal did not reach DAV. '
+                  'DAV ${accountClient.trace}',
+            );
             expect(copy.body, contains('DESCRIPTION:First body'));
             expect(copy.body, contains('DESCRIPTION:Second body'));
             expect(duplicate.primaryUid, isNot(object.primaryUid));
