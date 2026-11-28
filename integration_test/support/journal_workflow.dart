@@ -28,6 +28,12 @@ import '../../test/support/journal_http_trace.dart';
 import 'caldav_native_secret_store.dart';
 
 typedef JournalTestButton = Finder Function(String label, bool primary);
+typedef JournalFileTransfer = Future<String> Function(
+  WidgetTester tester,
+  String title,
+  String importedTitle,
+  String importedUid,
+);
 
 enum JournalRestartStage { queue, replay }
 
@@ -47,6 +53,7 @@ void runJournalWorkflow({
   bool checkConflictChoices = false,
   bool slowCollectionRemoval = false,
   bool checkMove = false,
+  JournalFileTransfer? transferFiles,
 }) {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final description = restart == null
@@ -868,6 +875,60 @@ void runJournalWorkflow({
         await searchFor('Local edit');
         record('recurrence-and-journal-link-readback');
       }
+      if (transferFiles != null) {
+        const title = 'Local edit';
+        const importedTitle = 'GTK imported journal';
+        final importedUid = 'gtk-import-$marker@example.invalid';
+        await searchFor(title);
+        await tester.enterText(input('Search'), '');
+        await _tapVisible(tester, find.textContaining('$title ·'));
+        final attachment = await transferFiles(
+          tester,
+          title,
+          importedTitle,
+          importedUid,
+        );
+        await _refresh(tester, enabledRefresh());
+        await tester.runAsync(() async {
+          final entries = await database.select(database.davObjects).get();
+          final imported = entries.singleWhere(
+            (row) =>
+                row.collectionId == collection!.id &&
+                row.primaryUid == importedUid,
+          );
+          expect(imported.requestUri, isNot(object.requestUri));
+          for (final uri in [object.requestUri, imported.requestUri]) {
+            final response = await request('GET', uri);
+            expect(response.statusCode, 200);
+            final content = response.body.replaceAll(RegExp(r'\r?\n[ \t]'), '');
+            expect(content, contains('BEGIN:VJOURNAL'));
+            expect(content, contains('DESCRIPTION:First body'));
+            expect(content, contains('DESCRIPTION:Second body'));
+            final property = const LineSplitter()
+                .convert(content)
+                .singleWhere((line) => line.startsWith('ATTACH;'));
+            expect(property, contains('VALUE=BINARY'));
+            expect(property, endsWith(':$attachment'));
+            if (uri == imported.requestUri) {
+              expect(content, contains('SUMMARY:$importedTitle'));
+              expect(content, contains('UID:$importedUid'));
+            }
+          }
+        });
+        final reviews = (await tester.runAsync(
+          () => database.select(database.davJournalDrafts).get(),
+        ))!;
+        final review = jsonDecode(reviews.single.contentJson) as Map;
+        expect(review['format'], 'busymax-journal-import-review');
+        // Closing the review preserves it for inspection. Retire the reviewed
+        // import explicitly after verifying that the queued resource is remote.
+        await _tapVisible(tester, button('Import .ics file', false));
+        await waitJournalWidget(tester, find.text(importedUid));
+        await _editorAction(tester, button('Discard', false));
+        await searchFor(importedTitle);
+        await tester.enterText(input('Search'), '');
+        record('gtk-journal-files-provider-readback');
+      }
       final beforeDelete = (await tester.runAsync(
         () => request(
           'PROPFIND',
@@ -959,6 +1020,16 @@ void runJournalWorkflow({
             .innerText,
         renamed,
       );
+      if (transferFiles != null) {
+        final drafts = (await tester.runAsync(
+          () => database.select(database.davJournalDrafts).get(),
+        ))!;
+        expect(
+          drafts.map((draft) => draft.id),
+          isEmpty,
+          reason: 'The completed import review was explicitly discarded.',
+        );
+      }
       await _tapVisible(tester, button('Delete collection', false));
       final confirmation = find.text(
         provider == 'nextcloud'

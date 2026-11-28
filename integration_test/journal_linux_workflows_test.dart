@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:busymax/src/app/app_router.dart';
@@ -5,6 +6,7 @@ import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/journal_linux_files.dart';
 import 'support/journal_workflow.dart';
 
 void main() {
@@ -29,6 +31,24 @@ void main() {
           provider == 'nextcloud' &&
           Platform.environment['BUSYMAX_LINUX_JOURNAL_SLOW_DELETE'] == '1',
       checkMove: Platform.environment['BUSYMAX_LINUX_JOURNAL_MOVE'] == '1',
+      transferFiles:
+          stage == null &&
+              Platform.environment['BUSYMAX_LINUX_JOURNAL_FILES'] == '1'
+          ? (tester, title, importedTitle, importedUid) async {
+              final directory = (await tester.runAsync(
+                () => Directory.systemTemp.createTemp('busymax-journal-gtk-'),
+              ))!;
+              addTearDown(() => directory.delete(recursive: true));
+              await transferLinuxJournalFiles(
+                tester,
+                directory,
+                title: title,
+                importedTitle: importedTitle,
+                importedUid: importedUid,
+              );
+              return base64Encode(linuxJournalAttachment);
+            }
+          : null,
       app: () => const LinuxBusyMaxApp(),
       openJournals: (_, container) async =>
           container.read(appRouterProvider).go('/journals'),

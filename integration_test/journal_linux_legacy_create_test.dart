@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'support/journal_linux_files.dart';
 import 'support/journal_workflow.dart';
 
 void main() {
@@ -63,7 +64,13 @@ void main() {
       await tester.tap(label);
 
       if (stage == 'transfer') {
-        await _transferJournalFiles(tester, profile);
+        await transferLinuxJournalFiles(
+          tester,
+          profile,
+          title: 'Series',
+          importedTitle: 'GTK imported series',
+          importedUid: 'linux-journal-file-roundtrip@example.invalid',
+        );
         debugPrint('JOURNAL_LINUX_LEGACY_CREATE transfer PASS');
         await tester.pumpWidget(const SizedBox.shrink());
         return;
@@ -71,9 +78,11 @@ void main() {
 
       if (stage == 'export') {
         final save = find.text('Export recovery bundle (JSON)');
-        await _tap(tester, save);
-        await tester.runAsync(() => _saveInGtk(exported));
-        await _waitForFile(tester, exported);
+        await tapLinuxJournalControl(tester, save);
+        await tester.runAsync(
+          () => selectLinuxJournalFile(exported, saving: true),
+        );
+        await waitForLinuxJournalFile(tester, exported);
       }
       final recovery = jsonDecode(exported.readAsStringSync()) as Map;
       expect(recovery['operationId'], operation.id);
@@ -91,8 +100,14 @@ void main() {
         );
         receipt.writeAsStringSync('$pid');
       } else {
-        await _tap(tester, find.text('2. Offline future edit'));
-        await _tap(tester, find.text('Queue reviewed journal'));
+        await tapLinuxJournalControl(
+          tester,
+          find.text('2. Offline future edit'),
+        );
+        await tapLinuxJournalControl(
+          tester,
+          find.text('Queue reviewed journal'),
+        );
         await waitJournalWidget(tester, label);
         final committed = (await tester.runAsync(
           () => database.select(database.pendingOps).getSingle(),
@@ -123,143 +138,4 @@ void main() {
     skip: stage == null,
     timeout: const Timeout(Duration(minutes: 3)),
   );
-}
-
-Future<void> _tap(WidgetTester tester, Finder control) async {
-  await waitJournalWidget(tester, control);
-  await tester.ensureVisible(control);
-  await tester.tap(control.hitTestable());
-  await tester.pump();
-}
-
-Future<void> _transferJournalFiles(
-  WidgetTester tester,
-  Directory profile,
-) async {
-  const expectedBytes = [0, 1, 128, 255, 10, 13, 42];
-  final input = File('${profile.path}/fixture.bin')
-    ..writeAsBytesSync(expectedBytes);
-  await _tapEditorAction(tester, find.text('Choose file…'));
-  await tester.runAsync(() => _selectInGtk(input, saving: false));
-  await waitJournalWidget(tester, find.text('fixture.bin'));
-
-  final saved = File('${profile.path}/saved-fixture.bin');
-  final attachmentRow = find
-      .ancestor(of: find.text('fixture.bin'), matching: find.byType(Wrap))
-      .first;
-  await _tapEditorAction(
-    tester,
-    find.descendant(of: attachmentRow, matching: find.text('Save')),
-  );
-  await tester.runAsync(() => _selectInGtk(saved, saving: true));
-  await _waitForFile(tester, saved);
-  expect(saved.readAsBytesSync(), expectedBytes);
-
-  await _tapEditorAction(tester, find.widgetWithText(ElevatedButton, 'Save'));
-  final label = find.textContaining(RegExp(r'^Series ·'));
-  await waitJournalWidget(tester, label);
-  await _tap(tester, label);
-  await _tapEditorAction(tester, find.text('Export'));
-  final exported = File('${profile.path}/roundtrip.ics');
-  await tester.runAsync(() => _selectInGtk(exported, saving: true));
-  await _waitForFile(tester, exported);
-  final content = exported.readAsStringSync().replaceAll(
-    RegExp(r'\r?\n[ \t]'),
-    '',
-  );
-  expect(content, contains('BEGIN:VJOURNAL'));
-  final attachment = const LineSplitter()
-      .convert(content)
-      .singleWhere((line) => line.startsWith('ATTACH;'));
-  final valueStart = attachment.indexOf(':');
-  expect(attachment.substring(0, valueStart), contains('VALUE=BINARY'));
-  expect(attachment.substring(0, valueStart), contains('ENCODING=BASE64'));
-  expect(base64Decode(attachment.substring(valueStart + 1)), expectedBytes);
-
-  const importedUid = 'linux-journal-file-roundtrip@example.invalid';
-  final imported = File('${profile.path}/import-journal.ics')
-    ..writeAsStringSync(
-      content.replaceAll(
-        RegExp(r'^UID:[^\r\n]+', multiLine: true),
-        'UID:$importedUid',
-      ),
-    );
-  await _tapEditorAction(tester, find.text('Close'));
-  await _tap(tester, find.text('Import .ics file'));
-  await tester.runAsync(() => _selectInGtk(imported, saving: false));
-  await _tap(tester, find.text('Save'));
-  await waitJournalWidget(tester, find.text(importedUid));
-  await _tap(tester, find.text('Close'));
-  final entries = find.textContaining(RegExp(r'^Series ·'));
-  await waitJournalWidget(tester, entries.at(1));
-  expect(entries, findsNWidgets(2));
-}
-
-Future<void> _tapEditorAction(WidgetTester tester, Finder control) async {
-  final editor = find.descendant(
-    of: find.byType(ListView),
-    matching: find.byType(Scrollable),
-  );
-  await waitJournalWidget(tester, editor);
-  await tester.scrollUntilVisible(control, 210, scrollable: editor.first);
-  await _tap(tester, control);
-}
-
-Future<void> _waitForFile(WidgetTester tester, File file) async {
-  for (var attempt = 0; attempt < 100 && !file.existsSync(); attempt++) {
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-  }
-  expect(file.existsSync(), isTrue, reason: file.path);
-}
-
-Future<void> _saveInGtk(File result) => _selectInGtk(result, saving: true);
-
-Future<void> _selectInGtk(File result, {required bool saving}) async {
-  final deadline = DateTime.now().add(const Duration(seconds: 20));
-  final title = saving ? r'^Save File$' : r'^Open File$';
-  while (DateTime.now().isBefore(deadline)) {
-    final search = await Process.run('xdotool', [
-      'search',
-      '--onlyvisible',
-      '--name',
-      title,
-    ]);
-    if (search.exitCode != 0) {
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      continue;
-    }
-    final window = (search.stdout as String).trim();
-    expect(window, matches(RegExp(r'^\d+$')));
-    for (final command in [
-      ['windowfocus', '--sync', window],
-      ['key', '--clearmodifiers', 'ctrl+l'],
-      ['key', '--clearmodifiers', 'ctrl+a'],
-      ['type', '--clearmodifiers', result.path],
-      ['key', '--clearmodifiers', 'Return'],
-    ]) {
-      expect((await Process.run('xdotool', command)).exitCode, 0);
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-    }
-    final visible = await Process.run('xdotool', [
-      'search',
-      '--onlyvisible',
-      '--name',
-      title,
-    ]);
-    if (visible.exitCode == 0 && (visible.stdout as String).trim() == window) {
-      expect(
-        (await Process.run('xdotool', [
-          'key',
-          '--clearmodifiers',
-          saving ? 'alt+s' : 'alt+o',
-        ])).exitCode,
-        0,
-      );
-    }
-    return;
-  }
-  throw TestFailure('The native GTK file picker did not open.');
 }
