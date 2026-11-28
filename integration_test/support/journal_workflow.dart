@@ -360,7 +360,7 @@ void runJournalWorkflow({
       expect(remote.body, contains('VJOURNAL'));
       record('collection-create');
 
-      await _createScheduleJournal(tester);
+      await _createScheduleJournal(tester, collection);
       await waitJournalWidget(tester, input('Title'));
       await tester.enterText(input('Title'), 'Journal café');
       final addDescription = find.text('Add description');
@@ -464,16 +464,16 @@ void runJournalWorkflow({
       if (restart == null) {
         await _editorAction(tester, button('Journal details', false));
         await tester.pump();
-        await tester.ensureVisible(input('COMMENT'));
+        await _scrollEditorTo(tester, input('COMMENT'));
         await tester.enterText(input('COMMENT'), 'Edited comment');
         await _editorAction(tester, button('Add parameter', false).first);
         await tester.pump();
-        await tester.ensureVisible(input('Parameter values, one per line'));
+        await _scrollEditorTo(tester, input('Parameter values, one per line'));
         await tester.enterText(
           input('Parameter values, one per line'),
           'preserved',
         );
-        await tester.ensureVisible(input('CONTACT'));
+        await _scrollEditorTo(tester, input('CONTACT'));
         await tester.enterText(input('CONTACT'), 'Later unfinished contact');
       }
       await _editorAction(tester, button('Close', false));
@@ -487,6 +487,7 @@ void runJournalWorkflow({
       if (restart == null) {
         await _editorAction(tester, button('Journal details', false));
         await tester.pump();
+        await _scrollEditorTo(tester, input('COMMENT'));
         expect(inputValue(tester, input('COMMENT')), 'Edited comment');
         expect(
           inputValue(tester, input('CONTACT')),
@@ -532,7 +533,7 @@ void runJournalWorkflow({
 
       if (restart == JournalRestartStage.queue) {
         Future<void> create(String title) async {
-          await _createScheduleJournal(tester);
+          await _createScheduleJournal(tester, collection!);
           await waitJournalWidget(tester, input('Title'));
           await tester.enterText(input('Title'), title);
           await _editorAction(tester, button('Save', true));
@@ -1350,7 +1351,10 @@ Future<void> enterJournalEditor(WidgetTester tester) async {
   await _tapVisible(tester, edit);
 }
 
-Future<void> _createScheduleJournal(WidgetTester tester) async {
+Future<void> _createScheduleJournal(
+  WidgetTester tester,
+  DavCollection source,
+) async {
   await _closeScheduleSearch(tester);
   await _dismissSourcesSheet(tester);
   if (Platform.isLinux) {
@@ -1372,6 +1376,63 @@ Future<void> _createScheduleJournal(WidgetTester tester) async {
     await _tapVisible(tester, find.text('New journal entry'));
   }
   await waitJournalWidget(tester, find.byType(JournalPane));
+  await _selectJournalCollection(tester, source);
+}
+
+Future<void> _selectJournalCollection(
+  WidgetTester tester,
+  DavCollection source,
+) async {
+  const label = 'Journal collection';
+  if (Platform.isLinux) {
+    final picker = find.byWidgetPredicate(
+      (widget) => widget is BusyMaxComboRow<String> && widget.title == label,
+    );
+    await waitJournalWidget(tester, picker);
+    if (tester.widget<BusyMaxComboRow<String>>(picker).selected == source.id) {
+      return;
+    }
+    await _selectLinuxJournalMenu(
+      tester,
+      picker,
+      (entry) => entry.value == source.id,
+    );
+    return;
+  }
+  final inEditor = find.byType(JournalPane);
+  if (Platform.isWindows) {
+    final picker = find.descendant(
+      of: find.descendant(
+        of: inEditor,
+        matching: find.widgetWithText(fluent.InfoLabel, label),
+      ),
+      matching: find.byType(fluent.ComboBox<String>),
+    );
+    await waitJournalWidget(tester, picker);
+    if (tester.widget<fluent.ComboBox<String>>(picker).value == source.id) {
+      return;
+    }
+    await _tapVisible(tester, picker);
+  } else {
+    final picker = find.descendant(
+      of: inEditor,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is DropdownButtonFormField<String> &&
+            widget.key is ValueKey<(String, String)> &&
+            (widget.key! as ValueKey<(String, String)>).value.$1 == label,
+      ),
+    );
+    await waitJournalWidget(tester, picker);
+    if (tester.widget<DropdownButtonFormField<String>>(picker).initialValue ==
+        source.id) {
+      return;
+    }
+    await _tapVisible(tester, picker);
+  }
+  final choice = find.textContaining(source.displayName).hitTestable();
+  await waitJournalWidget(tester, choice);
+  await _tapVisible(tester, choice.last);
 }
 
 Future<void> journalCollectionAction(
@@ -1428,6 +1489,18 @@ Future<void> _selectMoveDestination(WidgetTester tester, String title) async {
   final picker = find.byWidgetPredicate(
     (widget) => widget is BusyMaxComboRow<String> && widget.title == label,
   );
+  await _selectLinuxJournalMenu(
+    tester,
+    picker,
+    (entry) => entry.label == title,
+  );
+}
+
+Future<void> _selectLinuxJournalMenu(
+  WidgetTester tester,
+  Finder picker,
+  bool Function(BusyMaxMenuEntry<String>) matches,
+) async {
   await _scrollEditorTo(tester, picker);
   final menu = tester.widget<BusyMaxMenuButton<String>>(
     find.descendant(
@@ -1435,8 +1508,8 @@ Future<void> _selectMoveDestination(WidgetTester tester, String title) async {
       matching: find.byType(BusyMaxMenuButton<String>),
     ),
   );
-  final index = menu.entries.indexWhere((entry) => entry.label == title);
-  expect(index, greaterThan(0));
+  final index = menu.entries.indexWhere(matches);
+  expect(index, greaterThanOrEqualTo(0));
   await _tapVisible(tester, picker);
   await tester.pump();
   await tester.runAsync(() async {
