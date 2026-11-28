@@ -156,6 +156,9 @@ void runJournalWorkflow({
         previous?['collectionName'] as String? ??
         'Journal QA ${const Uuid().v4()}';
     final marker = collectionName.split('-').last;
+    final journalTitle = 'Journal café $marker';
+    final peerTitle = 'Peer edit $marker';
+    final localEditTitle = 'Local edit $marker';
     final offlineCreation = 'Offline new entry $marker';
     final offlineEdit = 'Offline edited entry $marker';
     final offlineDeletion = 'Offline delete control $marker';
@@ -267,7 +270,7 @@ void runJournalWorkflow({
         final previousEdit = (await tester.runAsync(
           () => request('GET', editedHref),
         ))!;
-        expect(previousEdit.body, contains('SUMMARY:Local edit'));
+        expect(previousEdit.body, contains('SUMMARY:$localEditTitle\r\n'));
         expect(
           (await tester.runAsync(() => request('GET', deletedHref)))!
               .statusCode,
@@ -361,7 +364,7 @@ void runJournalWorkflow({
 
       await _createScheduleJournal(tester, collection);
       await waitJournalWidget(tester, input('Title'));
-      await tester.enterText(input('Title'), 'Journal café');
+      await tester.enterText(input('Title'), journalTitle);
       final addDescription = find.text('Add description');
       await _editorAction(tester, addDescription);
       await tester.pump();
@@ -394,7 +397,7 @@ void runJournalWorkflow({
       );
       await openJournalSearch(tester);
       await tester.enterText(input('Search'), 'second body');
-      await waitJournalWidget(tester, journalResultTitle('Journal café'));
+      await waitJournalWidget(tester, journalResultTitle(journalTitle));
       await refresh();
       await waitJournalWidget(
         tester,
@@ -425,8 +428,8 @@ void runJournalWorkflow({
       expect(created.body, isNot(contains('DTSTART')));
       record('undated-repeated-description');
       final peerChange = created.body.replaceFirst(
-        'SUMMARY:Journal café',
-        'SUMMARY:Peer edit${restart == null ? '\r\nCOMMENT:Peer comment\r\nCONTACT:Peer contact' : ''}',
+        'SUMMARY:$journalTitle',
+        'SUMMARY:$peerTitle${restart == null ? '\r\nCOMMENT:Peer comment\r\nCONTACT:Peer contact' : ''}',
       );
       expect(peerChange, isNot(created.body));
       final changed = (await tester.runAsync(
@@ -442,14 +445,14 @@ void runJournalWorkflow({
       ))!;
       expect(changed.statusCode, anyOf(200, 204));
       await refresh();
-      await waitJournalWidget(tester, journalResultTitle('Peer edit'));
+      await waitJournalWidget(tester, journalResultTitle(peerTitle));
       await openJournalSearch(tester);
       await tester.enterText(input('Search'), 'second body');
-      await waitJournalWidget(tester, journalResultTitle('Peer edit'));
-      await _tapVisible(tester, journalResultTitle('Peer edit'));
+      await waitJournalWidget(tester, journalResultTitle(peerTitle));
+      await _tapVisible(tester, journalResultTitle(peerTitle));
       await enterJournalEditor(tester);
       await waitJournalWidget(tester, input('Title'));
-      await tester.enterText(input('Title'), 'Local edit');
+      await tester.enterText(input('Title'), localEditTitle);
       if (restart == null) {
         await _editorAction(tester, button('Journal details', false));
         await tester.pump();
@@ -468,11 +471,11 @@ void runJournalWorkflow({
       await _editorAction(tester, button('Close', false));
       await waitJournalWidget(tester, input('Search'));
       expect(inputValue(tester, input('Search')), 'second body');
-      await waitJournalWidget(tester, journalResultTitle('Peer edit'));
-      await _tapVisible(tester, journalResultTitle('Peer edit'));
+      await waitJournalWidget(tester, journalResultTitle(peerTitle));
+      await _tapVisible(tester, journalResultTitle(peerTitle));
       await enterJournalEditor(tester);
       await waitJournalWidget(tester, input('Title'));
-      expect(inputValue(tester, input('Title')), 'Local edit');
+      expect(inputValue(tester, input('Title')), localEditTitle);
       if (restart == null) {
         await _editorAction(tester, button('Journal details', false));
         await tester.pump();
@@ -492,23 +495,23 @@ void runJournalWorkflow({
       }
       record('editor-draft-close-and-reopen');
       await _editorAction(tester, button('Save', true));
-      await waitJournalWidget(tester, journalResultTitle('Local edit'));
+      await waitJournalWidget(tester, journalResultTitle(localEditTitle));
       expect(inputValue(tester, input('Search')), 'second body');
       await tester.enterText(input('Search'), 'absent from journal');
       await waitJournalWidget(
         tester,
-        journalResultTitle('Local edit'),
+        journalResultTitle(localEditTitle),
         absent: true,
       );
       await tester.enterText(input('Search'), '');
-      await waitJournalWidget(tester, journalResultTitle('Local edit'));
+      await waitJournalWidget(tester, journalResultTitle(localEditTitle));
       await refresh();
       final edited = await _waitForJournalState(
         tester,
         () async {
           final result = await request('GET', object.requestUri);
           return result.statusCode == 200 &&
-                  result.body.contains('SUMMARY:Local edit')
+                  result.body.contains('SUMMARY:$localEditTitle\r\n')
               ? result
               : null;
         },
@@ -516,7 +519,7 @@ void runJournalWorkflow({
             'The provider did not confirm the edited journal. DAV ${accountClient.trace}',
       );
       expect(edited.statusCode, 200);
-      expect(edited.body, contains('SUMMARY:Local edit'));
+      expect(edited.body, contains('SUMMARY:$localEditTitle\r\n'));
       expect(edited.body, contains('DESCRIPTION:First body'));
       expect(edited.body, contains('DESCRIPTION:Second body'));
       if (restart == null) {
@@ -551,8 +554,8 @@ void runJournalWorkflow({
         ))!;
         setOnline(false);
         await create(offlineCreation);
-        await searchFor('Local edit');
-        await _tapVisible(tester, journalResultTitle('Local edit'));
+        await searchFor(localEditTitle);
+        await _tapVisible(tester, journalResultTitle(localEditTitle));
         await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         await tester.enterText(input('Title'), offlineEdit);
@@ -606,7 +609,7 @@ void runJournalWorkflow({
       }
 
       if (checkConflictChoices) {
-        var currentTitle = 'Local edit';
+        var currentTitle = localEditTitle;
         for (final (number, action, preserveLocal) in [
           (1, 'Keep server version', false),
           (2, 'Review and reapply local change', true),
@@ -757,7 +760,7 @@ void runJournalWorkflow({
         await _tapVisible(tester, finalEntry);
         await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
-        await tester.enterText(input('Title'), 'Local edit');
+        await tester.enterText(input('Title'), localEditTitle);
         await _editorAction(tester, button('Save', true));
         await refresh();
         record('journal-content-conflict-choices');
@@ -845,7 +848,7 @@ void runJournalWorkflow({
             expect(removed.statusCode, anyOf(200, 204));
           });
         }
-        await searchFor('Local edit');
+        await searchFor(localEditTitle);
       }
 
       const dav = 'DAV:';
@@ -873,7 +876,7 @@ void runJournalWorkflow({
         final prefix = month.replaceAll('-', '');
         final dayOne = '${prefix}01';
         final dayTwo = '${prefix}02';
-        const seriesTitle = 'Native recurring journal';
+        final seriesTitle = 'Native recurring journal $marker';
         const occurrenceTitle = 'Native single override';
         const futureTitle = 'Native future override';
         final createdSeries = (await tester.runAsync(
@@ -910,7 +913,7 @@ void runJournalWorkflow({
         await enterJournalEditor(tester);
         await waitJournalWidget(tester, input('Title'));
         expect(inputValue(tester, input('Title')), seriesTitle);
-        final link = find.text('Open link · Local edit');
+        final link = find.text('Open link · $localEditTitle');
         await _editorAction(tester, link);
         await enterJournalEditor(tester);
         await waitJournalWidget(
@@ -920,7 +923,7 @@ void runJournalWorkflow({
             matching: find.byWidgetPredicate(
               (widget) =>
                   widget is EditableText &&
-                  widget.controller.text == 'Local edit',
+                  widget.controller.text == localEditTitle,
             ),
           ),
         );
@@ -987,12 +990,12 @@ void runJournalWorkflow({
         await scrollToOccurrence(find.text('$dayOne · $seriesTitle'));
         await scrollToOccurrence(find.text('${prefix}03 · $futureTitle'));
         await _editorAction(tester, button('Close', false));
-        await searchFor('Local edit');
+        await searchFor(localEditTitle);
         record('recurrence-and-journal-link-readback');
       }
       if (transferFiles != null) {
-        const title = 'Local edit';
-        const importedTitle = 'GTK imported journal';
+        final title = localEditTitle;
+        final importedTitle = 'GTK imported journal $marker';
         final importedUid = 'gtk-import-$marker@example.invalid';
         await searchFor(title);
         await tester.enterText(input('Search'), '');
@@ -1068,7 +1071,7 @@ void runJournalWorkflow({
           .innerText;
       expect(syncToken, isNotEmpty);
 
-      await _tapVisible(tester, journalResultTitle('Local edit'));
+      await _tapVisible(tester, journalResultTitle(localEditTitle));
       await enterJournalEditor(tester);
       await waitJournalWidget(tester, input('Title'));
       await _editorAction(tester, button('Delete', false));
@@ -1079,7 +1082,7 @@ void runJournalWorkflow({
       await waitJournalWidget(tester, input('Search'));
       await waitJournalWidget(
         tester,
-        journalResultTitle('Local edit'),
+        journalResultTitle(localEditTitle),
         absent: true,
       );
       await refresh();
