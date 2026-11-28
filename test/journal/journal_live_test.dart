@@ -255,7 +255,7 @@ void main() {
                   .getSingle();
           expect(replayedObject.etag, beforeRecovery.headers['etag']);
           expect(
-            replayedObject.rawIcsBody?.replaceAll('\r\n', '\n'),
+            replayedObject.rawIcsBody.replaceAll('\r\n', '\n'),
             beforeRecovery.body.replaceAll('\r\n', '\n'),
             reason: 'GET and REPORT must agree apart from XML line endings.',
           );
@@ -386,6 +386,12 @@ void main() {
             ),
           });
           await retryInDiagnostics();
+          expect(mutations.single.$1, 'PUT');
+          expect(mutations.single.$2, legacyHref);
+          expect(
+            mutations.single.$3['if-match'],
+            beforeRecovery.headers['etag'],
+          );
           expect(await database.pendingOpsDao.getOp(legacy.id), isNull);
           final corrected = await request('GET', legacyHref);
           expect(corrected.statusCode, 200);
@@ -1293,7 +1299,14 @@ final class _JournalMutationClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     if (const {'PUT', 'DELETE', 'MOVE', 'COPY'}.contains(request.method)) {
-      mutations.add((request.method, request.url, Map.of(request.headers)));
+      mutations.add((
+        request.method,
+        request.url,
+        {
+          for (final name in const ['if-match', 'if-none-match'])
+            if (request.headers[name] case final value?) name: value,
+        },
+      ));
     }
     return trace.send(inner, request);
   }
