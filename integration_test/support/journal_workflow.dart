@@ -403,29 +403,19 @@ void runJournalWorkflow({
         absent: true,
       );
 
-      DavObject? acknowledged;
-      final receiptDeadline = Stopwatch()..start();
-      while (acknowledged == null &&
-          receiptDeadline.elapsed < const Duration(seconds: 40)) {
-        acknowledged = await tester.runAsync<DavObject?>(
-          () async => (await database.select(database.davObjects).get())
-              .where(
-                (row) =>
-                    row.collectionId == collection!.id &&
-                    row.etag != null &&
-                    !row.serverDeleted,
-              )
-              .singleOrNull,
-        );
-        if (acknowledged == null) {
-          await tester.pump(const Duration(milliseconds: 100));
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 100)),
-          );
-        }
-      }
-      expect(acknowledged, isNotNull, reason: 'DAV ${accountClient.trace}');
-      final object = acknowledged!;
+      final object = await _waitForJournalState(
+        tester,
+        () async => (await database.select(database.davObjects).get())
+            .where(
+              (row) =>
+                  row.collectionId == collection!.id &&
+                  row.etag != null &&
+                  !row.serverDeleted,
+            )
+            .singleOrNull,
+        () =>
+            'The new journal was not acknowledged. DAV ${accountClient.trace}',
+      );
       final created = (await tester.runAsync(
         () => request('GET', object.requestUri),
       ))!;
@@ -665,11 +655,19 @@ void runJournalWorkflow({
             contains(attempted),
             reason: 'DAV ${accountClient.trace}',
           );
-          final conflict = (await tester.runAsync(
+          final conflict = await _waitForJournalState(
+            tester,
             () async =>
                 (await database.select(database.davConflictSnapshots).get())
-                    .singleWhere((row) => row.resolvedAtUtc == null),
-          ))!;
+                    .where(
+                      (row) =>
+                          row.davObjectId == object.id &&
+                          row.resolvedAtUtc == null,
+                    )
+                    .singleOrNull,
+            () =>
+                'The observed conditional failure had no durable conflict. DAV ${accountClient.trace}',
+          );
           expect(conflict.baselineRawIcs, contains('SUMMARY:$currentTitle'));
           expect(
             conflict.localCandidateRawIcs,
@@ -1621,6 +1619,23 @@ Future<void> _dismissSourcesSheet(WidgetTester tester) async {
   if (sheet.evaluate().isEmpty) return;
   await tester.binding.handlePopRoute();
   await waitJournalWidget(tester, sheet, absent: true);
+}
+
+Future<T> _waitForJournalState<T>(
+  WidgetTester tester,
+  Future<T?> Function() sample,
+  String Function() failure,
+) async {
+  final deadline = Stopwatch()..start();
+  while (deadline.elapsed < const Duration(seconds: 40)) {
+    final value = await tester.runAsync<T?>(sample);
+    if (value != null) return value;
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+  }
+  throw TestFailure(failure());
 }
 
 Future<void> waitJournalWidget(
