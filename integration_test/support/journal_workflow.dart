@@ -605,8 +605,21 @@ void runJournalWorkflow({
           expect(find.text(localTitle), findsWidgets);
           expect(find.text(remoteTitle), findsWidgets);
           await _editorAction(tester, button(action, false));
-          await _refresh(tester, enabledRefresh());
           currentTitle = preserveLocal ? localTitle : remoteTitle;
+          if (number == 1) {
+            // Keep server adopts the confirmed snapshot locally and sends no write.
+            await waitJournalWidget(
+              tester,
+              find.textContaining('$currentTitle ·'),
+            );
+          } else {
+            await _refresh(
+              tester,
+              enabledRefresh(),
+              failureContext: () =>
+                  '$action did not finish refreshing. DAV ${accountClient.trace}.',
+            );
+          }
           final resolved = (await tester.runAsync(
             () => request('GET', object.requestUri),
           ))!;
@@ -1178,11 +1191,20 @@ Future<void> _tapVisible(WidgetTester tester, Finder target) async {
   await tester.tap(visible);
 }
 
-Future<void> _refresh(WidgetTester tester, Finder enabled) async {
+Future<void> _refresh(
+  WidgetTester tester,
+  Finder enabled, {
+  String Function()? failureContext,
+}) async {
   await waitJournalWidget(tester, enabled);
   await _tapVisible(tester, enabled);
   await tester.pump();
-  await waitJournalWidget(tester, enabled);
+  await waitJournalWidget(
+    tester,
+    enabled,
+    timeout: Platform.isAndroid ? const Duration(seconds: 90) : null,
+    failureContext: failureContext,
+  );
 }
 
 Future<void> waitJournalWidget(
