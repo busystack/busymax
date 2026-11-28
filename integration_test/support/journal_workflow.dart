@@ -978,6 +978,20 @@ void runJournalWorkflow({
         await _editorAction(tester, find.text('Repeat'));
         await scrollToOccurrence(find.text('$dayOne · $seriesTitle'));
         await scrollToOccurrence(find.text('${prefix}03 · $futureTitle'));
+        final occurrenceHeader = find.byWidgetPredicate(
+          (widget) =>
+              widget is Wrap &&
+              widget.children.whereType<Text>().any(
+                (text) => text.data == month,
+              ),
+        );
+        await _editorAction(
+          tester,
+          find.descendant(
+            of: occurrenceHeader,
+            matching: button('Close', false),
+          ),
+        );
         await _editorAction(tester, button('Close', false));
         await searchFor(localEditTitle);
         record('recurrence-and-journal-link-readback');
