@@ -149,6 +149,10 @@ void main() {
     );
     await tester.tap(find.text('All day'));
     await tester.pumpAndSettle();
+    final details = find.widgetWithText(BusyMaxActionRow, 'Journal details');
+    await tester.ensureVisible(details);
+    await tester.tap(details);
+    await waitJournalWidget(tester, find.text('YYYY-MM-DD'));
     await tester.enterText(title, 'Edited in Schedule');
     final save = find.descendant(
       of: find.byType(JournalPane),

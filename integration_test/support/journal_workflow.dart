@@ -378,7 +378,24 @@ void runJournalWorkflow({
       expect(inputValue(tester, secondDescription), isEmpty);
       await tester.enterText(secondDescription, 'Second body');
       await _editorAction(tester, button('Save', true));
-      await waitJournalWidget(tester, find.textContaining('Journal café'));
+      await waitJournalWidget(
+        tester,
+        find.byType(JournalPane),
+        absent: true,
+        failureContext: () => tester
+            .widgetList<Text>(
+              find.descendant(
+                of: find.byType(JournalPane),
+                matching: find.byType(Text),
+              ),
+            )
+            .map((widget) => widget.data)
+            .nonNulls
+            .join(' | '),
+      );
+      await openJournalSearch(tester);
+      await tester.enterText(input('Search'), 'second body');
+      await waitJournalWidget(tester, journalResultTitle('Journal café'));
       await refresh();
       await waitJournalWidget(
         tester,
@@ -386,10 +403,29 @@ void runJournalWorkflow({
         absent: true,
       );
 
-      final object = (await tester.runAsync(
-        () async => (await database.select(database.davObjects).get())
-            .singleWhere((row) => row.collectionId == collection!.id),
-      ))!;
+      DavObject? acknowledged;
+      final receiptDeadline = Stopwatch()..start();
+      while (acknowledged == null &&
+          receiptDeadline.elapsed < const Duration(seconds: 40)) {
+        acknowledged = await tester.runAsync<DavObject?>(
+          () async => (await database.select(database.davObjects).get())
+              .where(
+                (row) =>
+                    row.collectionId == collection!.id &&
+                    row.etag != null &&
+                    !row.serverDeleted,
+              )
+              .singleOrNull,
+        );
+        if (acknowledged == null) {
+          await tester.pump(const Duration(milliseconds: 100));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 100)),
+          );
+        }
+      }
+      expect(acknowledged, isNotNull, reason: 'DAV ${accountClient.trace}');
+      final object = acknowledged!;
       final created = (await tester.runAsync(
         () => request('GET', object.requestUri),
       ))!;
@@ -1437,10 +1473,23 @@ Future<void> _scrollEditorTo(
 }
 
 Future<void> _tapVisible(WidgetTester tester, Finder target) async {
-  await Scrollable.ensureVisible(tester.element(target), alignment: 0.5);
-  await tester.pump();
   final visible = target.hitTestable();
-  await waitJournalWidget(tester, visible);
+  final deadline = Stopwatch()..start();
+  while (visible.evaluate().isEmpty &&
+      deadline.elapsed < const Duration(seconds: 30)) {
+    if (target.evaluate().isNotEmpty) {
+      await Scrollable.ensureVisible(tester.element(target), alignment: 0.5);
+    }
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+  }
+  expect(
+    visible,
+    findsOneWidget,
+    reason: 'Visible targets before hit testing: ${target.evaluate().length}',
+  );
   await tester.tap(visible);
 }
 
