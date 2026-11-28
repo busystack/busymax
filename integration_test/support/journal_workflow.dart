@@ -613,6 +613,21 @@ void runJournalWorkflow({
       const dav = 'DAV:';
       final target = collection.requestUri;
       if (!slowCollectionRemoval) {
+        Future<void> scrollToOccurrence(Finder occurrence) async {
+          final occurrenceList = find.descendant(
+            of: find.byWidgetPredicate(
+              (widget) => widget is ListView && widget.primary == false,
+            ),
+            matching: find.byType(Scrollable),
+          );
+          await waitJournalWidget(tester, occurrenceList);
+          await tester.scrollUntilVisible(
+            occurrence,
+            100,
+            scrollable: occurrenceList,
+          );
+        }
+
         // A peer supplies a known series and a link to the journal created
         // above. The native UI opens the link and edits the recurrence.
         final seriesUri = Uri.parse(target).resolve('native-series.ics');
@@ -688,7 +703,7 @@ void runJournalWorkflow({
                   (label) => label.data == '$dayTwo · $currentTitle',
                 ),
           );
-          await waitJournalWidget(tester, occurrence);
+          await scrollToOccurrence(occurrence);
           await _tapVisible(
             tester,
             find.descendant(of: occurrence, matching: find.text(action)),
@@ -717,11 +732,8 @@ void runJournalWorkflow({
         await _tapVisible(tester, series);
         await waitJournalWidget(tester, input('Title'));
         await _editorAction(tester, find.text('Repeat'));
-        await waitJournalWidget(tester, find.text('$dayOne · $seriesTitle'));
-        await waitJournalWidget(
-          tester,
-          find.text('${prefix}03 · $futureTitle'),
-        );
+        await scrollToOccurrence(find.text('$dayOne · $seriesTitle'));
+        await scrollToOccurrence(find.text('${prefix}03 · $futureTitle'));
         await _editorAction(tester, button('Close', false).last);
         await tester.enterText(input('Search'), '');
         debugPrint(
