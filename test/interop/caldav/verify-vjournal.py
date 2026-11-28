@@ -143,6 +143,8 @@ def main():
                         help='Authorized executable that runs the Windows native journal suite')
     parser.add_argument('--native-platform', action='append', choices=('linux', 'windows', 'android'),
                         help='Run only the selected native runtime(s) for diagnosis. Omitted cells remain incomplete.')
+    parser.add_argument('--native-provider', action='append', choices=('caldav', 'nextcloud'),
+                        help='Run native diagnostics only on selected providers. Omitted cells remain incomplete.')
     parser.add_argument('--linux-process-restart', action='store_true',
                         help='Run the Linux offline workflow in two native processes using an isolated keyring')
     parser.add_argument('--linux-account-enrollment', action='store_true',
@@ -478,6 +480,8 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
         if args.native_platform and platform not in args.native_platform:
             continue
         for provider in ('caldav', 'nextcloud'):
+            if args.native_provider and provider not in args.native_provider:
+                continue
             if platform == 'linux':
                 name = f'Linux journal collection and editor on {provider}'
                 label = f'linux-{provider}-native'
