@@ -800,11 +800,20 @@ void runJournalWorkflow({
           await _editorAction(tester, button('Move journal entry', false));
           await waitJournalWidget(tester, input('Title'), absent: true);
           await refresh();
+          final moved = await _waitForJournalState(
+            tester,
+            () async {
+              final source = await request('GET', sourceEntry);
+              final destination = await request('GET', destinationEntry);
+              if (source.statusCode == 404 && destination.statusCode == 200) {
+                return destination;
+              }
+              return null;
+            },
+            () => 'MOVE did not leave a destination copy and source tombstone',
+          );
+          expect(moved.bodyBytes, original.bodyBytes);
           await tester.runAsync(() async {
-            expect((await request('GET', sourceEntry)).statusCode, 404);
-            final moved = await request('GET', destinationEntry);
-            expect(moved.statusCode, 200);
-            expect(moved.bodyBytes, original.bodyBytes);
             final projected = await database
                 .select(database.davJournalEntries)
                 .get();
@@ -1595,11 +1604,12 @@ Future<void> _refresh(
     await _tapVisible(tester, find.text('Refresh all'));
   }
   await tester.pump();
-  if (Platform.isAndroid && confirmPartial) {
-    final dialog = find.widgetWithText(
-      AlertDialog,
-      'Refresh partially completed',
-    );
+  final dialog = find.widgetWithText(
+    Platform.isLinux ? BusyMaxDialogShell : AlertDialog,
+    'Refresh partially completed',
+  );
+  final retryPartial = confirmPartial && Platform.isAndroid;
+  if (retryPartial) {
     await waitJournalWidget(tester, dialog);
     await _tapVisible(
       tester,
@@ -1619,6 +1629,13 @@ Future<void> _refresh(
     );
   }
   expect(activity.anyRunning, isFalse, reason: failureContext?.call());
+  if (dialog.evaluate().isNotEmpty) {
+    await _tapVisible(
+      tester,
+      find.descendant(of: dialog, matching: find.text('Cancel')),
+    );
+    await waitJournalWidget(tester, dialog, absent: true);
+  }
 }
 
 Future<void> _dismissSourcesSheet(WidgetTester tester) async {
