@@ -146,6 +146,19 @@ void runJournalWorkflow({
       ).synchronize(full: full, collectionId: collectionId);
     }
 
+    Future<void> searchFor(String title, {bool absent = false}) async {
+      final search = input('Search');
+      await waitJournalWidget(tester, search);
+      await tester.enterText(search, title);
+      final matches = find.textContaining('$title ·');
+      if (absent) {
+        await waitJournalWidget(tester, find.text('No journal entries found.'));
+        expect(matches, findsNothing);
+      } else {
+        await waitJournalWidget(tester, matches);
+      }
+    }
+
     final container = ProviderContainer(
       overrides: [
         ...?runtimeOverrides?.call(database),
@@ -192,9 +205,10 @@ void runJournalWorkflow({
           UncontrolledProviderScope(container: container, child: app()),
         );
         await openJournals(tester, container);
-        await waitJournalWidget(tester, find.textContaining(offlineCreation));
-        expect(find.textContaining(offlineEdit), findsOneWidget);
-        expect(find.textContaining(offlineDeletion), findsNothing);
+        await searchFor(offlineCreation);
+        await searchFor(offlineEdit);
+        await searchFor(offlineDeletion, absent: true);
+        await tester.enterText(input('Search'), '');
         final editedHref = previous['editedHref'] as String;
         final deletedHref = previous['deletedHref'] as String;
         final previousEdit = (await tester.runAsync(
@@ -429,7 +443,8 @@ void runJournalWorkflow({
           await waitJournalWidget(tester, input('Title'));
           await tester.enterText(input('Title'), title);
           await _editorAction(tester, button('Save', true));
-          await waitJournalWidget(tester, find.textContaining(title));
+          await searchFor(title);
+          await tester.enterText(input('Search'), '');
         }
 
         await create(offlineDeletion);
@@ -444,23 +459,21 @@ void runJournalWorkflow({
         ))!;
         online = false;
         await create(offlineCreation);
-        await _tapVisible(tester, find.textContaining('Local edit'));
+        await searchFor('Local edit');
+        await _tapVisible(tester, find.textContaining('Local edit ·'));
         await waitJournalWidget(tester, input('Title'));
         await tester.enterText(input('Title'), offlineEdit);
         await _editorAction(tester, button('Save', true));
-        await waitJournalWidget(tester, find.textContaining(offlineEdit));
-        await _tapVisible(tester, find.textContaining(offlineDeletion));
+        await searchFor(offlineEdit);
+        await searchFor(offlineDeletion);
+        await _tapVisible(tester, find.textContaining('$offlineDeletion ·'));
         await waitJournalWidget(tester, input('Title'));
         await _editorAction(tester, button('Delete', false));
         await _editorAction(
           tester,
           button('Delete the entire entry and its recurrence?', false),
         );
-        await waitJournalWidget(
-          tester,
-          find.textContaining(offlineDeletion),
-          absent: true,
-        );
+        await searchFor(offlineDeletion, absent: true);
         await tester.runAsync(() async {
           expect(
             await database.select(database.pendingOps).get(),
@@ -637,6 +650,7 @@ void runJournalWorkflow({
         ))!;
         expect(createdSeries.statusCode, 201);
         await _refresh(tester, enabledRefresh());
+        await searchFor(seriesTitle);
         final series = find.textContaining('$seriesTitle ·');
         await waitJournalWidget(tester, series);
         await _tapVisible(tester, series);
@@ -709,6 +723,7 @@ void runJournalWorkflow({
           find.text('${prefix}03 · $futureTitle'),
         );
         await _editorAction(tester, button('Close', false).last);
+        await tester.enterText(input('Search'), '');
         debugPrint(
           'JOURNAL_WORKFLOW_CASE $provider recurrence-and-journal-link-readback PASS',
         );
