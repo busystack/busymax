@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,6 +13,7 @@ import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 import 'package:busymax/src/features/sync/sync_request.dart';
 import 'package:busymax/src/journal/presentation/journal_workspace.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -106,9 +108,30 @@ void runJournalWorkflow({
               'busymax.qa.journal.${sha256.convert(utf8.encode(profileDirectory.path))}.$provider.',
             ),
           );
-    final accountClient = _JournalAccountClient(client());
+    var online = restart != JournalRestartStage.replay;
+    List<ConnectivityResult> connectivity() => [
+      online ? ConnectivityResult.wifi : ConnectivityResult.none,
+    ];
+    final changes = StreamController<List<ConnectivityResult>>.broadcast(
+      sync: true,
+    );
+    final network = NetworkConnectivityMonitor(
+      checkConnectivity: () async => connectivity(),
+      connectivityChanges: changes.stream,
+    );
+    await tester.runAsync(network.initialize);
+    void setOnline(bool value) {
+      online = value;
+      changes.add(connectivity());
+    }
+
+    final accountClient = _JournalAccountClient(
+      ConnectivityAwareHttpClient(
+        inner: client(),
+        requireNetwork: network.requireNetwork,
+      ),
+    );
     final peer = client();
-    final network = NetworkConnectivityMonitor.withoutPlatformObservation();
     final collectionName =
         previous?['collectionName'] as String? ??
         'Journal QA ${const Uuid().v4()}';
@@ -118,7 +141,6 @@ void runJournalWorkflow({
     final offlineDeletion = 'Offline delete control $marker';
     const accountId = 'native-journal-fixture';
     DavCollection? collection;
-    var online = restart != JournalRestartStage.replay;
     var savedForRestart = false;
     Future<http.Response> request(
       String method,
@@ -220,7 +242,7 @@ void runJournalWorkflow({
               .statusCode,
           200,
         );
-        online = true;
+        setOnline(true);
         await _refresh(tester, enabledRefresh());
         await waitJournalWidget(
           tester,
@@ -457,7 +479,7 @@ void runJournalWorkflow({
                     row.requestUri != object.requestUri,
               ),
         ))!;
-        online = false;
+        setOnline(false);
         await create(offlineCreation);
         await searchFor('Local edit');
         await _tapVisible(tester, find.textContaining('Local edit ·'));
@@ -511,7 +533,7 @@ void runJournalWorkflow({
           expect(before.body, contains('SUMMARY:$currentTitle\r\n'));
           final localTitle = 'Local conflict choice $number';
           final remoteTitle = 'Remote conflict choice $number';
-          online = false;
+          setOnline(false);
           final current = find.textContaining('$currentTitle ·');
           await waitJournalWidget(tester, current);
           await _tapVisible(tester, current);
@@ -534,7 +556,7 @@ void runJournalWorkflow({
             ),
           ))!;
           expect(changed.statusCode, anyOf(200, 204));
-          online = true;
+          setOnline(true);
           accountClient.preconditionFailures.clear();
           await _refresh(tester, enabledRefresh());
           expect(
@@ -935,6 +957,7 @@ void runJournalWorkflow({
           accountClient.close();
           peer.close();
           await network.dispose();
+          await changes.close();
           await database.close();
         }
       });
