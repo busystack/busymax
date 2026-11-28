@@ -1,11 +1,79 @@
 # Journal follow-up qualification
 
 The first-party and supported Nextcloud acceptance matrices remain open,
-including Windows, Android and strict Snap package qualification. The Linux
-and DAV results below cover the named scenarios. Strict Nextcloud storage
-conformance is upstream-blocked for the recorded representations.
+including Windows, Android release and strict Snap package qualification.
+The Linux, Android and DAV results below cover the named scenarios. Strict
+Nextcloud storage conformance is upstream-blocked for the recorded representations.
 Use the [fixture and runner instructions](../test/interop/caldav/README.md#journal-candidate-qualification)
 to repeat the run.
+
+## November 28 platform qualification
+
+This run started at BusyMax `975c0149b297106ff4352fb45a9c8881dc9aed98`.
+Its changes are in qualification code and records. The provider tests used
+the verified BusyStack schema 17 image from
+`75685be70c48a776322f957a17d937b5352a279b` and unmodified Nextcloud 35.0.3
+with internal version 35.0.3.2. The [journal runner](../test/interop/caldav/README.md#journal-candidate-qualification)
+records separate supported-workflow and raw-admission results.
+
+| Executed scope | Result |
+| --- | --- |
+| Linux account enrollment and reconnection | Both providers passed through production Settings with a fresh file database, GTK private-CA import, and the native keyring. Nextcloud used the real browser Login Flow and the stock app-password option. The test discovered and enabled the independently provisioned journal collection and verified the credential generation change. |
+| Linux editor against both providers | Both passed collection creation, rename and removal, undated and repeated descriptions, incomplete draft recovery, peer refresh and search, all three conflict choices, journal MOVE, DATE recurrence editing, journal-link navigation, and deletion with an independent sync tombstone. |
+| Linux process restart against both providers | Separate native processes retained credentials, queued create/edit/delete operations, and an unsubmitted title and description. After reopen and replay, independent GETs checked the queued changes and the local draft remained available. |
+| Linux GTK files | Both live providers passed binary attachment pick and save, ordinary ICS export and reimport, independent HTTPS readback of both resources, and collection deletion after clearing the completed import review. Separately, three isolated processes passed historical-create recovery export, reviewed repair and binary attachment round trip with a synthetic offline profile. |
+| Android API 35 editor | Both providers passed the editor checks with real refresh and independent HTTPS readback. The run checked DATE recurrence edits, a journal link, all three conflict choices, Move, incomplete parameter draft recovery, and collection creation, rename and removal. |
+| Android API 35 process restart | Separate processes on both providers restored the isolated package profile and native credentials. Both retained an unsaved title and description while queued create, edit and delete requests replayed with independent readback. The installed APK hash matched the verified artifact for each stage. |
+| Android test-signed release package | APK and AAB built with official Flutter 3.50.1 and passed integrity, signature and 16 KB inspection. Upgrade on the isolated API 35 and API 37 emulators retained the package identity and matched the installed APK against the candidate. The API 35 initial post-update launch timed out and passed a cold recheck. The API 37 fresh-install and update launches passed. |
+| Configured HTTP journal tests | BusyStack admission and REPORT checks passed. Nextcloud permission views and the BusyMax journal suite passed. Stock Nextcloud repeated the ten write rejections across the same five representations, with the previous object and collection state preserved. Separate Nextcloud REPORT deviations remain recorded. |
+| Nextcloud controlled reruns | The range-promotion and historical-queue case passed three consecutive isolated runs with independent HTTPS readback. The delayed Linux collection-removal case also passed, including its sync tombstone and collection readback. |
+| Final regression gates | Flutter reported 5,543 passed and 127 skipped. The separately configured journal suite ran 41 tests with no skips. Pinned SDK verification, generated-source checks, analysis, formatting, platform boundaries, Linux and Android dependency integrity, Android platform unit tests and lint, seven interop-tool tests and 97 release-tool tests passed. |
+
+The Linux conflict run initially reproduced duplicate unresolved snapshots.
+The native harness called separate DAV engines directly for manual and
+automatic refresh, bypassing the production account sync coordinator.
+Both providers passed the rerun through the real coordinator. Android
+qualification now checks and launches one prebuilt APK per stage. This
+avoids a second Gradle build while the emulator is running and checks the
+installed file against the verified binary. The driver keeps the disposable
+QA package installed after each stage. The original drive run used Flutter's
+default removal behavior and received no restart credit. Android editor
+conflict reruns explicitly confirm the displayed retry prompt before the
+next operation.
+
+The QA release APK SHA-256 is
+`e85d71ddfaef50117189055a0648d664dfbfd9144a08d6b5012aec9e8b2fe93a`.
+The AAB SHA-256 is
+`1564bef37bd17e12a575f9feae7e95cff100a07681b3273aa52e804a4d821580`.
+Both carry `io.busystack.busymax.caldavqa`. The test certificate SHA-256
+is `d9c118346e73eddb3fea4416a5fdc748d6e282d24f4dfb894c95e66943a54ac9`.
+
+| Evidence scope | BusyMax source commit |
+| --- | --- |
+| Test-signed Android release APK and AAB | `975c0149b297106ff4352fb45a9c8881dc9aed98` |
+| Deterministic and configured provider regressions | `297c2367a121041c5b20aadc8a045549b187334c` |
+| Linux editor and Keep Server rerun | `8c19e3a28a41680490c7366765faf69dff3abd4a` |
+| Linux live GTK files and completed import review | `c8ffd1c008619ec556b7b0c1279ebfdab1ed9354` |
+| Android restart stages and secure-storage readback | `460897e4d79da9fe68abf62d3af59245f1e8bb68` |
+| Android API 35 editor rerun | `795a3a19d1224683bdd8350246394ab71de7a722` |
+
+The evidence manifest records each tested source and the APK hash before
+installation and after execution. A Git diff confirmed that the production
+application, package definitions and release build inputs are identical
+across these revisions and the qualification commits.
+
+| Open release gate | Owner prerequisite established on this host |
+| --- | --- |
+| Windows native and MSIX | The authorized QA VM resumed at Automatic Repair and was returned to its saved state. The alternate Windows SSH alias did not resolve. An operational Windows desktop runner and the local Store configuration are required before MSIX build, installation and WACK. |
+| Canonical strict Snap | The owner Desktop OAuth JSON is required. The canonical source gate also rejects the candidate because `origin/main` at `ffb022f2ce567a7da5935a86dcccf655cb4c5ff8` is outside its ancestry. A merge preview produced conflicts in release metadata, generated sources and application code. Release history integration needs an owner decision. |
+| Production Android package | The production preflight stops at the missing `android/busymax.android.properties`. Owner signing through `android/key.properties` and a distribution version code chosen from the owner's published-code ledger are also required. |
+
+The scope-specific receipts and artifact identities are in
+`build/qualification/vjournal-final-platforms`. Full native coverage still
+requires the outstanding property, file-transfer, permission-transition
+and recovery cases listed in the matrix. The supported Nextcloud profile
+remains incomplete, and strict admission remains upstream-blocked for
+the five documented representations.
 
 ## Journal collection moves
 
@@ -33,7 +101,8 @@ journal repository, queue, HTTP transport and projections. The Linux X11
 integration test used the production GTK destination menu and Move button
 with seeded QA accounts on both providers. It independently confirmed the
 source removal and destination bytes and checked the journal projection.
-Windows, Android and installed-package Move qualification remain open.
+The November 28 Android API 35 editor rerun covered journal Move against
+both providers. Windows and installed-package Move qualification remain open.
 
 ## Diagnostics journal retry follow-up
 

@@ -283,7 +283,10 @@ The command runs independent raw admission and REPORT probes, configured
 BusyMax DAV tests, and the Linux journal workflow in the active graphical
 session. Add `--android-device SERIAL --android-aapt /path/to/aapt` to run
 the Android workflow on an authorized device. The runner verifies each
-test-signed QA APK's application ID and uses `--no-uninstall`. To qualify
+test-signed QA APK's application ID and signer, safely updates the isolated
+package, and uses Flutter's integration driver to launch that exact prebuilt
+APK. It uses `--keep-app-running` to retain the package and its profiles,
+and checks the APK hash on the device after the run. To qualify
 Windows, pass `--windows-runner /path/to/runner`. The launcher receives the
 provider and a private fixture path as positional arguments. It must run
 `integration_test/journal_windows_workflows_test.dart` on Windows and
@@ -291,6 +294,10 @@ forward the named test and case output. Run all native suites in isolated
 profiles. Missing scenarios and failed writes keep the matrix incomplete.
 The generated evidence reports source and provider identities alongside
 named cases. Keep fixture files and generated device credentials out of Git.
+After a device interruption, use `--native-only` with the applicable native
+platform and provider filters. This reruns selected native cells on the
+verified fixtures. It records provider and live checks as unexecuted in that
+run and returns an incomplete matrix.
 The disposable Nextcloud fixture allows 100 calendar creations per hour and
 100 calendars or subscriptions per account. These documented `occ` settings
 keep repeated fixture runs within a finite quota. The fixture records the
@@ -313,14 +320,16 @@ The first queues a creation, edit and deletion in a private SQLite profile.
 The second opens the same profile, unlocks access through the isolated native
 keyring, reconciles those operations and checks the result with HTTPS GETs.
 
-Use `--linux-account-enrollment` for the additional BusyStack native setup
-case. It requires `xvfb-run`, `xauth`, GNOME Keyring and `xdotool` in the
+Use `--linux-account-enrollment` for native setup on both providers.
+It requires `xvfb-run`, `xauth`, GNOME Keyring and `xdotool` in the
 test host's executable path. The runner creates a private X11 display and
-keyring. The case starts the production Linux entry point with a fresh
-database, adds the CalDAV account through Settings, imports the fixture CA
+keyring for each run. It starts the production Linux entry point with a fresh
+database, adds the account through Settings, imports the fixture CA
 through the GTK picker and verifies journal discovery, selection and account
-reconnection. It exercises the CalDAV credential flow. Nextcloud's browser
-enrollment requires its own scenario.
+reconnection. For Nextcloud, a private desktop handler uses the existing
+Playwright fixture image with the fixture CA. The browser authorizes the real
+Nextcloud Login Flow through its app-password option. The host's browser
+defaults and certificate stores are outside the test profile.
 
 Run the historical create recovery and desktop file checks in separate
 Linux processes on the same private profile. The first process opens the
@@ -390,6 +399,15 @@ same occurrence to this-and-future. Independent GETs check the original
 recurrence identity and that exactly one exception remains. The native editor
 checks the preceding and following occurrence titles. The resulting marker
 covers this DATE and journal-link scenario.
+
+Set `BUSYMAX_LINUX_JOURNAL_FILES=1` with a private X11 session and `xdotool`
+to exercise the native GTK file adapter against both fixtures. The test
+saves a binary attachment to disk, exports and reimports an ICS file with a
+distinct UID, and checks both resources and attachment bytes by HTTPS GET.
+It reopens and explicitly clears the completed import review before
+collection deletion. Require `gtk-journal-files-provider-readback PASS`
+for each provider and a passing test result. This case covers ordinary
+binary attachments and ICS transfer.
 
 Set `BUSYMAX_LINUX_JOURNAL_CONFLICTS=1` when running
 `integration_test/journal_linux_workflows_test.dart` against a disposable
