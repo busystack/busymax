@@ -926,7 +926,7 @@ void runJournalWorkflow({
         await waitJournalWidget(tester, find.text(importedUid));
         await _editorAction(tester, button('Discard', false));
         await searchFor(importedTitle);
-        await tester.enterText(input('Search'), '');
+        await searchFor(title);
         record('gtk-journal-files-provider-readback');
       }
       final beforeDelete = (await tester.runAsync(
