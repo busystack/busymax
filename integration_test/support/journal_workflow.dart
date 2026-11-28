@@ -640,11 +640,23 @@ void runJournalWorkflow({
         final series = find.textContaining('$seriesTitle ·');
         await waitJournalWidget(tester, series);
         await _tapVisible(tester, series);
+        await waitJournalWidget(tester, input('Title'));
+        expect(inputValue(tester, input('Title')), seriesTitle);
         final link = find.text('Open link · Local edit');
-        await waitJournalWidget(tester, link);
         await _editorAction(tester, link);
-        await waitJournalWidget(tester, find.text('First body'));
-        expect(inputValue(tester, input('Title')), 'Local edit');
+        await waitJournalWidget(
+          tester,
+          find.descendant(
+            of: input('Title'),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is EditableText &&
+                  widget.controller.text == 'Local edit',
+            ),
+          ),
+        );
+        await _scrollEditorTo(tester, input('Description').first);
+        expect(inputValue(tester, input('Description').first), 'First body');
         await _editorAction(tester, button('Close', false));
 
         for (final (currentTitle, action, newTitle) in [
@@ -653,7 +665,7 @@ void runJournalWorkflow({
         ]) {
           await waitJournalWidget(tester, series);
           await _tapVisible(tester, series);
-          await waitJournalWidget(tester, find.text('Repeat'));
+          await waitJournalWidget(tester, input('Title'));
           await _editorAction(tester, find.text('Repeat'));
           final occurrence = find.byWidgetPredicate(
             (widget) =>
@@ -689,7 +701,7 @@ void runJournalWorkflow({
           );
         }
         await _tapVisible(tester, series);
-        await waitJournalWidget(tester, find.text('Repeat'));
+        await waitJournalWidget(tester, input('Title'));
         await _editorAction(tester, find.text('Repeat'));
         await waitJournalWidget(tester, find.text('$dayOne · $seriesTitle'));
         await waitJournalWidget(
