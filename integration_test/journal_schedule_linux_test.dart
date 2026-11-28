@@ -208,9 +208,42 @@ void main() {
     await waitJournalWidget(tester, find.byType(JournalPane), absent: true);
     await waitJournalWidget(tester, find.text('Created from Schedule'));
     await tester.tap(find.text('Created from Schedule'));
+    final editAction = find.byTooltip('Edit journal entry');
+    await waitJournalWidget(tester, editAction);
+    await tester.tap(editAction);
+    await waitJournalWidget(tester, title);
+    await tester.enterText(title, 'Unsubmitted title');
+    await tester.tap(find.text('Cancel'));
+    await waitJournalWidget(tester, find.byType(JournalPane), absent: true);
+    await tester.tap(find.text('Created from Schedule'));
     await waitJournalWidget(tester, find.byTooltip('Delete'));
     await tester.tap(find.byTooltip('Delete'));
     final confirm = find.widgetWithText(FilledButton, 'Delete');
+    await waitJournalWidget(tester, confirm);
+    await tester.tap(confirm);
+    await waitJournalWidget(tester, title);
+    expect(find.byType(BusyMaxContentPopoverSurface), findsNothing);
+    expect(find.byType(BusyMaxModalEditorScaffold), findsOneWidget);
+    expect(
+      tester.widget<TextField>(title).controller!.text,
+      'Unsubmitted title',
+    );
+    final discard = find.text('Discard');
+    await tester.scrollUntilVisible(
+      discard,
+      220,
+      scrollable: find
+          .descendant(
+            of: find.byType(JournalPane),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(discard);
+    await waitJournalWidget(tester, find.byType(JournalPane), absent: true);
+    await tester.tap(find.text('Created from Schedule'));
+    await waitJournalWidget(tester, find.byTooltip('Delete'));
+    await tester.tap(find.byTooltip('Delete'));
     await waitJournalWidget(tester, confirm);
     await tester.tap(confirm);
     await waitJournalWidget(tester, find.byType(JournalPane), absent: true);

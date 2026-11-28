@@ -765,7 +765,11 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
                                 'entry:${current.entry.componentId}',
                               ) !=
                               null) {
-                            setState(() => _editing = true);
+                            if (widget.onEditRequested case final open?) {
+                              open(null);
+                            } else {
+                              setState(() => _editing = true);
+                            }
                             return;
                           }
                           await repository.deleteResource(current);
