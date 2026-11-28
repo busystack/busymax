@@ -621,8 +621,8 @@ void runJournalWorkflow({
           ))!;
           expect(before.statusCode, 200);
           expect(before.body, contains('SUMMARY:$currentTitle\r\n'));
-          final localTitle = 'Local conflict choice $number';
-          final remoteTitle = 'Remote conflict choice $number';
+          final localTitle = 'Local conflict choice $number $marker';
+          final remoteTitle = 'Remote conflict choice $number $marker';
           setOnline(false);
           final current = journalResultTitle(currentTitle);
           await waitJournalWidget(tester, current);
