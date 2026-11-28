@@ -49,6 +49,8 @@ import 'package:busymax/src/core/auth/authorization_attempt.dart';
 
 import 'dart:async';
 
+import '../../ui/common/schedule/schedule_presentation.dart';
+
 import '../../journal/presentation/journal_pane.dart';
 import '../../db/app_database.dart' show DavCollection;
 import '../../dav/storage/dav_collection_capabilities.dart';
@@ -3717,16 +3719,10 @@ Future<void> _showAndroidDayItems(
                   itemBuilder: (context, index) {
                     final item = current[index];
                     return ListTile(
-                      leading: Icon(
-                        item is TaskScheduleItem
-                            ? Icons.checklist_outlined
-                            : Icons.event_outlined,
-                        color: item is TaskScheduleItem
-                            ? null
-                            : ScheduleProjection.colorForItem(
-                                item,
-                                Theme.of(context).brightness,
-                              ),
+                      leading: SchedulePresentation.of(context).itemLeading(
+                        context,
+                        item,
+                        (task, _) => onToggleTask(task),
                       ),
                       title: Text(
                         item.title,
@@ -3739,14 +3735,6 @@ Future<void> _showAndroidDayItems(
                       subtitle: Text(
                         item.sourceName ?? item.provider.displayName,
                       ),
-                      trailing: item is TaskScheduleItem
-                          ? Checkbox(
-                              value: item.completed,
-                              onChanged: item.capabilities.canEdit
-                                  ? (_) => onToggleTask(item)
-                                  : null,
-                            )
-                          : null,
                       onTap: () {
                         Navigator.pop(sheetContext);
                         onOpen(item);

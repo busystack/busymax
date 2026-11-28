@@ -1,6 +1,7 @@
 import 'package:busymax/src/ui/common/flutter_material.dart';
 
 import '../../../schedule/schedule_item.dart';
+import '../../../schedule/schedule_projection.dart';
 
 import '../../../app/busymax_surface_colors.dart';
 import '../../../features/schedule/presentation/schedule_item_selection.dart';
@@ -87,14 +88,7 @@ class SchedulePresentation {
               ListTile(
                 title: Text(item.title),
                 onTap: () => Navigator.pop(context, item),
-                leading: item is TaskScheduleItem
-                    ? Checkbox(
-                        value: item.completed,
-                        onChanged: item.capabilities.canEdit
-                            ? (value) => onCompletion(item, value ?? false)
-                            : null,
-                      )
-                    : Icon(itemIcon(item)),
+                leading: itemLeading(context, item, onCompletion),
               ),
           ],
         ),
@@ -115,6 +109,31 @@ class SchedulePresentation {
       : item is TaskScheduleItem
       ? taskIcon
       : calendarIcon;
+  Widget itemLeading(
+    BuildContext context,
+    ScheduleItem item,
+    void Function(TaskScheduleItem, bool) onCompletion,
+  ) => SizedBox.square(
+    dimension: 24,
+    child: Center(
+      child: item is TaskScheduleItem
+          ? checkbox(
+              context,
+              item.completed,
+              item.capabilities.canEdit
+                  ? (value) => onCompletion(item, value ?? false)
+                  : null,
+            )
+          : Icon(
+              itemIcon(item),
+              color: ScheduleProjection.colorForItem(
+                item,
+                Theme.of(context).brightness,
+              ),
+              size: ScheduleSizes.iconSm,
+            ),
+    ),
+  );
   IconData get createIcon => Icons.add;
   IconData previousIcon(TextDirection direction) => Icons.chevron_left;
   IconData nextIcon(TextDirection direction) => Icons.chevron_right;

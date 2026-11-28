@@ -633,8 +633,10 @@ class _MiniCalendarDayButtonState extends State<_MiniCalendarDayButton> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final canShowIndicators =
-              markerColors.isNotEmpty && constraints.maxHeight >= 28;
-          final indicatorHeight = canShowIndicators ? 4.0 : 0.0;
+              markerColors.isNotEmpty && constraints.maxHeight >= 22;
+          final indicatorHeight = canShowIndicators
+              ? (constraints.maxHeight >= 28 ? 4.0 : 3.0)
+              : 0.0;
           final availableMarkerExtent = math.min(
             constraints.maxWidth,
             constraints.maxHeight -
@@ -754,6 +756,7 @@ class _MiniCalendarDayButtonState extends State<_MiniCalendarDayButton> {
                   if (canShowIndicators) ...[
                     const SizedBox(height: ScheduleSpacing.xxs),
                     _MiniCalendarDayIndicators(
+                      key: ValueKey(('schedule-day-indicators', _dayOf(day))),
                       colors: markerColors,
                       height: indicatorHeight,
                     ),
@@ -770,6 +773,7 @@ class _MiniCalendarDayButtonState extends State<_MiniCalendarDayButton> {
 
 class _MiniCalendarDayIndicators extends StatelessWidget {
   const _MiniCalendarDayIndicators({
+    super.key,
     required this.colors,
     required this.height,
   });
@@ -792,7 +796,7 @@ class _MiniCalendarDayIndicators extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 1),
               child: DecoratedBox(
                 decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                child: const SizedBox.square(dimension: 4),
+                child: SizedBox.square(dimension: height),
               ),
             ),
         ],

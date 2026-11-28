@@ -3,14 +3,17 @@ import 'dart:io';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_app.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
+import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/journal/presentation/journal_pane.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
+import 'package:busymax/src/ui/common/schedule/mini_calendar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -87,7 +90,25 @@ void main() {
       () => settings.setScheduleViewMode(ScheduleViewMode.year),
     );
     await waitJournalWidget(tester, find.byType(ScheduleYearView));
-    debugPrint('JOURNAL_SCHEDULE_LINUX year PASS');
+    final yearMonth = find.byWidgetPredicate(
+      (widget) =>
+          widget is YearMonthMiniCalendar &&
+          widget.displayedMonth.month == today.month,
+    );
+    final marker = find.descendant(
+      of: yearMonth,
+      matching: find.byKey(
+        ValueKey((
+          'schedule-day-indicators',
+          DateTime(today.year, today.month, today.day),
+        )),
+      ),
+    );
+    await waitJournalWidget(tester, marker);
+    expect(tester.getSize(marker).height, greaterThan(0));
+    await tester.ensureVisible(marker);
+    expect(marker.hitTestable(), findsOneWidget);
+    debugPrint('JOURNAL_SCHEDULE_LINUX year-journal-indicator PASS');
     await tester.runAsync(
       () => settings.setScheduleViewMode(ScheduleViewMode.agenda),
     );
@@ -102,6 +123,8 @@ void main() {
     await tester.tap(fixture.first);
     await waitJournalWidget(tester, find.byType(JournalPane));
     await waitJournalWidget(tester, find.byTooltip('Edit journal entry'));
+    expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
     expect(find.byIcon(YaruIcons.pen), findsWidgets);
     await tester.tap(find.byTooltip('Edit journal entry'));
     final title = find.descendant(
@@ -112,6 +135,20 @@ void main() {
       ),
     );
     await waitJournalWidget(tester, title);
+    expect(find.byType(BusyMaxModalEditorScaffold), findsOneWidget);
+    expect(find.byType(BusyMaxTimeModeRow), findsOneWidget);
+    expect(find.byType(DesktopDateValueRow), findsOneWidget);
+    expect(find.text('YYYY-MM-DD'), findsNothing);
+    await tester.tap(find.text('Time slot'));
+    await waitJournalWidget(tester, find.byType(DesktopTimeValueRow));
+    expect(
+      tester
+          .widget<DesktopTimeValueRow>(find.byType(DesktopTimeValueRow))
+          .useNativePicker,
+      isTrue,
+    );
+    await tester.tap(find.text('All day'));
+    await tester.pumpAndSettle();
     await tester.enterText(title, 'Edited in Schedule');
     final save = find.descendant(
       of: find.byType(JournalPane),

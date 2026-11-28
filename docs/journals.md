@@ -15,6 +15,8 @@ An entry can be undated, all-day, floating, UTC, or tied to a timezone. Add
 separate description blocks for text variants. Each block keeps its own
 language and alternate representation. A final entry remains editable when
 the server grants permission. A cancelled entry keeps its history.
+The date and time controls accept ordinary calendar values. Use **Journal
+details** to review or edit the description parameters and raw date value.
 
 Use **Details** for repeat rules, reference and publishing properties, and
 nested participant, location, resource and status records. The editor displays
@@ -48,7 +50,8 @@ account so you can review or export those changes.
 
 Use a journal source's Options menu to import or export ICS. Import previews
 both stored journal entries and PUBLISH, ADD and CANCEL messages. Confirm
-the destination before applying an import. BusyMax exports effective journal
+the destination before applying an import. If the source is no longer
+writable, choose a destination explicitly. BusyMax exports effective journal
 entries and collections with their recurrence data and timezone definitions.
 Read-only WebCal entries appear in Schedule when the subscription contains
 journals.

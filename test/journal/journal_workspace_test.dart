@@ -17,6 +17,7 @@ import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -27,6 +28,102 @@ Finder field(String name) => find.byWidgetPredicate(
 );
 
 void main() {
+  for (final missing in [false, true]) {
+    testWidgets(
+      'import requires a destination when the invoked source is ${missing ? 'missing' : 'read only'}',
+      (tester) async {
+        final db = AppDatabase.memoryForTests();
+        addTearDown(db.close);
+        final alternate = (await tester.runAsync(() async {
+          final source = await seedLocalJournalCollection(db);
+          await (db.update(
+            db.davCollections,
+          )..where((row) => row.id.equals(source.id))).write(
+            DavCollectionsCompanion(
+              serverMissing: Value(missing),
+              currentUserPrivilegesJson: const Value('["{DAV:}read"]'),
+            ),
+          );
+          return seedLocalJournalCollection(
+            db,
+            accountId: 'other-account',
+            collectionId: 'other-source',
+            displayName: 'Alternate journal',
+          );
+        }))!;
+        var reads = 0;
+        final file = utf8.encode(
+          [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//BusyMax//QA//EN',
+            'BEGIN:VJOURNAL',
+            'UID:destination-check@example.invalid',
+            'DTSTAMP:20261128T000000Z',
+            'SUMMARY:Destination check',
+            'END:VJOURNAL',
+            'END:VCALENDAR',
+            '',
+          ].join('\r\n'),
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [databaseProvider.overrideWithValue(db)],
+            child: MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: JournalPane(
+                  action: JournalPaneAction.import,
+                  accountId: 'qa',
+                  sourceId: 'source',
+                  onClose: () {},
+                  controls: const MaterialJournalControls(),
+                  files: JournalFileActions(
+                    read: () async {
+                      reads++;
+                      return file;
+                    },
+                    export: (_) async {},
+                    pickAttachment: () async => null,
+                    saveAttachment: (_) async => null,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final destination = find.byType(DropdownButtonFormField<String>);
+        await _wait(tester, destination);
+        expect(
+          tester
+              .widget<DropdownButtonFormField<String>>(destination)
+              .initialValue,
+          '',
+        );
+        expect(reads, 0);
+        expect(find.text('Save'), findsNothing);
+        expect(
+          await tester.runAsync(() => db.select(db.pendingOps).get()),
+          isEmpty,
+        );
+        await tester.tap(destination);
+        await tester.pumpAndSettle();
+        await tester.tap(find.textContaining(alternate.displayName).last);
+        await _wait(tester, find.text('Destination check'));
+        expect(reads, 1);
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await _wait(tester, find.text('destination-check@example.invalid'));
+        final queued = (await tester.runAsync(
+          () => db.select(db.pendingOps).getSingle(),
+        ))!;
+        expect(queued.accountId, alternate.accountId);
+        expect(queued.davCollectionId, alternate.id);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   testWidgets(
     'historical journal updates offer bundle export and reviewed reapply',
     (tester) async {

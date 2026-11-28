@@ -140,6 +140,9 @@ class JournalPane extends ConsumerStatefulWidget {
     this.sourceId,
     this.accountId,
     this.initialDate,
+    this.editOnOpen = false,
+    this.initialOccurrenceScope,
+    this.onEditRequested,
     required this.onClose,
     this.detailActions,
     super.key,
@@ -153,6 +156,9 @@ class JournalPane extends ConsumerStatefulWidget {
   final String? sourceId;
   final String? accountId;
   final DateTime? initialDate;
+  final bool editOnOpen;
+  final bool? initialOccurrenceScope;
+  final ValueChanged<bool?>? onEditRequested;
   final VoidCallback onClose;
   final Widget Function(
     List<({String label, JournalDetailAction icon, VoidCallback? run})> actions,
@@ -176,6 +182,7 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
   bool _editing = false;
   bool _confirmReadDelete = false;
   bool _loadingPane = false;
+  JournalImportReview? _unassignedImport;
   String? _moveSource;
   String? _notice;
   final _recoveryChoices = <String?, int>{};
@@ -206,7 +213,22 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
             if (mounted) setState(() => _subscriptionEntry = entry);
           } else if (item.entry case final entry?) {
             final current = await repository.read(entry);
-            if (mounted) setState(() => _open = current);
+            if (!mounted) return;
+            setState(() {
+              _open = current;
+              _editing = widget.editOnOpen;
+            });
+            if (widget.initialOccurrenceScope case final future?) {
+              final occurrence = item.occurrence;
+              if (occurrence != null) {
+                final draft = repository.inspectOccurrence(
+                  current,
+                  occurrence,
+                  thisAndFuture: future,
+                );
+                setState(() => _occurrenceEdit = draft);
+              }
+            }
           }
         case JournalPaneAction.create:
           final sources = await repository.watchSources().first;
@@ -223,45 +245,7 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
           if (mounted) setState(() => _create = source);
         case JournalPaneAction.import:
           if (await ref.read(_importReviews).watch().first != null) return;
-          if (!mounted) return;
-          final files = widget.files;
-          if (files == null) return;
-          final sources = await repository.watchSources().first;
-          final writable = sources.where((source) {
-            final caps = collectionCapabilitiesFromStored(source);
-            return caps.canAttemptCreateJournal || caps.canAttemptUpdateJournal;
-          });
-          final source =
-              writable
-                  .where((source) => source.id == widget.sourceId)
-                  .firstOrNull ??
-              writable.firstOrNull;
-          if (source == null || !mounted) return;
-          final bytes = await files.read();
-          if (!mounted) return;
-          if (bytes == null) {
-            widget.onClose();
-            return;
-          }
-          final preview = ref
-              .read(icalImportServiceProvider)
-              .parsePreview(bytes)
-              .nativePreview;
-          await ref
-              .read(_importReviews)
-              .begin(
-                source,
-                JournalImportReview(
-                  NextcloudNativeImportPreview(
-                    preview.resources
-                        .where((entry) => entry.componentType == 'VJOURNAL')
-                        .toList(),
-                    preview.rejected,
-                    preview.schedulingMethod,
-                  ),
-                  bytes,
-                ),
-              );
+          if (widget.sourceId case final id?) await _loadImport(id);
         case JournalPaneAction.renameCollection:
           final source = (await repository.watchSources().first)
               .where((source) => source.id == widget.sourceId)
@@ -276,6 +260,58 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
       }
     });
     if (mounted) setState(() => _loadingPane = false);
+  }
+
+  bool _canImport(DavCollection source, {bool? journalMessage}) {
+    final caps = collectionCapabilitiesFromStored(source);
+    return caps.canAttemptCreateJournal ||
+        (journalMessage != false && caps.canAttemptUpdateJournal);
+  }
+
+  Future<void> _loadImport(String sourceId) async {
+    final repository = ref.read(_journalRepository);
+    Future<DavCollection?> destination(bool? journalMessage) async =>
+        (await repository.listSources())
+            .where(
+              (source) =>
+                  source.id == sourceId &&
+                  _canImport(source, journalMessage: journalMessage),
+            )
+            .firstOrNull;
+    if (await destination(_unassignedImport?.preview.isJournalMessage) ==
+            null ||
+        !mounted) {
+      return;
+    }
+    final files = widget.files;
+    if (files == null) return;
+    if (_unassignedImport == null) {
+      final bytes = await files.read();
+      if (!mounted) return;
+      if (bytes == null) {
+        widget.onClose();
+        return;
+      }
+      final preview = ref
+          .read(icalImportServiceProvider)
+          .parsePreview(bytes)
+          .nativePreview;
+      _unassignedImport = JournalImportReview(
+        NextcloudNativeImportPreview(
+          preview.resources
+              .where((entry) => entry.componentType == 'VJOURNAL')
+              .toList(),
+          preview.rejected,
+          preview.schedulingMethod,
+        ),
+        bytes,
+      );
+    }
+    final review = _unassignedImport!;
+    final source = await destination(review.preview.isJournalMessage);
+    if (source == null || !mounted) return;
+    await ref.read(_importReviews).begin(source, review);
+    _unassignedImport = null;
   }
 
   @override
@@ -445,11 +481,17 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
         current == null &&
         _create == null &&
         _subscriptionEntry == null) {
-      return Center(child: Text(l10n.scheduleLoading));
+      return widget.onEditRequested == null
+          ? Center(child: Text(l10n.scheduleLoading))
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(l10n.scheduleLoading),
+            );
     }
 
     if (_subscriptionEntry case final entry?) {
       return ListView(
+        shrinkWrap: widget.onEditRequested != null,
         padding: const EdgeInsets.all(16),
         children: [
           Text(entry.source.summary),
@@ -490,6 +532,7 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
       final report = const JsonEncoder.withIndent('  ')
           .convert(recovery.toJson());
       return ListView(
+        shrinkWrap: widget.onEditRequested != null,
         padding: const EdgeInsets.all(16),
         children: [
           Text(l10n.journalPendingRecovery),
@@ -608,7 +651,7 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
     if (current != null &&
         widget.action == JournalPaneAction.open &&
         !_editing &&
-        conflict == null) {
+        (conflict == null || widget.onEditRequested != null)) {
       final occurrence =
           widget.item?.entry?.componentId == current.entry.componentId
           ? widget.item?.occurrence
@@ -639,7 +682,15 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
             (
               label: l10n.editJournalEntry,
               icon: JournalDetailAction.edit,
-              run: _busy ? null : () => setState(() => _editing = true),
+              run: _busy
+                  ? null
+                  : () {
+                      if (widget.onEditRequested case final open?) {
+                        open(null);
+                      } else {
+                        setState(() => _editing = true);
+                      }
+                    },
             ),
             if (caps?.canAttemptDeleteJournal == true)
               (
@@ -656,6 +707,7 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
             ),
           ];
       return ListView(
+        shrinkWrap: widget.onEditRequested != null,
         padding: const EdgeInsets.all(16),
         children: [
           Text(journal.title ?? l10n.untitledJournal),
@@ -724,6 +776,10 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
                     _busy
                         ? null
                         : () => _run(() async {
+                            if (widget.onEditRequested case final open?) {
+                              open(future);
+                              return;
+                            }
                             final draft = repository.inspectOccurrence(
                               current,
                               occurrence,
@@ -1013,20 +1069,49 @@ class _JournalPaneState extends ConsumerState<JournalPane> {
 
     final reviewState = ref.watch(_importReview);
     final review = reviewState.valueOrNull;
+    if (widget.action == JournalPaneAction.import && review == null) {
+      final destinations = sources.where(
+        (source) => _canImport(
+          source,
+          journalMessage: _unassignedImport?.preview.isJournalMessage,
+        ),
+      );
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (_error != null) Text(_error!),
+          if (widget.sourceId != null || _unassignedImport != null)
+            Text(l10n.davPermissionChanged),
+          ui.choose(
+            l10n.journalCollection,
+            '',
+            [
+              (id: '', label: '—'),
+              for (final source in destinations)
+                (id: source.id, label: _journalSourceName(source)),
+            ],
+            (id) {
+              if (!_busy && id.isNotEmpty) _run(() => _loadImport(id));
+            },
+          ),
+          ui.button(l10n.close, _busy ? null : _closeEntry),
+        ],
+      );
+    }
     if (widget.action == JournalPaneAction.import && review != null) {
       final pendingImport = review.preview;
-      final destinations = sources.where((source) {
-        final caps = collectionCapabilitiesFromStored(source);
-        return caps.canAttemptCreateJournal ||
-            (pendingImport.isJournalMessage && caps.canAttemptUpdateJournal);
-      }).toList();
+      final destinations = sources
+          .where(
+            (source) => _canImport(
+              source,
+              journalMessage: pendingImport.isJournalMessage,
+            ),
+          )
+          .toList();
       final reviewedId = review.destinationId;
-      final destination = reviewedId == null
-          ? destinations
-                    .where((source) => source.id == filteredSource?.id)
-                    .firstOrNull ??
-                destinations.firstOrNull
-          : destinations.where((source) => source.id == reviewedId).firstOrNull;
+      final destination = destinations
+          .where((source) => source.id == reviewedId)
+          .firstOrNull;
       final remaining = destination == null
           ? null
           : review.remaining(destination.id);
@@ -1509,6 +1594,8 @@ class _JournalEditorState extends State<_JournalEditor> {
   late String _mode =
       widget.snapshot?.component.start?.kind.name ??
       (widget.snapshot == null && widget.initialDate != null ? 'date' : '');
+  String _lastTimedMode = 'floatingDateTime';
+  bool _timeValid = true;
   String _frequency = '';
   DateTime? _occurrenceMonth;
   late final _descriptions = [
@@ -2057,6 +2144,31 @@ class _JournalEditorState extends State<_JournalEditor> {
     }
   }
 
+  List<JournalChoice> _timeModes(AppLocalizations l10n) => [
+    (id: 'floatingDateTime', label: l10n.journalFloatingTime),
+    (id: 'utcDateTime', label: 'UTC'),
+    (id: 'tzidDateTime', label: l10n.journalZonedTime),
+  ];
+
+  void _toggleDetails() => setState(() => _showDetails = !_showDetails);
+
+  void _setDateMode(String mode) {
+    if (_mode == mode) return;
+    if (_mode.endsWith('DateTime')) _lastTimedMode = _mode;
+    final civil =
+        _civilDateTime ??
+        DateTime.tryParse(_date.text.trim().replaceFirst(RegExp(r'[Zz]$'), ''));
+    _changeDraft(() {
+      _mode = mode;
+      _timeValid = true;
+      if (mode.isNotEmpty && (civil != null || _date.text.isEmpty)) {
+        _date.text = DateFormat(
+          mode == 'date' ? 'yyyyMMdd' : "yyyyMMdd'T'HHmmss",
+        ).format(civil ?? widget.initialDate ?? DateTime.now());
+      }
+    });
+  }
+
   void _chooseCivilDateTime(DateTime value, {required bool changeDay}) {
     final prior = _civilDateTime;
     final date = changeDay ? value : prior ?? value;
@@ -2177,11 +2289,19 @@ class _JournalEditorState extends State<_JournalEditor> {
     final title = component?.firstProperty('SUMMARY');
     final status = component?.firstProperty('STATUS');
     final derivedDate = isDerivedJournalProperty(_original);
+    final timed = !derivedDate && _mode.isNotEmpty && _mode != 'date';
     final knownStatuses = ['', 'DRAFT', 'FINAL', 'CANCELLED'];
     if (_loadingDraft) return const SizedBox.shrink();
     final locked = _saving || widget.busy || _draftLeaving;
     final draftNeedsRecovery =
         _draftFailed || _draftLoadFailed || (_hasDraft && !_draftDurable);
+    final layout = ui is JournalEditorLayout ? ui as JournalEditorLayout : null;
+    Widget group(List<Widget> children) =>
+        layout?.group(children) ??
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        );
     return BusyMaxWindowCloseGuard(
       onCloseRequested: _flushDraft,
       navigationCoordinator: widget.navigationCoordinator,
@@ -2194,9 +2314,12 @@ class _JournalEditorState extends State<_JournalEditor> {
           absorbing: locked,
           child: ExcludeFocus(
             excluding: locked,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
+            child: _editorBody(
+              layout: layout,
+              locked: locked,
+              canEdit: canEdit,
+              canSave: canEdit && !locked && (!timed || _timeValid),
+              fields: [
                 if (widget.destinationChoices.isNotEmpty &&
                     widget.source != null)
                   ui.choose(
@@ -2257,106 +2380,140 @@ class _JournalEditorState extends State<_JournalEditor> {
                     ),
                   ),
                 if (canEdit) ...[
-                  if (isDerivedJournalProperty(title))
-                    Text(title!.decodedTextValue)
-                  else
-                    ui.input(l10n.title, controller: _title),
-                  if (derivedDate)
-                    Text(_original!.rawValue)
-                  else
-                    ui.choose(l10n.journalDate, _mode, [
-                      (id: '', label: l10n.noDate),
-                      (id: 'date', label: l10n.journalDate),
-                      (id: 'floatingDateTime', label: l10n.journalFloatingTime),
-                      (id: 'utcDateTime', label: '${l10n.journalDate} (UTC)'),
-                      (id: 'tzidDateTime', label: l10n.journalZonedTime),
-                    ], (value) => _changeDraft(() => _mode = value)),
-                  if (!derivedDate &&
-                      widget.occurrences != null &&
-                      _mode.isNotEmpty &&
-                      _mode != 'date' &&
-                      _mode != snapshot?.component.start?.kind.name)
-                    Text(l10n.journalSeriesDateModeNotice),
-                  if (!derivedDate && _mode.isNotEmpty) ...[
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ui.pickDate(
-                          l10n.journalPickDate,
-                          _civilDateTime,
-                          (date) => _chooseCivilDateTime(date, changeDay: true),
-                        ),
-                        if (_mode != 'date')
-                          ui.pickTime(
-                            l10n.journalPickTime,
-                            _civilDateTime,
-                            (time) =>
-                                _chooseCivilDateTime(time, changeDay: false),
-                          ),
-                      ],
-                    ),
-                    ui.input(
-                      _mode == 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DDTHH:MM:SS',
-                      controller: _date,
-                    ),
-                  ],
-                  if (!derivedDate && _mode == 'tzidDateTime')
-                    ui.input('TZID', controller: _zone),
-                  if (snapshot == null && _mode.isNotEmpty)
-                    ui.choose(l10n.repeat, _frequency, [
-                      (id: '', label: l10n.repeatNone),
-                      (id: 'daily', label: l10n.repeatDaily),
-                      (id: 'weekly', label: l10n.repeatWeekly),
-                      (id: 'monthly', label: l10n.repeatMonthly),
-                      (id: 'yearly', label: l10n.repeatYearly),
-                    ], (value) => _changeDraft(() => _frequency = value)),
-                  if (isDerivedJournalProperty(status))
-                    Text(status!.rawValue)
-                  else
-                    ui.choose(l10n.journalStatus, _status, [
-                      for (final status in {...knownStatuses, _status})
-                        (id: status, label: status.isEmpty ? '—' : status),
-                    ], (value) => _changeDraft(() => _status = value)),
-                  for (final draft in _descriptions) ...[
-                    const SizedBox(height: 12),
-                    KeyedSubtree(
-                      key: ObjectKey(draft),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (draft.derived)
-                            Text(draft.original!.serializeLogicalLine())
-                          else ...[
-                            ui.input(
-                              l10n.description,
-                              controller: draft.text,
-                              lines: 4,
-                            ),
-                            ui.input('LANGUAGE', controller: draft.language),
-                            ui.input('ALTREP', controller: draft.alternate),
-                            ui.button(
-                              l10n.journalRemoveDescription,
-                              () => _changeDraft(() {
-                                _descriptions.remove(draft);
-                                WidgetsBinding.instance.addPostFrameCallback(
-                                  (_) => draft.dispose(),
-                                );
-                              }),
-                            ),
-                          ],
+                  group([
+                    if (isDerivedJournalProperty(title))
+                      Text(title!.decodedTextValue)
+                    else
+                      ui.input(l10n.title, controller: _title),
+                  ]),
+                  group([
+                    if (derivedDate)
+                      Text(_original!.rawValue)
+                    else if (layout == null)
+                      ui.choose(l10n.journalDate, _mode, [
+                        (id: '', label: l10n.noDate),
+                        (id: 'date', label: l10n.allDay),
+                        ..._timeModes(l10n),
+                      ], _setDateMode)
+                    else ...[
+                      ui.choose(
+                        l10n.journalDate,
+                        _mode.isEmpty ? '' : 'dated',
+                        [
+                          (id: '', label: l10n.noDate),
+                          (id: 'dated', label: l10n.journalDated),
                         ],
+                        (value) => _setDateMode(value.isEmpty ? '' : 'date'),
                       ),
+                      if (_mode.isNotEmpty)
+                        layout.timeMode(
+                          _mode == 'date',
+                          (allDay) =>
+                              _setDateMode(allDay ? 'date' : _lastTimedMode),
+                        ),
+                      if (_mode.isNotEmpty && _mode != 'date')
+                        ui.choose(
+                          l10n.selectTimeZone,
+                          _mode,
+                          _timeModes(l10n),
+                          _setDateMode,
+                        ),
+                    ],
+                    if (!derivedDate && _mode.isNotEmpty) ...[
+                      ui.pickDate(
+                        l10n.journalPickDate,
+                        _civilDateTime,
+                        (date) => _chooseCivilDateTime(date, changeDay: true),
+                      ),
+                      if (timed)
+                        layout?.timeField(
+                              l10n.startTime,
+                              _civilDateTime,
+                              (time) =>
+                                  _chooseCivilDateTime(time, changeDay: false),
+                              timeZone: _mode == 'tzidDateTime'
+                                  ? _zone.text
+                                  : null,
+                              onTimeZoneChanged: _mode != 'tzidDateTime'
+                                  ? null
+                                  : (value) =>
+                                        _changeDraft(() => _zone.text = value),
+                              onValidityChanged: (valid) {
+                                if (_timeValid != valid) {
+                                  setState(() => _timeValid = valid);
+                                }
+                              },
+                            ) ??
+                            ui.pickTime(
+                              l10n.journalPickTime,
+                              _civilDateTime,
+                              (time) =>
+                                  _chooseCivilDateTime(time, changeDay: false),
+                            ),
+                      if (_mode == 'tzidDateTime' && layout == null)
+                        ui.input(l10n.selectTimeZone, controller: _zone),
+                    ],
+                    if (!derivedDate &&
+                        widget.occurrences != null &&
+                        _mode.isNotEmpty &&
+                        _mode != 'date' &&
+                        _mode != snapshot?.component.start?.kind.name)
+                      Text(l10n.journalSeriesDateModeNotice),
+                  ]),
+                  group([
+                    if (snapshot == null && _mode.isNotEmpty)
+                      ui.choose(l10n.repeat, _frequency, [
+                        (id: '', label: l10n.repeatNone),
+                        (id: 'daily', label: l10n.repeatDaily),
+                        (id: 'weekly', label: l10n.repeatWeekly),
+                        (id: 'monthly', label: l10n.repeatMonthly),
+                        (id: 'yearly', label: l10n.repeatYearly),
+                      ], (value) => _changeDraft(() => _frequency = value)),
+                    if (isDerivedJournalProperty(status))
+                      Text(status!.rawValue)
+                    else
+                      ui.choose(l10n.journalStatus, _status, [
+                        for (final status in {...knownStatuses, _status})
+                          (id: status, label: status.isEmpty ? '—' : status),
+                      ], (value) => _changeDraft(() => _status = value)),
+                  ]),
+                  group([
+                    for (final draft in _descriptions)
+                      KeyedSubtree(
+                        key: ObjectKey(draft),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (draft.derived)
+                              Text(draft.original!.serializeLogicalLine())
+                            else ...[
+                              ui.input(
+                                l10n.description,
+                                controller: draft.text,
+                                lines: 4,
+                              ),
+                              ui.button(
+                                l10n.journalRemoveDescription,
+                                () => _changeDraft(() {
+                                  _descriptions.remove(draft);
+                                  WidgetsBinding.instance.addPostFrameCallback(
+                                    (_) => draft.dispose(),
+                                  );
+                                }),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ui.button(
+                      l10n.journalAddDescription,
+                      () => _changeDraft(() {
+                        final draft = _DescriptionDraft();
+                        _listenDescription(draft);
+                        _descriptions.add(draft);
+                      }),
                     ),
-                  ],
-                  ui.button(
-                    l10n.journalAddDescription,
-                    () => _changeDraft(() {
-                      final draft = _DescriptionDraft();
-                      _listenDescription(draft);
-                      _descriptions.add(draft);
-                    }),
-                  ),
+                  ]),
                 ] else if (_hasDraft) ...[
                   Text(
                     _title.text.isEmpty ? l10n.untitledJournal : _title.text,
@@ -2412,14 +2569,36 @@ class _JournalEditorState extends State<_JournalEditor> {
                 ],
                 ..._occurrenceControls(l10n),
                 if (canEdit) ...[
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: ui.button(
-                      l10n.journalDetails,
-                      () => setState(() => _showDetails = !_showDetails),
-                    ),
-                  ),
+                  group([
+                    layout?.details(l10n.journalDetails, _toggleDetails) ??
+                        ui.button(l10n.journalDetails, _toggleDetails),
+                  ]),
                   if (_showDetails) ...[
+                    group([
+                      if (!derivedDate &&
+                          _mode == 'tzidDateTime' &&
+                          layout != null)
+                        ui.input('TZID', controller: _zone),
+                      if (!derivedDate && _mode.isNotEmpty)
+                        ui.input(
+                          _mode == 'date'
+                              ? 'YYYY-MM-DD'
+                              : 'YYYY-MM-DDTHH:MM:SS',
+                          controller: _date,
+                        ),
+                      for (final draft in _descriptions.where(
+                        (draft) => !draft.derived,
+                      ))
+                        KeyedSubtree(
+                          key: ObjectKey(draft),
+                          child: Column(
+                            children: [
+                              ui.input('LANGUAGE', controller: draft.language),
+                              ui.input('ALTREP', controller: draft.alternate),
+                            ],
+                          ),
+                        ),
+                    ]),
                     JournalPropertyEditor(
                       ui: ui,
                       fields: _details,
@@ -2455,7 +2634,7 @@ class _JournalEditorState extends State<_JournalEditor> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    if (canEdit)
+                    if (canEdit && layout == null)
                       ui.button(
                         l10n.save,
                         locked || _staleDraft ? null : _save,
@@ -2535,7 +2714,8 @@ class _JournalEditorState extends State<_JournalEditor> {
                             ? widget.cancelRange
                             : () => setState(() => _confirmCancelRange = true),
                       ),
-                    ui.button(l10n.close, locked ? null : _requestClose),
+                    if (layout == null)
+                      ui.button(l10n.close, locked ? null : _requestClose),
                     if (_hasDraft)
                       ui.button(
                         l10n.discardChangesAction,
@@ -2549,6 +2729,28 @@ class _JournalEditorState extends State<_JournalEditor> {
         ),
       ),
     );
+  }
+
+  Widget _editorBody({
+    required JournalEditorLayout? layout,
+    required bool locked,
+    required bool canEdit,
+    required bool canSave,
+    required List<Widget> fields,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    return layout?.editor(
+          title: widget.snapshot == null
+              ? l10n.newJournalEntry
+              : l10n.editJournalEntry,
+          closeLabel: canEdit ? l10n.cancel : l10n.close,
+          saveLabel: l10n.save,
+          close: () => unawaited(_requestClose()),
+          save: canSave ? _save : null,
+          locked: locked,
+          children: fields,
+        ) ??
+        ListView(padding: const EdgeInsets.all(16), children: fields);
   }
 }
 

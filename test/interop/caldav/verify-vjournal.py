@@ -429,7 +429,7 @@ flutter test --no-pub -d linux integration_test/journal_linux_account_enrollment
             results[f'{prefix}-apk'] = apk_identity
             # Launch the APK checked above without a second Gradle build.
             # The integration-test driver returns the named results over the VM connection.
-            passed = run(label, ['flutter', 'drive', '--debug', '--no-pub', '--keep-app-running',
+            passed = run(label, ['flutter', 'drive', '--debug', '--no-pub', '--no-dds', '--keep-app-running',
                          '--target=' + native, '--driver=integration_test/support/journal_driver.dart',
                          '--use-application-binary=' + str(apk), '-d', serial], extra_env=flags,
                          named=[expected])

@@ -250,6 +250,7 @@ void runJournalWorkflow({
         await searchFor(offlineCreation);
         await searchFor(offlineEdit);
         await _tapVisible(tester, journalResultTitle(offlineEdit));
+        await enterJournalEditor(tester);
         await waitJournalWidget(
           tester,
           find.text('Draft saved on this device'),
@@ -898,14 +899,7 @@ void runJournalWorkflow({
         await _editorAction(tester, find.text('Repeat'));
         await scrollToOccurrence(find.text('$dayOne · $seriesTitle'));
         await scrollToOccurrence(find.text('${prefix}03 · $futureTitle'));
-        await _scrollEditorTo(tester, button('Save', true));
-        await _tapVisible(
-          tester,
-          find.descendant(
-            of: find.widgetWithText(Wrap, 'Save'),
-            matching: button('Close', false),
-          ),
-        );
+        await _editorAction(tester, button('Close', false));
         await searchFor('Local edit');
         record('recurrence-and-journal-link-readback');
       }

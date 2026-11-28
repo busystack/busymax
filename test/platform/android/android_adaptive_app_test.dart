@@ -5,6 +5,7 @@ import 'package:busymax/src/dav/ical/ical_task_alarm.dart';
 import 'package:busymax/src/ui/common/schedule/schedule_interactions.dart';
 
 import '../../support/schedule_parity_fixture.dart';
+import '../../support/local_journal_fixture.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -29,6 +30,8 @@ import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/dav/ical/ical_document.dart';
+import 'package:busymax/src/journal/journal_repository.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
@@ -402,6 +405,22 @@ void main() {
         await seedScheduleParityFixture(db);
         await db.delete(db.calendarEvents).go();
         final today = DateTime.now().toIso8601String().substring(0, 10);
+        final journalSource = await seedLocalJournalCollection(db);
+        final journal = IcalDocument.parse(
+          [
+            'BEGIN:VCALENDAR',
+            'BEGIN:VJOURNAL',
+            'DTSTART;VALUE=DATE:${today.replaceAll('-', '')}',
+            'END:VJOURNAL',
+            'END:VCALENDAR',
+            '',
+          ].join('\r\n'),
+        ).calendarComponents.single;
+        await JournalRepository(db).create(
+          journalSource,
+          title: 'Overflow journal',
+          start: journal.firstProperty('DTSTART'),
+        );
         for (var i = 0; i < 12; i++) {
           await db
               .into(db.calendarEvents)
@@ -437,14 +456,35 @@ void main() {
     expect(more, findsOneWidget);
     await tester.tap(more);
     await tester.pumpAndSettle();
-    final row = find.widgetWithText(ListTile, 'Date-only task');
-    await tester.scrollUntilVisible(
-      row,
-      200,
-      scrollable: find.descendant(
-        of: find.byType(BottomSheet),
-        matching: find.byType(Scrollable),
+    final list = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.byType(Scrollable),
+    );
+    final event = find.widgetWithText(ListTile, 'Overflow event 0');
+    await tester.scrollUntilVisible(event, 200, scrollable: list);
+    expect(
+      find.descendant(
+        of: event,
+        matching: find.byIcon(Icons.calendar_today_outlined),
       ),
+      findsOneWidget,
+    );
+    final journal = find.widgetWithText(ListTile, 'Overflow journal');
+    await tester.scrollUntilVisible(journal, 200, scrollable: list);
+    expect(
+      find.descendant(of: journal, matching: find.byIcon(Icons.book_outlined)),
+      findsOneWidget,
+    );
+    expect(tester.widget<ListTile>(journal).trailing, isNull);
+    final row = find.widgetWithText(ListTile, 'Date-only task');
+    final position = tester.state<ScrollableState>(list).position;
+    position.jumpTo(position.minScrollExtent);
+    await tester.pump();
+    await tester.scrollUntilVisible(row, 160, scrollable: list);
+    expect(tester.widget<ListTile>(row).trailing, isNull);
+    expect(
+      find.descendant(of: row, matching: find.byType(Checkbox)),
+      findsOneWidget,
     );
     await tester.tap(_completionControl(row));
     await tester.pumpAndSettle();

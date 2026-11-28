@@ -1,9 +1,14 @@
 import '../../app/busymax_design.dart';
+import '../../features/tasks/presentation/desktop_date_time_fields.dart';
 import '../../ui/common/flutter_material.dart';
-import 'journal_pane.dart';
-import 'journal_material_pickers.dart';
 
-final class LinuxJournalControls implements JournalControls {
+import 'package:intl/intl.dart';
+import 'package:yaru/yaru.dart';
+
+import 'journal_controls.dart';
+
+final class LinuxJournalControls
+    implements JournalControls, JournalEditorLayout {
   const LinuxJournalControls();
 
   @override
@@ -12,14 +17,18 @@ final class LinuxJournalControls implements JournalControls {
     TextEditingController? controller,
     ValueChanged<String>? onChanged,
     int lines = 1,
-  }) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: TextField(
-      controller: controller,
-      onChanged: onChanged,
-      minLines: lines,
-      maxLines: lines == 1 ? 1 : 12,
-      decoration: InputDecoration(labelText: label),
+  }) => YaruListTile.square(
+    title: Builder(
+      builder: (context) => TextField(
+        controller: controller,
+        onChanged: onChanged,
+        minLines: lines,
+        maxLines: lines == 1 ? 1 : 12,
+        decoration: busyMaxGroupedTextFieldDecoration(
+          context,
+          labelText: label,
+        ),
+      ),
     ),
   );
 
@@ -29,16 +38,13 @@ final class LinuxJournalControls implements JournalControls {
     String selected,
     List<JournalChoice> choices,
     ValueChanged<String> change,
-  ) => SizedBox(
-    width: 320,
-    child: BusyMaxComboRow<String>(
-      title: label,
-      values: choices.map((choice) => choice.id).toList(),
-      selected: selected,
-      labelFor: (id) => choices.firstWhere((choice) => choice.id == id).label,
-      onSelected: change,
-      wrapSelectedValue: true,
-    ),
+  ) => BusyMaxComboRow<String>(
+    title: label,
+    values: choices.map((choice) => choice.id).toList(),
+    selected: selected,
+    labelFor: (id) => choices.firstWhere((choice) => choice.id == id).label,
+    onSelected: change,
+    wrapSelectedValue: true,
   );
 
   @override
@@ -52,12 +58,83 @@ final class LinuxJournalControls implements JournalControls {
     String label,
     DateTime? current,
     ValueChanged<DateTime> change,
-  ) => journalDatePicker(this, label, current, change);
+  ) => DesktopDateValueRow(
+    label: label,
+    date: current == null ? null : DateFormat('yyyy-MM-dd').format(current),
+    onChanged: (value) => change(DateTime.parse(value)),
+  );
 
   @override
   Widget pickTime(
     String label,
     DateTime? current,
     ValueChanged<DateTime> change,
-  ) => journalTimePicker(this, label, current, change);
+  ) => timeField(label, current, change);
+
+  @override
+  Widget timeField(
+    String label,
+    DateTime? current,
+    ValueChanged<DateTime> change, {
+    String? timeZone,
+    ValueChanged<String>? onTimeZoneChanged,
+    ValueChanged<bool>? onValidityChanged,
+  }) => DesktopTimeValueRow(
+    label: label,
+    time: DateFormat('HH:mm').format(current ?? DateTime.now()),
+    allowEmpty: false,
+    useNativePicker: true,
+    timeZone: timeZone,
+    onTimeZoneChanged: onTimeZoneChanged,
+    onValidityChanged: onValidityChanged,
+    onChanged: (value) {
+      if (value == null) return;
+      final base = current ?? DateTime.now();
+      final clock = value.split(':');
+      change(
+        DateTime.utc(
+          base.year,
+          base.month,
+          base.day,
+          int.parse(clock[0]),
+          int.parse(clock[1]),
+          base.second,
+        ),
+      );
+    },
+  );
+
+  @override
+  Widget editor({
+    required String title,
+    required String closeLabel,
+    required String saveLabel,
+    required VoidCallback close,
+    required VoidCallback? save,
+    required bool locked,
+    required List<Widget> children,
+  }) => BusyMaxModalEditorScaffold(
+    title: title,
+    cancelLabel: closeLabel,
+    saveLabel: saveLabel,
+    onCancel: close,
+    onSave: save,
+    cancelEnabled: !locked,
+    children: children,
+  );
+
+  @override
+  Widget group(List<Widget> children) =>
+      BusyMaxGroupedList(filled: true, children: children);
+
+  @override
+  Widget timeMode(bool allDay, ValueChanged<bool> change) =>
+      BusyMaxTimeModeRow(allDay: allDay, onChanged: change);
+
+  @override
+  Widget details(String label, VoidCallback action) => BusyMaxActionRow(
+    title: label,
+    leading: const Icon(YaruIcons.document),
+    onTap: action,
+  );
 }

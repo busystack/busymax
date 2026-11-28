@@ -1793,9 +1793,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     Offset? globalPosition,
   }) async {
     if (item is JournalScheduleItem) {
-      await showLinuxJournalDialog(
-        anchorContext,
-        JournalPaneAction.open,
+      await showLinuxJournalDetails(
+        context,
+        anchorContext: anchorContext,
+        anchorPoint: globalPosition,
         item: item,
       );
       return;

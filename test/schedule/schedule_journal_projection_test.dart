@@ -12,6 +12,7 @@ import 'package:busymax/src/ui/common/schedule/schedule_planner_events.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
 
 import '../support/local_journal_fixture.dart';
 
@@ -30,6 +31,56 @@ IcalProperty _dateProperty(String name, String value, {bool date = false}) =>
     );
 
 void main() {
+  test(
+    'journal markers share visual collision columns without gaining time',
+    () {
+      final date = DateTime(2026, 11, 28, 9);
+      final longEvent = icv.Event(
+        startTime: date,
+        endTime: date.add(const Duration(minutes: 45)),
+      );
+      icv.Event mark(int offset) {
+        final start = date.add(Duration(minutes: offset, seconds: 30));
+        return icv.Event(
+          startTime: start,
+          endTime: start.add(const Duration(microseconds: 1)),
+          eventType: ScheduleItemKind.journal,
+        );
+      }
+
+      final events = [longEvent, mark(35), mark(54), mark(67), mark(110)];
+      for (final width in [90.0, 320.0]) {
+        final arranged = const SchedulePlannerEventArranger().arrange(
+          events: events,
+          height: 1440,
+          width: width,
+          heightPerMinute: 1,
+        );
+        Rect rect(icv.OrganizedEvent tile) => Rect.fromLTRB(
+          tile.left,
+          tile.top,
+          width - tile.right,
+          1440 - tile.bottom,
+        );
+        for (var i = 0; i < arranged.length; i++) {
+          final tile = arranged[i];
+          expect(tile.event, same(events[i]));
+          expect(tile.startDuration, events[i].startTime);
+          if (i > 0) {
+            expect(tile.startDuration, tile.endDuration);
+            expect(rect(tile).height, 22);
+          }
+          for (final other in arranged.skip(i + 1)) {
+            expect(rect(tile).deflate(0.001).overlaps(rect(other)), isFalse);
+          }
+        }
+        expect(arranged[1].top, 575.5);
+        expect(rect(arranged.last).width, width - 8);
+        expect(arranged.first.endDuration, longEvent.endTime);
+      }
+    },
+  );
+
   test(
     'search retains pending journal recovery after account sign-out',
     () async {

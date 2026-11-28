@@ -49,3 +49,27 @@ abstract interface class JournalControls {
     ValueChanged<DateTime> change,
   );
 }
+
+/// Host hooks for the desktop editor chrome and native grouped fields.
+abstract interface class JournalEditorLayout {
+  Widget editor({
+    required String title,
+    required String closeLabel,
+    required String saveLabel,
+    required VoidCallback close,
+    required VoidCallback? save,
+    required bool locked,
+    required List<Widget> children,
+  });
+  Widget group(List<Widget> children);
+  Widget timeMode(bool allDay, ValueChanged<bool> change);
+  Widget timeField(
+    String label,
+    DateTime? value,
+    ValueChanged<DateTime> change, {
+    String? timeZone,
+    ValueChanged<String>? onTimeZoneChanged,
+    ValueChanged<bool>? onValidityChanged,
+  });
+  Widget details(String label, VoidCallback action);
+}

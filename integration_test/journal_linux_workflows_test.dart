@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_app.dart';
+import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/ui/common/flutter_material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,8 +58,22 @@ void main() {
       input: (label) => label == 'Search'
           ? journalScheduleSearchInput()
           : journalMaterialInput(label),
-      button: (label, primary) =>
-          find.widgetWithText(primary ? ElevatedButton : FilledButton, label),
+      button: (label, primary) {
+        if (label == 'Journal details') {
+          return find.descendant(
+            of: find.byType(BusyMaxActionRow),
+            matching: find.text(label),
+          );
+        }
+        if (label == 'Close' &&
+            find.widgetWithText(FilledButton, 'Cancel').evaluate().isNotEmpty) {
+          return find.widgetWithText(FilledButton, 'Cancel');
+        }
+        return find.widgetWithText(
+          primary ? ElevatedButton : FilledButton,
+          label,
+        );
+      },
     );
   }
 }
